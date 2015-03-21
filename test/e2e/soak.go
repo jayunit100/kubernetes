@@ -18,7 +18,7 @@ package e2e
 
 import (
 	//"fmt"
-	"sync"
+	//"sync"
 	//"time"
 
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
@@ -90,24 +90,13 @@ var _ = Describe("soaktest", func() {
 		}
 	})
 
-	It("should allow starting 100 pods per node", func() {
-		RCName := "my-hostname-density100-" + string(util.NewUUID())
-		RunRC(c, RCName, ns, "dockerfile/nginx", 100*minionCount)
-	})
+	//It("should allow starting 100 pods per node", func() {
+	//	RCName := "my-hostname-density100-" + string(util.NewUUID())
+	//		RunRC(c, RCName, ns, "dockerfile/nginx", 100*minionCount)
+	//})
 
 	It("should have master components that can handle many short-lived pods", func() {
-		threads := 5
-		var wg sync.WaitGroup
-		wg.Add(threads)
-		for i := 0; i < threads; i++ {
-			go func() {
-				defer wg.Done()
-				for i := 0; i < 10; i++ {
-					name := "my-hostname-thrash-" + string(util.NewUUID())
-					RunRC(c, name, ns, "kubernetes/pause", 10*minionCount)
-				}
-			}()
-		}
-		wg.Wait()
+		name := "my-hostname-thrash-" + string(util.NewUUID())
+		RunRC(c, name, ns, "kubernetes/pause", minionCount)
 	})
 })
