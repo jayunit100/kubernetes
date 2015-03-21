@@ -1,0 +1,2 @@
+kubectl delete pod --all ; kubectl delete rc --all ; kubectl delete service --all ;  
+go run ./cmd/e2e/e2e.go --provider="local" --host="http://`hostname`:8080" -t "soaktest" --auth_config=/tmp/kubernetes_auth
