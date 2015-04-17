@@ -81,6 +81,24 @@ func waitForPodCondition(c *client.Client, ns, podName, desc string, condition p
 	return fmt.Errorf("gave up waiting for pod %s to be %s after %.2f seconds", podName, desc, podStartTimeout.Seconds())
 }
 
+//monotonically increasing ns index is useful for certain
+//testing scenarios, but dont worry, we won't rely on it for a unique ID.
+var ginkgoNsIndex = 0
+
+// createNS should be used by every test, note that we append a common prefix to the provided test name.
+func createGinkgoNS(baseName string, c *client.Client) (*api.Namespace, error) {
+	ginkgoNsIndex++
+	namespaceObj := &api.Namespace{
+		ObjectMeta: api.ObjectMeta{
+			Name:      fmt.Sprintf("e2e-tests-%v-%v-%v", baseName, ginkgoNsIndex, randomSuffix()),
+			Namespace: "",
+		},
+		Status: api.NamespaceStatus{},
+	}
+	_, err := c.Namespaces().Create(namespaceObj)
+	return namespaceObj, err
+}
+
 func waitForPodRunningInNamespace(c *client.Client, podName string, namespace string) error {
 	return waitForPodCondition(c, namespace, podName, "running", func(pod *api.Pod) (bool, error) {
 		return (pod.Status.Phase == api.PodRunning), nil
@@ -269,6 +287,7 @@ func validateController(c *client.Client, containerImage string, replicas int, c
 	Failf("Timed out after %v seconds waiting for %s pods to reach valid state", podStartTimeout.Seconds(), testname)
 }
 
+// kubectlCmd runs the kubectl executable.
 // kubectlCmd runs the kubectl executable.
 func kubectlCmd(args ...string) *exec.Cmd {
 	defaultArgs := []string{}
