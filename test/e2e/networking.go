@@ -19,7 +19,9 @@ package e2e
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	//"sync"
 	"time"
 
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
@@ -33,8 +35,6 @@ import (
 
 var _ = Describe("Networking", func() {
 	f := NewFramework("nettest")
-
-	var svcname = "nettest"
 
 	BeforeEach(func() {
 		//Assert basic external connectivity.
@@ -71,140 +71,194 @@ var _ = Describe("Networking", func() {
 		}
 	})
 
-	//Now we can proceed with the test.
-	It("should function for intra-pod communication", func() {
-		if testContext.Provider == "vagrant" {
-			By("Skipping test which is broken for vagrant (See https://github.com/GoogleCloudPlatform/kubernetes/issues/3580)")
-			return
-		}
+	//1 service and 120 seconds is the original networking.go test,
+	//which confirms that all hosts can eventually ping each other over
+	//their service endpoint on 8080.
+	services := [...]int{1}       //, 5}
+	timeouts := [...]float64{120} //, 160}
 
-		By(fmt.Sprintf("Creating a service named %q in namespace %q", svcname, f.Namespace.Name))
-		svc, err := f.Client.Services(f.Namespace.Name).Create(&api.Service{
-			ObjectMeta: api.ObjectMeta{
-				Name: svcname,
-				Labels: map[string]string{
-					"name": svcname,
-				},
+	for ii := range services {
+		It(
+			fmt.Sprintf("should support intrapod communication between all hosts in %v parallel services", services[ii]),
+			func(doneTimeout Done) {
+				RunNetTest(doneTimeout, f, Makeports(services[ii]), "1.4")
 			},
-			Spec: api.ServiceSpec{
-				Ports: []api.ServicePort{{
-					Protocol:   "TCP",
-					Port:       8080,
-					TargetPort: util.NewIntOrStringFromInt(8080),
-				}},
-				Selector: map[string]string{
-					"name": svcname,
-				},
-			},
-		})
-		if err != nil {
-			Failf("unable to create test service named [%s] %v", svc.Name, err)
-		}
-
-		// Clean up service
-		defer func() {
-			defer GinkgoRecover()
-			By("Cleaning up the service")
-			if err = f.Client.Services(f.Namespace.Name).Delete(svc.Name); err != nil {
-				Failf("unable to delete svc %v: %v", svc.Name, err)
-			}
-		}()
-
-		By("Creating a webserver (pending) pod on each node")
-
-		nodes, err := f.Client.Nodes().List(labels.Everything(), fields.Everything())
-		if err != nil {
-			Failf("Failed to list nodes: %v", err)
-		}
-
-		podNames := LaunchNetTestPodPerNode(f, nodes, svcname, "1.4")
-
-		// Clean up the pods
-		defer func() {
-			defer GinkgoRecover()
-			By("Cleaning up the webserver pods")
-			for _, podName := range podNames {
-				if err = f.Client.Pods(f.Namespace.Name).Delete(podName, nil); err != nil {
-					Logf("Failed to delete pod %s: %v", podName, err)
-				}
-			}
-		}()
-
-		By("Waiting for the webserver pods to transition to Running state")
-		for _, podName := range podNames {
-			err = f.WaitForPodRunning(podName)
-			Expect(err).NotTo(HaveOccurred())
-		}
-
-		By("Waiting for connectivity to be verified")
-		passed := false
-
-		//once response OK, evaluate response body for pass/fail.
-		var body []byte
-		getDetails := func() ([]byte, error) {
-			return f.Client.Get().
-				Namespace(f.Namespace.Name).
-				Prefix("proxy").
-				Resource("services").
-				Name(svc.Name).
-				Suffix("read").
-				DoRaw()
-		}
-
-		getStatus := func() ([]byte, error) {
-			return f.Client.Get().
-				Namespace(f.Namespace.Name).
-				Prefix("proxy").
-				Resource("services").
-				Name(svc.Name).
-				Suffix("status").
-				DoRaw()
-		}
-
-		timeout := time.Now().Add(2 * time.Minute)
-		for i := 0; !passed && timeout.After(time.Now()); i++ {
-			time.Sleep(2 * time.Second)
-			Logf("About to make a proxy status call")
-			start := time.Now()
-			body, err = getStatus()
-			Logf("Proxy status call returned in %v", time.Since(start))
-			if err != nil {
-				Logf("Attempt %v: service/pod still starting. (error: '%v')", i, err)
-				continue
-			}
-			// Finally, we pass/fail the test based on if the container's response body, as to wether or not it was able to find peers.
-			switch {
-			case string(body) == "pass":
-				Logf("Passed on attempt %v. Cleaning up.", i)
-				passed = true
-			case string(body) == "running":
-				Logf("Attempt %v: test still running", i)
-			case string(body) == "fail":
-				if body, err = getDetails(); err != nil {
-					Failf("Failed on attempt %v. Cleaning up. Error reading details: %v", i, err)
-				} else {
-					Failf("Failed on attempt %v. Cleaning up. Details:\n%s", i, string(body))
-				}
-			case strings.Contains(string(body), "no endpoints available"):
-				Logf("Attempt %v: waiting on service/endpoints", i)
-			default:
-				Logf("Unexpected response:\n%s", body)
-			}
-		}
-
-		if !passed {
-			if body, err = getDetails(); err != nil {
-				Failf("Timed out. Cleaning up. Error reading details: %v", err)
-			} else {
-				Failf("Timed out. Cleaning up. Details:\n%s", string(body))
-			}
-		}
-		Expect(string(body)).To(Equal("pass"))
-	})
-
+			timeouts[ii])
+	}
 })
 
-func LaunchNetTestPodPerNode(f *Framework, nodes *api.NodeList, name, version string) []string {
+//PeerStatus will either fail, pass, or continue polling
+func PollPeerStatus(ch chan int, f *Framework, svc *api.Service) bool {
+
+	Logf("Polling !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!          ")
+	getDetails := func() ([]byte, error) {
+		return f.Client.Get().
+			Namespace(f.Namespace.Name).
+			Prefix("proxy").
+			Resource("services").
+			Name(svc.Name).
+			Suffix("read").
+			DoRaw()
+	}
+
+	getStatus := func() ([]byte, error) {
+		return f.Client.Get().
+			Namespace(f.Namespace.Name).
+			Prefix("proxy").
+			Resource("services").
+			Name(svc.Name).
+			Suffix("status").
+			DoRaw()
+	}
+
+	passed := false
+	//Try for 60 times, where we poll every few seconds.
+	for i := 0; !passed && i < 60; i++ {
+		time.Sleep(2 * time.Second)
+		Logf("About to make a proxy status call")
+		start := time.Now()
+		body, err := getStatus()
+		Logf("Proxy status call returned in %v", time.Since(start))
+		if err != nil {
+			Logf("Attempt %v: service/pod still starting. (error: '%v')", i, err)
+			continue
+		}
+		// Finally, we pass/fail the test based on if the container's response body, as to wether or not it was able to find peers.
+		switch {
+		case string(body) == "pass":
+			Logf("Passed on attempt %v. Cleaning up.", i)
+			passed = true
+		case string(body) == "running":
+			Logf("Attempt %v: test still running", i)
+		case string(body) == "fail":
+			if body, err = getDetails(); err != nil {
+				Failf("Failed on attempt %v. Cleaning up. Error reading details: %v", i, err)
+			} else {
+				Failf("Failed on attempt %v. Cleaning up. Details:\n%s", i, string(body))
+			}
+		case strings.Contains(string(body), "no endpoints available"):
+			Logf("Attempt %v: waiting on service/endpoints", i)
+		default:
+			Logf("Unexpected response:\n%s", body)
+		}
+	}
+
+	if !passed {
+		if body, err := getDetails(); err != nil {
+			Failf("Timed out. Cleaning up. Error reading details: %v", err)
+		} else {
+			Failf("Timed out. Cleaning up. Details:\n%s", string(body))
+		}
+	}
+	Logf("sending final result to channel")
+	ch <- -1
+	Logf("RETURN")
+	return passed
+}
+
+//RunNetTest Creates a single pod on each host which serves
+//on a unique port in the cluster.  It then binds a service to
+//that port, so that there are "n" nodes to balance traffic to -
+//finally, each node reaches out to ping every other node in
+//the cluster on the given port.
+//The more ports you give, the more services will be spun up,
+//i.e. one service per port.
+//To test basic pod networking, send a single port.
+//To soak test the services, we can send a range (i.e. 8000-9000).
+func RunNetTest(doneTimeout Done, f *Framework, ports []int, nettestVersion string) {
+	defer GinkgoRecover()
+	defer close(doneTimeout)
+
+	//res := make([]float, 5)
+	sem := make(chan int, len(ports))
+	for ii := range ports {
+		//required to copy the var when we're creating it.
+		i := ports[ii]
+
+		go func() {
+			defer GinkgoRecover()
+
+			//    defer GinkgoRecover()
+			var svcname = fmt.Sprintf("nettest-%v", i)
+			//defer close(done)
+			if testContext.Provider == "vagrant" {
+				//By("Skipping test which is broken for vagrant (See https://github.com/GoogleCloudPlatform/kubernetes/issues/3580)")
+				return
+			}
+
+			//By(fmt.Sprintf("Creating a service named %q in namespace %q", svcname, f.Namespace.Name))
+			svc, err := f.Client.Services(f.Namespace.Name).Create(&api.Service{
+				ObjectMeta: api.ObjectMeta{
+					Name: svcname,
+					Labels: map[string]string{
+						"name": svcname,
+					},
+				},
+				Spec: api.ServiceSpec{
+					Ports: []api.ServicePort{{
+						Protocol:   "TCP",
+						Port:       i,
+						TargetPort: util.NewIntOrStringFromInt(i),
+					}},
+					Selector: map[string]string{
+						"name": svcname,
+					},
+				},
+			})
+			if err != nil {
+				Failf("unable to create test service named [%s] %v", svc.Name, err)
+			} else {
+				Logf("CREATED SERVICE............")
+			}
+
+			//By("Creating a webserver (pending) pod on each node")
+
+			nodes, err := f.Client.Nodes().List(labels.Everything(), fields.Everything())
+			if err != nil {
+				Failf("Failed to list nodes: %v", err)
+			}
+
+			Logf("launching pod per node.....")
+			podNames := LaunchNetTestPodPerNode(i, nettestVersion, f, nodes, svcname)
+			Logf("*(*********************** Launched test pods for %v", i)
+			//By("Waiting for the webserver pods to transition to Running state")
+
+			for _, podName := range podNames {
+				err = f.WaitForPodRunning(podName)
+				Expect(err).NotTo(HaveOccurred())
+				By(fmt.Sprintf("Waiting for connectivity to be verified [ port =  %v ] ", i))
+				//once response OK, evaluate response body for pass/fail.
+				PollPeerStatus(sem, f, svc)
+
+			}
+
+			Logf("*(************************ Finished test pods for %v", i)
+		}()
+	}
+	//Expect(string(body)).To(Equal("pass"))
+	//now wait for the all X nettests to complete...
+	//By("Waiting for all connectivities to be verified")
+	for ii := range ports {
+		Logf("Now waiting on port %v", ports[ii])
+		<-sem
+		Logf("finished ! port %v", ports[ii])
+	}
+	Logf("------------- all done, returning --------------")
+	return
+}
+
+//Makeports makes a bunch of ports from 8080->8080+n
+func Makeports(n int) []int {
+	m := make([]int, n)
+	for i := 0; i < n; i++ {
+		m[i] = 8080 + i
+	}
+	return m
+}
+
+//Return a function which runs a single net-test.  This function can be
+//called in many threads for load testing
+func LaunchNetTestPodPerNode(port int, version string, f *Framework, nodes *api.NodeList, name string) []string {
 	podNames := []string{}
 
 	totalPods := len(nodes.Items)
@@ -222,15 +276,17 @@ func LaunchNetTestPodPerNode(f *Framework, nodes *api.NodeList, name, version st
 			Spec: api.PodSpec{
 				Containers: []api.Container{
 					{
-						Name:  "webserver",
+						Name: "webserver",
+						//versions ~ 1.3 (original RO service) or 1.4 (new service token tests)
 						Image: "gcr.io/google_containers/nettest:" + version,
 						Args: []string{
+							"-port=" + strconv.Itoa(port),
 							"-service=" + name,
 							//peers >= totalPods should be asserted by the container.
 							//the nettest container finds peers by looking up list of svc endpoints.
 							fmt.Sprintf("-peers=%d", totalPods),
 							"-namespace=" + f.Namespace.Name},
-						Ports: []api.ContainerPort{{ContainerPort: 8080}},
+						Ports: []api.ContainerPort{{ContainerPort: port}},
 					},
 				},
 				NodeName:      node.Name,
