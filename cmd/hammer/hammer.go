@@ -147,10 +147,11 @@ func main() {
 	// This creates a client, first loading any specified kubeconfig
 	// file, and then overriding the Master flag, if non-empty.
 	kubeconfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: "/opt/kube-config"},
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: "/opt/kube-creds"},
 		&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: "127.0.0.1"}}).ClientConfig()
 	if err != nil {
 		fmt.Print("FAILED!!!!!!!")
+		fmt.Print(err)
 		os.Exit(1)
 	}
 
@@ -164,6 +165,6 @@ func main() {
 	ch := make(chan struct{})
 	fmt.Print("Starting controller. ")
 	ctrlr.Run(ch)
-	fmt.Prunt("... DONE.")
+	fmt.Print("... DONE.")
 
 }
