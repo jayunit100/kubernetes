@@ -41,7 +41,27 @@ import (
 	"k8s.io/kubernetes/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/watch"
 	watchjson "k8s.io/kubernetes/pkg/watch/json"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+var promHttpReqs = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "http_requests_total_in_client",
+		Help: "Number of http requests, partitioned by metadata",
+	},
+	[]string{"code", "method"},
+)
+
+var promRegistered = false
+
+func incCounter(code int, method string) {
+	if !promRegistered {
+		prometheus.MustRegister(promHttpReqs)
+		promRegistered = true
+	}
+	promHttpReqs.WithLabelValues(string(code), method).Inc()
+}
 
 // specialParams lists parameters that are handled specially and which users of Request
 // are therefore not allowed to set manually.
@@ -597,6 +617,8 @@ func (r *Request) Stream() (io.ReadCloser, error) {
 	}
 	url := r.URL().String()
 	req, err := http.NewRequest(r.verb, url, nil)
+	fmt.Print("---- request ----")
+
 	if err != nil {
 		return nil, err
 	}
@@ -605,10 +627,21 @@ func (r *Request) Stream() (io.ReadCloser, error) {
 		client = http.DefaultClient
 	}
 	resp, err := client.Do(req)
+
+	//add to prometheus stats.
+	incCounter(resp.StatusCode, r.verb)
+	if err := prometheus.Push("requests", "none", "127.0.0.1:9091"); err != nil {
+		fmt.Println("ERROR PUSHGATEWAY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	} else {
+		fmt.Println("PUSHED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Print("response code")
+	fmt.Println(resp.StatusCode)
 	switch {
 	case (resp.StatusCode >= 200) && (resp.StatusCode < 300):
 		return resp.Body, nil
@@ -644,6 +677,7 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
 	if r.err != nil {
 		return r.err
 	}
+	fmt.Print("REQUEST ......................................................")
 
 	// TODO: added to catch programmer errors (invoking operations with an object with an empty namespace)
 	if (r.verb == "GET" || r.verb == "PUT" || r.verb == "DELETE") && r.namespaceSet && len(r.resourceName) > 0 && len(r.namespace) == 0 {
@@ -671,6 +705,16 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
 		req.Header = r.headers
 
 		resp, err := client.Do(req)
+
+		glog.Warningf("resp/verb %v %v", resp.StatusCode, r.verb)
+
+		incCounter(resp.StatusCode, r.verb)
+
+		if err2 := prometheus.Push("requests", "none", "127.0.0.1:9091"); err2 != nil {
+			fmt.Println("ERROR PUSHGATEWAY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+		} else {
+			fmt.Println("PUSHED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+		}
 		if err != nil {
 			return err
 		}

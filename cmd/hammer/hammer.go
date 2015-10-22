@@ -41,7 +41,7 @@ import (
 )
 
 const (
-	gcCheckPeriod = 20 * time.Second
+	gcCheckPeriod = 1 * time.Millisecond
 	gcThreshold   = 10
 )
 
@@ -56,6 +56,7 @@ type GCController struct {
 func New(kubeClient client.Interface) *GCController {
 
 	resyncPeriodFunc := func() time.Duration {
+		fmt.Println("resync")
 		return 1 * time.Second
 	}
 
@@ -67,6 +68,7 @@ func New(kubeClient client.Interface) *GCController {
 		kubeClient: kubeClient,
 		threshold:  gcThreshold,
 		deletePod: func(namespace, name string) error {
+			fmt.Print("\n ... deleting " + name)
 			return kubeClient.Pods(namespace).Delete(name, api.NewDeleteOptions(0))
 		},
 	}
@@ -76,9 +78,13 @@ func New(kubeClient client.Interface) *GCController {
 	gcc.podStore.Store, gcc.podStoreSyncer = framework.NewInformer(
 		&cache.ListWatch{
 			ListFunc: func() (runtime.Object, error) {
-				return gcc.kubeClient.Pods(api.NamespaceAll).List(labels.Everything(), terminatedSelector)
+				fmt.Print("[list func]")
+				list, xyz := gcc.kubeClient.Pods(api.NamespaceAll).List(labels.Everything(), terminatedSelector)
+				fmt.Print(len(list.Items))
+				return list, xyz
 			},
 			WatchFunc: func(rv string) (watch.Interface, error) {
+				fmt.Print("[watch func]")
 				return gcc.kubeClient.Pods(api.NamespaceAll).Watch(labels.Everything(), terminatedSelector, rv)
 			},
 		},
@@ -111,6 +117,7 @@ func (gcc *GCController) gc() {
 
 	var wait sync.WaitGroup
 	for i := 0; i < deleteCount; i++ {
+		glog.Infof("for deletecount... %v / %v", i, deleteCount)
 		wait.Add(1)
 		go func(namespace string, name string) {
 			defer wait.Done()
@@ -124,10 +131,11 @@ func (gcc *GCController) gc() {
 }
 
 func compileTerminatedPodSelector() fields.Selector {
-	selector, err := fields.ParseSelector("status.phase!=" + string(api.PodPending) + ",status.phase!=" + string(api.PodRunning) + ",status.phase!=" + string(api.PodUnknown))
+	selector, err := fields.ParseSelector("status.phase!=" + string(api.PodPending)) //status.phase==" + string(api.PodRunning))
 	if err != nil {
 		panic("terminatedSelector must compile: " + err.Error())
 	}
+	fmt.Println("compiled terminator..")
 	return selector
 }
 
@@ -148,7 +156,7 @@ func main() {
 	// file, and then overriding the Master flag, if non-empty.
 	kubeconfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		&clientcmd.ClientConfigLoadingRules{ExplicitPath: "/opt/kube-creds"},
-		&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: "127.0.0.1"}}).ClientConfig()
+		&clientcmd.ConfigOverrides{ClusterInfo: clientcmdapi.Cluster{Server: "http://127.0.0.1:8080"}}).ClientConfig()
 	if err != nil {
 		fmt.Print("FAILED!!!!!!!")
 		fmt.Print(err)
