@@ -125,6 +125,10 @@ type Request struct {
 	resp *http.Response
 }
 
+func (r *Request) Url() string {
+	return r.path
+}
+
 // NewRequest creates a new request helper object for accessing runtime.Objects on a server.
 func NewRequest(client HTTPClient, verb string, baseURL *url.URL, apiVersion string,
 	codec runtime.Codec) *Request {
@@ -675,8 +679,7 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
 	if r.err != nil {
 		return r.err
 	}
-	fmt.Print("REQUEST ......................................................")
-
+	fmt.Print("\n url = " + r.finalURLTemplate() + " " + strings.Split(r.finalURLTemplate(), "?")[0] + " \n")
 	// TODO: added to catch programmer errors (invoking operations with an object with an empty namespace)
 	if (r.verb == "GET" || r.verb == "PUT" || r.verb == "DELETE") && r.namespaceSet && len(r.resourceName) > 0 && len(r.namespace) == 0 {
 		return fmt.Errorf("an empty namespace may not be set when a resource name is provided")
@@ -705,12 +708,12 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
 		resp, err := client.Do(req)
 
 		glog.Warningf("resp/verb %v %v", resp.StatusCode, r.verb)
-
+		glog.Warningf("path %v", r)
 		incCounter(resp.StatusCode, r.verb)
 
-		if err2 := prometheus.Push("requests", "none", "127.0.0.1:9091"); err2 != nil {
-			fmt.Println("ERROR PUSHGATEWAY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-		}
+		//if err2 := prometheus.Push("requests", "none", "127.0.0.1:9091"); err2 != nil {
+		//	fmt.Println("ERROR PUSHGATEWAY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+		//}
 		if err != nil {
 			return err
 		}
