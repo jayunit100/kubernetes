@@ -630,11 +630,9 @@ func (r *Request) Stream() (io.ReadCloser, error) {
 
 	//add to prometheus stats.
 	incCounter(resp.StatusCode, r.verb)
-	if err := prometheus.Push("requests", "none", "127.0.0.1:9091"); err != nil {
-		fmt.Println("ERROR PUSHGATEWAY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-	} else {
-		fmt.Println("PUSHED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-	}
+	//TODO, we might be able to live without this?
+	//if err := prometheus.Push("requests", "none", "127.0.0.1:9091"); err != nil {
+	//}
 
 	if err != nil {
 		return nil, err
@@ -712,13 +710,10 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
 
 		if err2 := prometheus.Push("requests", "none", "127.0.0.1:9091"); err2 != nil {
 			fmt.Println("ERROR PUSHGATEWAY!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-		} else {
-			fmt.Println("PUSHED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		}
 		if err != nil {
 			return err
 		}
-
 		done := func() bool {
 			// ensure the response body is closed before we reconnect, so that we reuse the same
 			// TCP connection
