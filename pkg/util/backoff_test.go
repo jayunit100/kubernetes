@@ -37,8 +37,12 @@ func TestSlowBackoff(t *testing.T) {
 	maxDuration := 50 * step
 
 	b := NewFakeBackOff(step, maxDuration, tc)
-	cases := []time.Duration{0, 1, 2, 4, 8, 16, 32, 50, 50, 50}
+	cases := []time.Duration{0, 1, 2, 4, 8, 16, 32, 50, 50, 50, 0}
 	for ix, c := range cases {
+		//The final test, we back down to zero: confirming that reset also works.
+		if ix == 10 {
+			b.Reset(id)
+		}
 		tc.Step(step)
 		w := b.Get(id)
 		if w != c*step {
