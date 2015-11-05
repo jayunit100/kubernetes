@@ -19,6 +19,7 @@ package unversioned
 import (
 	"bytes"
 	"errors"
+	"github.com/golang/glog"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -551,6 +552,9 @@ func TestRequestWatch(t *testing.T) {
 		},
 	}
 	for i, testCase := range testCases {
+		//This will allow us to avoid the test timing out.
+		ResetBackoffStrategy()
+		glog.Infof("testcase %v", testCase.Request)
 		watch, err := testCase.Request.Watch()
 		hasErr := err != nil
 		if hasErr != testCase.Err {
@@ -613,6 +617,7 @@ func TestRequestStream(t *testing.T) {
 		},
 	}
 	for i, testCase := range testCases {
+		ResetBackoffStrategy()
 		body, err := testCase.Request.Stream()
 		hasErr := err != nil
 		if hasErr != testCase.Err {
@@ -682,6 +687,7 @@ func TestRequestDo(t *testing.T) {
 		},
 	}
 	for i, testCase := range testCases {
+		ResetBackoffStrategy() //Prevent backoff from causing test timeout
 		body, err := testCase.Request.Do().Raw()
 		hasErr := err != nil
 		if hasErr != testCase.Err {
@@ -732,13 +738,45 @@ func TestDoRequestNewWay(t *testing.T) {
 	}
 }
 
+func TestBackoffLifecycle(t *testing.T) {
+	count := 0
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		count++
+		t.Logf("attempt %d", count)
+		//requests "1" and "2" both fail.
+		if count == 5 || count == 9 {
+			w.WriteHeader(http.StatusOK)
+			return
+		} else {
+			w.WriteHeader(http.StatusGatewayTimeout)
+			return
+		}
+	}))
+	defer testServer.Close()
+	c := NewOrDie(&Config{Host: testServer.URL, Version: testapi.Default.Version(), Username: "user", Password: "pass"})
+
+	//Test backoff recovery and increase.  This correlates to the constants
+	//which are used in the server implementation returning StatusOK above.
+	seconds := []int{0, 1, 2, 4, 8, 0, 1, 2, 4, 0}
+	for _, sec := range seconds {
+		start := time.Now()
+		_, _ = c.Verb("POST").Prefix("backofftest", string(sec)).Suffix("abc").DoRaw()
+		finish := time.Since(start)
+		glog.Infof("%v finished in %v", sec, finish)
+		if finish < time.Duration(sec)*time.Second || finish >= time.Duration(sec+5)*time.Second {
+			t.Fatalf("%v not in range %v", finish, sec)
+		}
+	}
+}
+
 func TestCheckRetryClosesBody(t *testing.T) {
+
 	count := 0
 	ch := make(chan struct{})
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		count++
 		t.Logf("attempt %d", count)
-		if count >= 5 {
+		if count >= 2 {
 			w.WriteHeader(http.StatusOK)
 			close(ch)
 			return
@@ -759,7 +797,7 @@ func TestCheckRetryClosesBody(t *testing.T) {
 		t.Fatalf("Unexpected error: %v %#v", err, err)
 	}
 	<-ch
-	if count != 5 {
+	if count != 2 {
 		t.Errorf("unexpected retries: %d", count)
 	}
 }

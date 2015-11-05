@@ -48,6 +48,16 @@ import (
 // are therefore not allowed to set manually.
 var specialParams = sets.NewString("timeout")
 
+// backoff is the underlying backoff struct we use to prevent thundering herd drama, esp when this runs in a controller.
+var backoff = &URLBackoff{Backoff: util.NewBackOff(1*time.Second, 120*time.Second)}
+
+//We expose some of the backoff functionality to callers.
+
+// ResetBackoffStrategy exposes the clear functionality of underlying backoff.
+func ResetBackoffStrategy() {
+	backoff.Reset()
+}
+
 // HTTPClient is an interface for testing a request object.
 type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
@@ -585,8 +595,17 @@ func (r *Request) Watch() (watch.Interface, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
+
+	time.Sleep(backoff.CalculateBackoff(r.URL()))
 	resp, err := client.Do(req)
 	updateURLMetrics(r, resp, err)
+	if r.baseURL != nil {
+		if err != nil {
+			backoff.UpdateBackoff(r.baseURL, err, 0)
+		} else {
+			backoff.UpdateBackoff(r.baseURL, err, resp.StatusCode)
+		}
+	}
 	if err != nil {
 		// The watch stream mechanism handles many common partial data errors, so closed
 		// connections can be retried in many cases.
@@ -638,12 +657,20 @@ func (r *Request) Stream() (io.ReadCloser, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
+
+	time.Sleep(backoff.CalculateBackoff(r.URL()))
 	resp, err := client.Do(req)
 	updateURLMetrics(r, resp, err)
+	if r.baseURL != nil {
+		if err != nil {
+			backoff.UpdateBackoff(r.URL(), err, 0)
+		} else {
+			backoff.UpdateBackoff(r.URL(), err, resp.StatusCode)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
-
 	switch {
 	case (resp.StatusCode >= 200) && (resp.StatusCode < 300):
 		return resp.Body, nil
@@ -683,6 +710,7 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
 	}()
 
 	if r.err != nil {
+		glog.V(4).Infof("Error in request: %v", r.err)
 		return r.err
 	}
 
@@ -698,7 +726,6 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
 	if client == nil {
 		client = http.DefaultClient
 	}
-
 	// Right now we make about ten retry attempts if we get a Retry-After response.
 	// TODO: Change to a timeout based approach.
 	maxRetries := 10
@@ -711,8 +738,15 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
 		}
 		req.Header = r.headers
 
+		time.Sleep(backoff.CalculateBackoff(r.URL()))
 		resp, err := client.Do(req)
 		updateURLMetrics(r, resp, err)
+
+		if err != nil {
+			backoff.UpdateBackoff(r.URL(), err, 0)
+		} else {
+			backoff.UpdateBackoff(r.URL(), err, resp.StatusCode)
+		}
 		if err != nil {
 			return err
 		}
@@ -739,7 +773,6 @@ func (r *Request) request(fn func(*http.Request, *http.Response)) error {
 
 // Do formats and executes the request. Returns a Result object for easy response
 // processing.
-//
 // Error type:
 //  * If the request can't be constructed, or an error happened earlier while building its
 //    arguments: *RequestConstructionError
