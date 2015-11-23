@@ -108,40 +108,30 @@ var _ = Describe("Networking", func() {
 		}
 	})
 
-	// Each tuple defined in this struct array represents
-	// a number of services, and a timeout.  So for example,
-	// {1, 300} defines a test where 1 service is created and
-	// we give it 300 seconds to timeout.  This is how we test
-	// services in parallel... we can create a tuple like {5,400}
-	// to confirm that services over 5 ports all pass the networking test.
-	serviceSoakTests := []struct {
+	// TODO We can convert this to an array, to run iterations of service soak.
+	// If we do so, however, we need multiple frameworks in a single test, unless we decide to
+	// combine namespaces.
+	svcSoak := struct {
 		service        int
 		timeoutSeconds time.Duration
 	}{
-		// These are very liberal, once this test is running regularly,
-		// We will DECREASE the timeout value.
-		// Replace this with --scale constants eventually https://github.com/kubernetes/kubernetes/issues/10479.
-		{1, time.Duration(100 * time.Second)},
-		{3, time.Duration(200 * time.Second)}, // Test that parallel nettests running on different ports complete.
+		3, time.Duration(200 * time.Second),
 	}
 
-	for _, svcSoak := range serviceSoakTests {
-		// copy to local to avoid range overwriting
-		timeoutSeconds := svcSoak.timeoutSeconds
-		serviceNum := svcSoak.service
-		It(fmt.Sprintf("should function for intrapod communication between all hosts in %v parallel services [Conformance]", serviceNum),
-			func() {
-				f2 := NewFramework(fmt.Sprintf("nettest%v", serviceNum))
-				//Create a few extra services,
-				minPort := 1000
-				maxPort := 10000
-				// For the GCE E2E parallel CI, we will allow a few failures in case of port collisions.
-				totalPort := serviceNum + 3
-				allPorts := rand.Intsn(minPort, totalPort, maxPort)
-				Logf("Running service test with timeout = %v for %v, ports = ", timeout, serviceNum, allPorts)
-				runNetTest(timeoutSeconds, f2, allPorts, nettestVersion)
-			})
-	}
+	// copy to local to avoid range overwriting
+	timeoutSeconds := svcSoak.timeoutSeconds
+	serviceNum := svcSoak.service
+	It(fmt.Sprintf("should function for intrapod communication between all hosts in %v parallel services [Conformance]", serviceNum),
+		func() {
+			//Create a few extra services,
+			minPort := 1000
+			maxPort := 10000
+			// For the GCE E2E parallel CI, we will allow a few failures in case of port collisions.
+			totalPort := serviceNum + 3
+			allPorts := rand.Intsn(minPort, totalPort, maxPort)
+			Logf("Running service test with timeout = %v for %v, ports = ", timeout, serviceNum, allPorts)
+			runNetTest(timeoutSeconds, f, allPorts, nettestVersion)
+		})
 })
 
 var pollings = 0
@@ -183,7 +173,9 @@ func pollPeerStatus(f *Framework, svc *api.Service, pollTimeoutSeconds time.Dura
 
 	pollingFunction := func() PeerTestResult {
 		body, err := getStatus()
-		if err != nil {
+
+		// The above call can fail if the test is done.  That is ok.
+		if err != nil && netTestDone == false {
 			Failf("Failed to list nodes: %v", err)
 		}
 
@@ -317,25 +309,8 @@ func runNetTest(timeoutSeconds time.Duration, f *Framework, ports []int, nettest
 				Logf("Created service successfully [%s]", svc.Name)
 			}
 
-			// Clean up service
-			defer func() {
-				By("Cleaning up the service")
-				if err := f.Client.Services(f.Namespace.Name).Delete(svc.Name); err != nil {
-					Failf("unable to delete svc %v: %v", svc.Name, err)
-				}
-			}()
-
 			Logf("launching pod per node.....")
 			podNames := launchNetTestPodPerNode(port, nettestVersion, f, nodes, svcname)
-			// Clean up the pods
-			defer func() {
-				By("Cleaning up the webserver pods")
-				for _, podName := range podNames {
-					if err = f.Client.Pods(f.Namespace.Name).Delete(podName, nil); err != nil {
-						Logf("Failed to delete pod %s: %v", podName, err)
-					}
-				}
-			}()
 			Logf("Launched test pods for %v", port)
 			By("waiting for all of the webserver pods to transition to Running + reaching the Passing state.")
 
