@@ -29,9 +29,12 @@ import (
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/labels"
-	"k8s.io/kubernetes/pkg/util"
+	//"k8s.io/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/util/rand"
+
 	"k8s.io/kubernetes/pkg/util/intstr"
 	"k8s.io/kubernetes/pkg/util/wait"
+	//"math"
 )
 
 // versions ~ 1.3 (original RO test), 1.6 uses newer services/tokens,...
@@ -128,17 +131,32 @@ var _ = Describe("Networking", func() {
 		serviceNum := svcSoak.service
 		It(fmt.Sprintf("should function for intrapod communication between all hosts in %v parallel services [Conformance]", serviceNum),
 			func() {
-				Logf("running service test with timeout = %v for %v", timeout, serviceNum)
-				runNetTest(timeoutSeconds, f, makePorts(serviceNum), nettestVersion)
+				f2 := NewFramework(fmt.Sprintf("nettest%v", serviceNum))
+				//Create a few extra services,
+				minPort := 1000
+				maxPort := 10000
+				// For the GCE E2E parallel CI, we will allow a few failures in case of port collisions.
+				totalPort := serviceNum + 3
+				allPorts := rand.Intsn(minPort, totalPort, maxPort)
+				Logf("Running service test with timeout = %v for %v, ports = ", timeout, serviceNum, allPorts)
+				runNetTest(timeoutSeconds, f2, allPorts, nettestVersion)
 			})
 	}
 })
 
 var pollings = 0
 
+type PeerTestResult struct {
+	passed    bool
+	completed bool
+	err       error
+}
+
+var netTestDone = false
+
 // pollPeerStatus will either fail, pass, or continue polling.
-// returns true if polling succeeds.
-func pollPeerStatus(f *Framework, svc *api.Service, pollTimeoutSeconds time.Duration) bool {
+// returns true if polling succeeds.  writing to "quit" exits polling.
+func pollPeerStatus(f *Framework, svc *api.Service, pollTimeoutSeconds time.Duration) PeerTestResult {
 	Logf("Begin polling %v %v", svc.Name, pollings)
 	pollings += 1
 	getDetails := func() ([]byte, error) {
@@ -161,47 +179,65 @@ func pollPeerStatus(f *Framework, svc *api.Service, pollTimeoutSeconds time.Dura
 			DoRaw()
 	}
 
-	passed := false
-
 	Logf("Begin polling " + svc.Name)
-	expectNoError(wait.Poll(2*time.Second, pollTimeoutSeconds, func() (bool, error) {
+
+	pollingFunction := func() PeerTestResult {
 		body, err := getStatus()
 		if err != nil {
 			Failf("Failed to list nodes: %v", err)
 		}
 
-		// Finally, we pass/fail the test based on if the container's response body, as to whether or not it was able to find peers.
+		// Finally, we pass/fail the test based on the container's response body was able to find peers.
 		switch {
 		case string(body) == "pass":
-			passed = true
-			return true, nil
+			return PeerTestResult{true, true, nil}
 		case string(body) == "running":
 		case string(body) == "fail":
 			if body, err = getDetails(); err != nil {
+				// Test completed, and it failed, with an error.
 				Failf("Failed on attempt. Error reading details: %v", err)
-				return false, err
+				return PeerTestResult{
+					passed:    false,
+					completed: true,
+					err:       err}
 			} else {
 				Failf("Failed on attempt. Details:\n%s", string(body))
-				return false, nil
+				// Test completed, and it failed.
+				return PeerTestResult{
+					passed:    false,
+					completed: true,
+					err:       err}
 			}
+		// The below cases all have ambiguous test status: test may or may not be over.
+		case netTestDone == true:
 		case strings.Contains(string(body), "no endpoints available"):
 			Logf("Attempt: waiting on service/endpoints")
 		default:
 			Logf("Unexpected response:\n%s", body)
 		}
-		return false, nil
-	}))
+		return PeerTestResult{
+			passed:    false,
+			completed: false,
+			err:       nil}
+	}
 
-	if !passed {
+	var testResult PeerTestResult
+	expectNoError(wait.Poll(2*time.Second, pollTimeoutSeconds,
+		func() (bool, error) {
+			testResult = pollingFunction()
+			return testResult.passed, testResult.err
+		}))
+
+	if testResult.completed && !testResult.passed {
 		if body, err := getDetails(); err != nil {
-			Failf("Timed out.  Major error : Couldn't read service details: %v", err)
+			Failf("Timed out.  Major error : Couldn't read service details: %v", testResult.err)
 		} else {
 			Failf("Timed out. Service details :\n%s", string(body))
 		}
 	}
 
-	//Just for type safety: But we expect a failure to have occured if the test fails.u
-	return passed
+	// Test result at this point will be either "cut short", or "passed".
+	return testResult
 }
 
 // runNetTest Creates a single pod on each host which serves
@@ -214,6 +250,15 @@ func pollPeerStatus(f *Framework, svc *api.Service, pollTimeoutSeconds time.Dura
 // To test basic pod networking, send a single port.
 // To soak test the services, we can send a range (i.e. 8000-9000).
 func runNetTest(timeoutSeconds time.Duration, f *Framework, ports []int, nettestVersion string) {
+	// Make sure this is false.
+	netTestDone = false
+
+	// To be safe, update the signal to all polling goroutines to end when the test is timed out.
+	go func() {
+		time.Sleep(timeoutSeconds)
+		netTestDone = true
+	}()
+
 	nodes, err := f.Client.Nodes().List(labels.Everything(), fields.Everything())
 	expectNoError(err, "Failed to list nodes")
 
@@ -258,7 +303,7 @@ func runNetTest(timeoutSeconds time.Duration, f *Framework, ports []int, nettest
 					Ports: []api.ServicePort{{
 						Protocol:   "TCP",
 						Port:       port,
-						TargetPort: util.NewIntOrStringFromInt(port),
+						TargetPort: intstr.FromInt(port),
 					}},
 					Selector: map[string]string{
 						"name": svcname,
@@ -298,9 +343,9 @@ func runNetTest(timeoutSeconds time.Duration, f *Framework, ports []int, nettest
 				err = f.WaitForPodRunning(podName)
 				Expect(err).NotTo(HaveOccurred())
 				By(fmt.Sprintf("waiting for connectivity to be verified [ pod = %v ,  port =  %v ] ", podName, port))
-				//once response OK, evaluate response body for pass/fail.
-				passedPolling := pollPeerStatus(f, svc, timeoutSeconds)
-				if !passedPolling {
+				// pod is running... now poll it.  Note that we expect the surrounding function to be in a goroutine.
+				netTestResult := pollPeerStatus(f, svc, timeoutSeconds)
+				if !netTestDone && !netTestResult.passed {
 					Failf("Failed at polling %v %v", podName, port)
 				}
 			}
@@ -309,28 +354,31 @@ func runNetTest(timeoutSeconds time.Duration, f *Framework, ports []int, nettest
 			// Once the polling for a service is completed,
 			// we send failure/success to the completion channel.
 			completionChannel <- svcname
-		} // testP
+		} // testP.
 
-		// Test all nodes over port p.
+		// Test that all nodes connect over port "p"
 		go testP(nodes, ports[p], portCompleteChannel)
 
 	} // for
 
-	// For loop that increments every time a nettest over one of the ports completes.
-	for pReturned := range ports {
+	// Allows some services to fail, i.e. port collisions might happen in CI.
+	numExpectedToPassTest := len(ports)
+
+	// Quick sanity check.
+	if len(ports) > 1 {
+		numExpectedToPassTest = (len(ports) * 3) / 4 // 75% of the ports should pass
+	} else if len(ports) == 0 {
+		Logf("We expect to run this test on many ports for randomness and port availability.  %v is the only port available. ", ports[0])
+	} else {
+		Failf("Invalid port count %v", ports)
+	}
+
+	for pReturned := 0; pReturned < numExpectedToPassTest; pReturned++ {
 		Logf("Waiting on ports to report back.  So far %v have been discovered...", pReturned)
 		Logf("... Another service has successfully been discovered: %v ( %v ) ", pReturned, <-portCompleteChannel)
 	}
-	Logf("Completed test on %v port/services", len(ports))
-}
 
-// makePorts makes a bunch of ports from 8080->8080+n
-func makePorts(n int) []int {
-	m := make([]int, n)
-	for i := 0; i < n; i++ {
-		m[i] = 8080 + i
-	}
-	return m
+	Logf("Completed test on %v port/services", len(ports))
 }
 
 // launchNetTestPodPerNode launches nettest pods, and returns their names.
