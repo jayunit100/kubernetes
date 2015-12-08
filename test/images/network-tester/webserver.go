@@ -228,7 +228,9 @@ func contactOthers(state *State) {
 
 	// Do this repeatedly, in case there's some propagation delay with getting
 	// newly started pods into the endpoints list.
-	for i := 0; i < 15; i++ {
+	// We add extra wait time on as a factor of peerCount.
+	// For 100 node cluster, this can add 15 minutes or more .
+	for i := 0; i < 15+(2*peerCount); i++ {
 		endpoints, err := client.Endpoints(*namespace).Get(*service)
 		if err != nil {
 			state.Logf("Unable to read the endpoints for %v/%v: %v; will try again.", *namespace, *service, err)
@@ -250,6 +252,7 @@ func contactOthers(state *State) {
 
 		time.Sleep(5 * time.Second)
 	}
+	log.Print("Done attempting all contacts to peers.")
 }
 
 // contactSingle dials the address 'e' and tries to POST to its /write address.
