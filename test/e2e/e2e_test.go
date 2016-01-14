@@ -17,8 +17,14 @@ limitations under the License.
 package e2e
 
 import (
+	"flag"
 	"testing"
 )
+
+func init() {
+	RegisterFlags()
+	flag.Parse()
+}
 
 func TestE2E(t *testing.T) {
 	RunE2ETest(t)

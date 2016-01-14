@@ -52,7 +52,7 @@ var (
 	reportDir = flag.String("report-dir", "", "Path to the directory where the JUnit XML reports should be saved. Default is empty, which doesn't generate these reports.")
 )
 
-func init() {
+func RegisterFlags() {
 	// Turn on verbose by default to get spec names
 	config.DefaultReporterConfig.Verbose = true
 
