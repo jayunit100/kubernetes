@@ -45,13 +45,20 @@ func schedulePods(numNodes, numPods int) {
 	makePodsFromRC(c, "rc1", numPods)
 
 	prev := 0
+	total := 0
+	sumTotal := total + (len(scheduled)-prev)
 	start := time.Now()
 	for {
 		// This can potentially affect performance of scheduler, since List() is done under mutex.
 		// Listing 10000 pods is an expensive operation, so running it frequently may impact scheduler.
 		// TODO: Setup watch on apiserver and wait until all pods scheduled.
 		scheduled := schedulerConfigFactory.ScheduledPodLister.Indexer.List()
-		fmt.Printf("%ds\trate: %d\ttotal: %d\n", time.Since(start)/time.Second, len(scheduled)-prev, len(scheduled))
+		fmt.Printf("%ds\trate: %d\ttotal: %davg: %d\n",
+			time.Since(start)/time.Second,
+			len(scheduled)-prev,
+			len(scheduled),
+			(int64)sumTotal/(int64)(time.Since(start)/time.Second),
+		)
 		if len(scheduled) >= numPods {
 			return
 		}
