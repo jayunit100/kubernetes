@@ -203,7 +203,7 @@ runTests() {
      "${testargs[@]:+${testargs[@]}}"
     go test "${goflags[@]:+${goflags[@]}}" \
       ${KUBE_RACE} ${KUBE_TIMEOUT} "${@+${@/#/${KUBE_GO_PACKAGE}/}}" \
-     "${testargs[@]:+${testargs[@]}}" \
+     "${testargs[@]:+${testargs[@]}}" -v 5 \
      | tee ${junit_filename_prefix:+"${junit_filename_prefix}.stdout"} \
      | grep "${go_test_grep_pattern}" && rc=$? || rc=$?
     produceJUnitXMLReport "${junit_filename_prefix}"
