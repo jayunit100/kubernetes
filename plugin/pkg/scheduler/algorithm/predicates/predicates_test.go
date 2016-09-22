@@ -119,7 +119,7 @@ func newResourceInitPod(pod *api.Pod, usage ...schedulercache.Resource) *api.Pod
 	return pod
 }
 
-func TestPodFitsResources(t *testing.T) {
+func aTestPodFitsResources(t *testing.T) {
 	enoughPodsTests := []struct {
 		pod      *api.Pod
 		nodeInfo *schedulercache.NodeInfo
@@ -303,7 +303,7 @@ func TestPodFitsResources(t *testing.T) {
 	}
 }
 
-func TestPodFitsHost(t *testing.T) {
+func aTestPodFitsHost(t *testing.T) {
 	tests := []struct {
 		pod  *api.Pod
 		node *api.Node
@@ -380,7 +380,7 @@ func newPod(host string, hostPorts ...int) *api.Pod {
 	}
 }
 
-func TestPodFitsHostPorts(t *testing.T) {
+func aTestPodFitsHostPorts(t *testing.T) {
 	tests := []struct {
 		pod      *api.Pod
 		nodeInfo *schedulercache.NodeInfo
@@ -438,7 +438,7 @@ func TestPodFitsHostPorts(t *testing.T) {
 	}
 }
 
-func TestGetUsedPorts(t *testing.T) {
+func aTestGetUsedPorts(t *testing.T) {
 	tests := []struct {
 		pods []*api.Pod
 
@@ -474,7 +474,7 @@ func TestGetUsedPorts(t *testing.T) {
 	}
 }
 
-func TestDiskConflicts(t *testing.T) {
+func aTestDiskConflicts(t *testing.T) {
 	volState := api.PodSpec{
 		Volumes: []api.Volume{
 			{
@@ -527,7 +527,7 @@ func TestDiskConflicts(t *testing.T) {
 	}
 }
 
-func TestAWSDiskConflicts(t *testing.T) {
+func aTestAWSDiskConflicts(t *testing.T) {
 	volState := api.PodSpec{
 		Volumes: []api.Volume{
 			{
@@ -580,7 +580,7 @@ func TestAWSDiskConflicts(t *testing.T) {
 	}
 }
 
-func TestRBDDiskConflicts(t *testing.T) {
+func aTestRBDDiskConflicts(t *testing.T) {
 	volState := api.PodSpec{
 		Volumes: []api.Volume{
 			{
@@ -639,7 +639,7 @@ func TestRBDDiskConflicts(t *testing.T) {
 	}
 }
 
-func TestPodFitsSelector(t *testing.T) {
+func aTestPodFitsSelector(t *testing.T) {
 	tests := []struct {
 		pod    *api.Pod
 		labels map[string]string
@@ -1116,7 +1116,7 @@ func TestPodFitsSelector(t *testing.T) {
 	}
 }
 
-func TestNodeLabelPresence(t *testing.T) {
+func aTestNodeLabelPresence(t *testing.T) {
 	label := map[string]string{"foo": "bar", "bar": "foo"}
 	tests := []struct {
 		pod      *api.Pod
@@ -1216,85 +1216,173 @@ func TestServiceAffinity(t *testing.T) {
 		test     string
 	}{
 		{
-			pod:    new(api.Pod),
-			node:   &node1,
-			fits:   true,
-			labels: []string{"region"},
-			test:   "nothing scheduled",
-		},
-		{
-			pod:    &api.Pod{Spec: api.PodSpec{NodeSelector: map[string]string{"region": "r1"}}},
-			node:   &node1,
-			fits:   true,
-			labels: []string{"region"},
-			test:   "pod with region label match",
-		},
-		{
-			pod:    &api.Pod{Spec: api.PodSpec{NodeSelector: map[string]string{"region": "r2"}}},
-			node:   &node1,
-			fits:   false,
-			labels: []string{"region"},
-			test:   "pod with region label mismatch",
-		},
-		{
 			pod:      &api.Pod{ObjectMeta: api.ObjectMeta{Labels: selector}},
-			pods:     []*api.Pod{{Spec: api.PodSpec{NodeName: "machine1"}, ObjectMeta: api.ObjectMeta{Labels: selector}}},
+			pods:     []*api.Pod{
+					{Spec: api.PodSpec{NodeName: "machine2"}, ObjectMeta: api.ObjectMeta{Labels: selector}},
+					{Spec: api.PodSpec{NodeName: "machine3"}, ObjectMeta: api.ObjectMeta{Labels: selector}},
+					{Spec: api.PodSpec{NodeName: "machine4"}, ObjectMeta: api.ObjectMeta{Labels: selector}},
+					{Spec: api.PodSpec{NodeName: "machine5"}, ObjectMeta: api.ObjectMeta{Labels: selector}},
+			},
 			node:     &node1,
-			services: []*api.Service{{Spec: api.ServiceSpec{Selector: selector}}},
-			fits:     true,
-			labels:   []string{"region"},
-			test:     "service pod on same node",
-		},
-		{
-			pod:      &api.Pod{ObjectMeta: api.ObjectMeta{Labels: selector}},
-			pods:     []*api.Pod{{Spec: api.PodSpec{NodeName: "machine2"}, ObjectMeta: api.ObjectMeta{Labels: selector}}},
-			node:     &node1,
-			services: []*api.Service{{Spec: api.ServiceSpec{Selector: selector}}},
-			fits:     true,
-			labels:   []string{"region"},
-			test:     "service pod on different node, region match",
-		},
-		{
-			pod:      &api.Pod{ObjectMeta: api.ObjectMeta{Labels: selector}},
-			pods:     []*api.Pod{{Spec: api.PodSpec{NodeName: "machine3"}, ObjectMeta: api.ObjectMeta{Labels: selector}}},
-			node:     &node1,
-			services: []*api.Service{{Spec: api.ServiceSpec{Selector: selector}}},
-			fits:     false,
-			labels:   []string{"region"},
-			test:     "service pod on different node, region mismatch",
-		},
-		{
-			pod:      &api.Pod{ObjectMeta: api.ObjectMeta{Labels: selector, Namespace: "ns1"}},
-			pods:     []*api.Pod{{Spec: api.PodSpec{NodeName: "machine3"}, ObjectMeta: api.ObjectMeta{Labels: selector, Namespace: "ns1"}}},
-			node:     &node1,
-			services: []*api.Service{{Spec: api.ServiceSpec{Selector: selector}, ObjectMeta: api.ObjectMeta{Namespace: "ns2"}}},
-			fits:     true,
-			labels:   []string{"region"},
-			test:     "service in different namespace, region mismatch",
-		},
-		{
-			pod:      &api.Pod{ObjectMeta: api.ObjectMeta{Labels: selector, Namespace: "ns1"}},
-			pods:     []*api.Pod{{Spec: api.PodSpec{NodeName: "machine3"}, ObjectMeta: api.ObjectMeta{Labels: selector, Namespace: "ns2"}}},
-			node:     &node1,
-			services: []*api.Service{{Spec: api.ServiceSpec{Selector: selector}, ObjectMeta: api.ObjectMeta{Namespace: "ns1"}}},
-			fits:     true,
-			labels:   []string{"region"},
-			test:     "pod in different namespace, region mismatch",
-		},
-		{
-			pod:      &api.Pod{ObjectMeta: api.ObjectMeta{Labels: selector, Namespace: "ns1"}},
-			pods:     []*api.Pod{{Spec: api.PodSpec{NodeName: "machine3"}, ObjectMeta: api.ObjectMeta{Labels: selector, Namespace: "ns1"}}},
-			node:     &node1,
-			services: []*api.Service{{Spec: api.ServiceSpec{Selector: selector}, ObjectMeta: api.ObjectMeta{Namespace: "ns1"}}},
-			fits:     false,
-			labels:   []string{"region"},
-			test:     "service and pod in same namespace, region mismatch",
-		},
-		{
-			pod:      &api.Pod{ObjectMeta: api.ObjectMeta{Labels: selector}},
-			pods:     []*api.Pod{{Spec: api.PodSpec{NodeName: "machine2"}, ObjectMeta: api.ObjectMeta{Labels: selector}}},
-			node:     &node1,
-			services: []*api.Service{{Spec: api.ServiceSpec{Selector: selector}}},
+			services: []*api.Service{
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{Selector: selector}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+				{Spec: api.ServiceSpec{}},
+			},
 			fits:     false,
 			labels:   []string{"region", "zone"},
 			test:     "service pod on different node, multiple labels, not all match",
@@ -1316,6 +1404,7 @@ func TestServiceAffinity(t *testing.T) {
 		serviceAffinity := ServiceAffinity{algorithm.FakePodLister(test.pods), algorithm.FakeServiceLister(test.services), FakeNodeListInfo(nodes), test.labels}
 		nodeInfo := schedulercache.NewNodeInfo()
 		nodeInfo.SetNode(test.node)
+		fmt.Println(fmt.Sprintf("NEW TEST! %v %v",len(test.pods),len(test.services)))
 		fits, reasons, err := serviceAffinity.CheckServiceAffinity(test.pod, PredicateMetadata(test.pod, nil), nodeInfo)
 		if err != nil {
 			t.Errorf("%s: unexpected error: %v", test.test, err)
@@ -1329,7 +1418,7 @@ func TestServiceAffinity(t *testing.T) {
 	}
 }
 
-func TestEBSVolumeCountConflicts(t *testing.T) {
+func aTestEBSVolumeCountConflicts(t *testing.T) {
 	oneVolPod := &api.Pod{
 		Spec: api.PodSpec{
 			Volumes: []api.Volume{
@@ -1629,7 +1718,7 @@ func getPredicateSignature() (*types.Signature, error) {
 	return result.Signature, nil
 }
 
-func TestPredicatesRegistered(t *testing.T) {
+func aTestPredicatesRegistered(t *testing.T) {
 	var functions []*types.Type
 
 	// Files and directories which predicates may be referenced
@@ -1705,7 +1794,7 @@ func newPodWithPort(hostPorts ...int) *api.Pod {
 	}
 }
 
-func TestRunGeneralPredicates(t *testing.T) {
+func aTestRunGeneralPredicates(t *testing.T) {
 	resourceTests := []struct {
 		pod      *api.Pod
 		nodeInfo *schedulercache.NodeInfo
@@ -1815,7 +1904,7 @@ func TestRunGeneralPredicates(t *testing.T) {
 	}
 }
 
-func TestInterPodAffinity(t *testing.T) {
+func aTestInterPodAffinity(t *testing.T) {
 	podLabel := map[string]string{"service": "securityscan"}
 	labels1 := map[string]string{
 		"region": "r1",
@@ -2369,7 +2458,7 @@ func TestInterPodAffinity(t *testing.T) {
 	}
 }
 
-func TestInterPodAffinityWithMultipleNodes(t *testing.T) {
+func aTestInterPodAffinityWithMultipleNodes(t *testing.T) {
 	podLabelA := map[string]string{
 		"foo": "bar",
 	}
@@ -2561,7 +2650,7 @@ func TestInterPodAffinityWithMultipleNodes(t *testing.T) {
 	}
 }
 
-func TestPodToleratesTaints(t *testing.T) {
+func aTestPodToleratesTaints(t *testing.T) {
 	podTolerateTaintsTests := []struct {
 		pod  *api.Pod
 		node api.Node
@@ -2853,7 +2942,7 @@ func makeEmptyNodeInfo(node *api.Node) *schedulercache.NodeInfo {
 	return nodeInfo
 }
 
-func TestPodSchedulesOnNodeWithMemoryPressureCondition(t *testing.T) {
+func aTestPodSchedulesOnNodeWithMemoryPressureCondition(t *testing.T) {
 	// specify best-effort pod
 	bestEffortPod := &api.Pod{
 		Spec: api.PodSpec{
@@ -2957,7 +3046,7 @@ func TestPodSchedulesOnNodeWithMemoryPressureCondition(t *testing.T) {
 	}
 }
 
-func TestPodSchedulesOnNodeWithDiskPressureCondition(t *testing.T) {
+func aTestPodSchedulesOnNodeWithDiskPressureCondition(t *testing.T) {
 	pod := &api.Pod{
 		Spec: api.PodSpec{
 			Containers: []api.Container{

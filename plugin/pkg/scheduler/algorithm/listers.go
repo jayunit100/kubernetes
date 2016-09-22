@@ -23,6 +23,7 @@ import (
 	"k8s.io/kubernetes/pkg/api/unversioned"
 	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/labels"
+	"github.com/golang/glog"
 )
 
 // NodeLister interface represents anything that can list nodes for a scheduler.
@@ -37,6 +38,8 @@ type FakeNodeLister []*api.Node
 
 // List returns nodes as a []string.
 func (f FakeNodeLister) List() ([]*api.Node, error) {
+
+	glog.V(4).Info("List nodes")
 	return f, nil
 }
 
@@ -52,7 +55,10 @@ type FakePodLister []*api.Pod
 
 // List returns []*api.Pod matching a query.
 func (f FakePodLister) List(s labels.Selector) (selected []*api.Pod, err error) {
+	glog.V(4).Info("List pods")
+	fmt.Println("LIST pods for query")
 	for _, pod := range f {
+		fmt.Println("checking ! ",pod.Name)
 		if s.Matches(labels.Set(pod.Labels)) {
 			selected = append(selected, pod)
 		}
@@ -73,13 +79,15 @@ type FakeServiceLister []*api.Service
 
 // List returns api.ServiceList, the list of all services.
 func (f FakeServiceLister) List(labels.Selector) ([]*api.Service, error) {
+	fmt.Println("List services")
 	return f, nil
 }
 
 // GetPodServices gets the services that have the selector that match the labels on the given pod
 func (f FakeServiceLister) GetPodServices(pod *api.Pod) (services []*api.Service, err error) {
 	var selector labels.Selector
-
+	glog.V(4).Info("get pod services")
+	fmt.Println("GPS")
 	for i := range f {
 		service := f[i]
 		// consider only services that are in the same namespace as the pod
@@ -132,6 +140,8 @@ func (f FakeControllerLister) GetPodControllers(pod *api.Pod) (controllers []api
 	var selector labels.Selector
 
 	for _, controller := range f {
+	for i := range f {
+		controller := f[i]
 		if controller.Namespace != pod.Namespace {
 			continue
 		}
