@@ -157,7 +157,7 @@ func NewRequirement(key string, op selection.Operator, vals sets.String) (*Requi
 // (5) The operator is GreaterThanOperator or LessThanOperator, and Labels has
 //     the Requirement's key and the corresponding value satisfies mathematical inequality.
 func (r *Requirement) Matches(ls Labels) bool {
-	fmt.Println("MATCH SELECTOR ALG")
+	//fmt.Println("MATCH SELECTOR ALG")
 	switch r.operator {
 	case selection.In, selection.Equals, selection.DoubleEquals:
 		if !ls.Has(r.key) {
