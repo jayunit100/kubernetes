@@ -153,7 +153,6 @@ func (f FakeControllerLister) GetPodControllers(pod *api.Pod) (controllers []api
 	}
 	return
 }
-}
 
 // ReplicaSetLister interface represents anything that can produce a list of ReplicaSet; the list is consumed by a scheduler.
 type ReplicaSetLister interface {
