@@ -105,7 +105,7 @@ func (cache *schedulerCache) List(selector labels.Selector) ([]*api.Pod, error) 
 		}
 	}
 	elapsed := time.Since(start)
-	fmt.Printf("LIST operation %v took: %s", len(info.pods), elapsed)
+	fmt.Println("LIST operation %v took: %s", len(info.pods), elapsed)
 	return pods, nil
 }
 
