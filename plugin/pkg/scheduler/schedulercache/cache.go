@@ -97,14 +97,13 @@ func (cache *schedulerCache) List(selector labels.Selector) ([]*api.Pod, error) 
 	start := time.Now()
 	for _, info := range cache.nodes {
 		for _, pod := range info.pods {
-
 			if selector.Matches(labels.Set(pod.Labels)) {
 				pods = append(pods, pod)
 			}
 		}
 	}
 	elapsed := time.Since(start)
-	fmt.Println("LIST operation %v took: %s", len(info.pods), elapsed)
+	fmt.Println("LIST operation took: %s", elapsed)
 	return pods, nil
 }
 
