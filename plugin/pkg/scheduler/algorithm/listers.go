@@ -136,7 +136,7 @@ func (f FakeControllerLister) List() ([]api.ReplicationController, error) {
 }
 
 // GetPodControllers gets the ReplicationControllers that have the selector that match the labels on the given pod
-func (f FakeControllerLister) GetPodControllers(pod *api.Pod) (controllers []api.ReplicationController, err error) {
+func (f FakeControllerLister) GetPodControllers(pod *api.Pod) (controllers []api.ReplicationController, err error){
 	var selector labels.Selector
 
 	for _, controller := range f {
@@ -155,6 +155,7 @@ func (f FakeControllerLister) GetPodControllers(pod *api.Pod) (controllers []api
 	}
 
 	return
+}
 }
 
 // ReplicaSetLister interface represents anything that can produce a list of ReplicaSet; the list is consumed by a scheduler.
