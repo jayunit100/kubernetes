@@ -91,11 +91,10 @@ func (cache *schedulerCache) UpdateNodeNameToInfoMap(nodeNameToInfo map[string]*
 }
 
 func (cache *schedulerCache) List(selector labels.Selector) ([]*api.Pod, error) {
-	start := time.Now()
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	var pods []*api.Pod
-	elapsed := time.Since(start)
+	start := time.Now()
 	for _, info := range cache.nodes {
 		for _, pod := range info.pods {
 
