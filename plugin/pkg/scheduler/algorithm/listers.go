@@ -138,8 +138,6 @@ func (f FakeControllerLister) List() ([]api.ReplicationController, error) {
 // GetPodControllers gets the ReplicationControllers that have the selector that match the labels on the given pod
 func (f FakeControllerLister) GetPodControllers(pod *api.Pod) (controllers []api.ReplicationController, err error){
 	var selector labels.Selector
-
-	for _, controller := range f {
 	for i := range f {
 		controller := f[i]
 		if controller.Namespace != pod.Namespace {
@@ -153,7 +151,6 @@ func (f FakeControllerLister) GetPodControllers(pod *api.Pod) (controllers []api
 	if len(controllers) == 0 {
 		err = fmt.Errorf("Could not find Replication Controller for pod %s in namespace %s with labels: %v", pod.Name, pod.Namespace, pod.Labels)
 	}
-
 	return
 }
 }
