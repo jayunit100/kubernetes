@@ -91,6 +91,7 @@ func (cache *schedulerCache) UpdateNodeNameToInfoMap(nodeNameToInfo map[string]*
 }
 
 func (cache *schedulerCache) List(selector labels.Selector) ([]*api.Pod, error) {
+	start := time.Now()
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	var pods []*api.Pod
@@ -101,6 +102,8 @@ func (cache *schedulerCache) List(selector labels.Selector) ([]*api.Pod, error) 
 			}
 		}
 	}
+	elapsed := time.Since(start)
+	fmt.Printf("LIST operation took: %s", elapsed)
 	return pods, nil
 }
 
