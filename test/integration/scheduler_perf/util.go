@@ -134,20 +134,6 @@ func makePodSpec() api.PodSpec {
 					api.ResourceMemory: resource.MustParse("500Mi"),
 				},
 			},
-			Annotations: map[string]string{
-				"scheduler.alpha.kubernetes.io/affinity": `{
-        		"nodeAffinity": {
-          			"requiredDuringSchedulingIgnoredDuringExecution": {
-            			"nodeSelectorTerms": [{
-                			"matchExpressions": [{
-                    			"key": "nodecategory",
-                    			"operator": "In",
-                    			"values": ["nc1", "nc2"]
-                  			}]
-              			}]
-          			}
-        		}
-      		}`},
 		}},
 	}
 }
@@ -167,6 +153,20 @@ func makePodsFromRC(c client.Interface, name string, podCount int) {
 			Template: &api.PodTemplateSpec{
 				ObjectMeta: api.ObjectMeta{
 					Labels: map[string]string{"name": name},
+					Annotations: map[string]string{
+						"scheduler.alpha.kubernetes.io/affinity": `{
+        		"nodeAffinity": {
+          			"requiredDuringSchedulingIgnoredDuringExecution": {
+            			"nodeSelectorTerms": [{
+                			"matchExpressions": [{
+                    			"key": "nodecategory",
+                    			"operator": "In",
+                    			"values": ["nc1", "nc2"]
+                  			}]
+              			}]
+          			}
+        		}
+      		}`},
 				},
 				Spec: makePodSpec(),
 			},
