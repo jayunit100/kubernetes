@@ -91,6 +91,7 @@ func (cache *schedulerCache) UpdateNodeNameToInfoMap(nodeNameToInfo map[string]*
 }
 
 func (cache *schedulerCache) List(selector labels.Selector) ([]*api.Pod, error) {
+	fmt.Println("... cache listing ... ")
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	var pods []*api.Pod
@@ -98,6 +99,7 @@ func (cache *schedulerCache) List(selector labels.Selector) ([]*api.Pod, error) 
 	for _, info := range cache.nodes {
 		for _, pod := range info.pods {
 			if selector.Matches(labels.Set(pod.Labels)) {
+
 				pods = append(pods, pod)
 			}
 		}

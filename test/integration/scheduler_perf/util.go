@@ -34,6 +34,8 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/factory"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/integration/framework"
+	"fmt"
+	"math/rand"
 )
 
 // mustSetupScheduler starts the following components:
@@ -84,9 +86,14 @@ func mustSetupScheduler() (schedulerConfigFactory *factory.ConfigFactory, destro
 
 func makeNodes(c client.Interface, nodeCount int) {
 	glog.Infof("making %d nodes", nodeCount)
+	r := rand.New(rand.NewSource(100))
+
 	baseNode := &api.Node{
 		ObjectMeta: api.ObjectMeta{
 			GenerateName: "scheduler-test-node-",
+			Labels:map[string]string{
+				"nodecategory":fmt.Sprint("%v",r.Intn(10)),
+			},
 		},
 		Spec: api.NodeSpec{
 			ExternalID: "foobar",
@@ -102,6 +109,7 @@ func makeNodes(c client.Interface, nodeCount int) {
 				{Type: api.NodeReady, Status: api.ConditionTrue},
 			},
 		},
+
 	}
 	for i := 0; i < nodeCount; i++ {
 		if _, err := c.Nodes().Create(baseNode); err != nil {
@@ -139,7 +147,10 @@ func makePodsFromRC(c client.Interface, name string, podCount int) {
 		},
 		Spec: api.ReplicationControllerSpec{
 			Replicas: int32(podCount),
-			Selector: map[string]string{"name": name},
+			Selector: map[string]string{
+				"name": name,
+
+			},
 			Template: &api.PodTemplateSpec{
 				ObjectMeta: api.ObjectMeta{
 					Labels: map[string]string{"name": name},
