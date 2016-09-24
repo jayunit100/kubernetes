@@ -144,6 +144,21 @@ func makePodsFromRC(c client.Interface, name string, podCount int) {
 	rc := &api.ReplicationController{
 		ObjectMeta: api.ObjectMeta{
 			Name: name,
+			Annotations: map[string]string{
+				"scheduler.alpha.kubernetes.io/affinity": `{
+        		"nodeAffinity": {
+          			"requiredDuringSchedulingIgnoredDuringExecution": {
+            			"nodeSelectorTerms": [{
+                			"matchExpressions": [{
+                    			"key": "nodecategory",
+                    			"operator": "In",
+                    			"values": ["nc1", "nc2"]
+                  			}]
+              			}]
+          			}
+        		}
+      		}`,
+			},
 		},
 		Spec: api.ReplicationControllerSpec{
 			Replicas: int32(podCount),
