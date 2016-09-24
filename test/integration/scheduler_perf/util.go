@@ -155,7 +155,7 @@ func makePodsFromRC(c client.Interface, name string, podCount int) {
 					Labels: map[string]string{"name": name},
 					Annotations: map[string]string{
 						"scheduler.alpha.kubernetes.io/affinity": `{
-        		"nodeAffinity": {
+        			"nodeAffinity": {
           			"requiredDuringSchedulingIgnoredDuringExecution": {
             			"nodeSelectorTerms": [{
                 			"matchExpressions": [{

@@ -22,7 +22,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
-
+"time"
 	"k8s.io/kubernetes/pkg/util/sets"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/predicates"
@@ -87,12 +87,16 @@ type AlgorithmProviderConfig struct {
 // RegisterFitPredicate registers a fit predicate with the algorithm
 // registry. Returns the name with which the predicate was registered.
 func RegisterFitPredicate(name string, predicate algorithm.FitPredicate) string {
+	fmt.Println("Registering FIT Pred")
+	time.Sleep(time.Second)
 	return RegisterFitPredicateFactory(name, func(PluginFactoryArgs) algorithm.FitPredicate { return predicate })
 }
 
 // RegisterFitPredicateFactory registers a fit predicate factory with the
 // algorithm registry. Returns the name with which the predicate was registered.
 func RegisterFitPredicateFactory(name string, predicateFactory FitPredicateFactory) string {
+	fmt.Println("Registering FIT Pred factory")
+	time.Sleep(time.Second)
 	schedulerFactoryMutex.Lock()
 	defer schedulerFactoryMutex.Unlock()
 	validateAlgorithmNameOrDie(name)
@@ -103,6 +107,8 @@ func RegisterFitPredicateFactory(name string, predicateFactory FitPredicateFacto
 // Registers a custom fit predicate with the algorithm registry.
 // Returns the name, with which the predicate was registered.
 func RegisterCustomFitPredicate(policy schedulerapi.PredicatePolicy) string {
+	fmt.Println("Registering CUSTOM FIT Pred factory")
+	time.Sleep(time.Second)
 	var predicateFactory FitPredicateFactory
 	var ok bool
 
@@ -142,6 +148,8 @@ func RegisterCustomFitPredicate(policy schedulerapi.PredicatePolicy) string {
 
 // This check is useful for testing providers.
 func IsFitPredicateRegistered(name string) bool {
+	fmt.Println("IS PRED REG ?")
+	time.Sleep(time.Second)
 	schedulerFactoryMutex.Lock()
 	defer schedulerFactoryMutex.Unlock()
 	_, ok := fitPredicateMap[name]
@@ -153,6 +161,8 @@ func IsFitPredicateRegistered(name string) bool {
 // Registers a priority function with the algorithm registry. Returns the name,
 // with which the function was registered.
 func RegisterPriorityFunction(name string, function algorithm.PriorityFunction, weight int) string {
+	fmt.Println(" REG prio func",name)
+	time.Sleep(time.Second)
 	return RegisterPriorityConfigFactory(name, PriorityConfigFactory{
 		Function: func(PluginFactoryArgs) algorithm.PriorityFunction {
 			return function
@@ -188,6 +198,8 @@ func RegisterPriorityConfigFactory(name string, pcf PriorityConfigFactory) strin
 // Registers a custom priority function with the algorithm registry.
 // Returns the name, with which the priority function was registered.
 func RegisterCustomPriorityFunction(policy schedulerapi.PriorityPolicy) string {
+	fmt.Println(" REG custom prio func",policy.Name)
+	time.Sleep(time.Second)
 	var pcf *PriorityConfigFactory
 
 	validatePriorityOrDie(policy)
@@ -244,6 +256,8 @@ func IsPriorityFunctionRegistered(name string) bool {
 // Registers a new algorithm provider with the algorithm registry. This should
 // be called from the init function in a provider plugin.
 func RegisterAlgorithmProvider(name string, predicateKeys, priorityKeys sets.String) string {
+	fmt.Println(" REG alg prov ",name)
+	time.Sleep(time.Second)
 	schedulerFactoryMutex.Lock()
 	defer schedulerFactoryMutex.Unlock()
 	validateAlgorithmNameOrDie(name)
