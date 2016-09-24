@@ -92,9 +92,10 @@ func init() {
 	// This predicate is actually a default predicate, because it is invoked from
 	// predicates.GeneralPredicates()
 	factory.RegisterFitPredicate("PodFitsResources", predicates.PodFitsResources)
+
 	factory.RegisterCustomFitPredicate(api.PredicatePolicy{
 		Name: "TestServiceAffinity",
-		Argument: &schedulerapi.PredicateArgument{ServiceAffinity: &schedulerapi.ServiceAffinity{Labels: []string{"nodecategory"}}},
+		Argument: &schedulerapi.PredicateArgument{ServiceAffinity: &api.ServiceAffinity{Labels: []string{"nodecategory"}}},
 	})
 	// Fit is determined by the presence of the Host parameter and a string match
 	// This predicate is actually a default predicate, because it is invoked from
