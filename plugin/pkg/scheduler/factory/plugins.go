@@ -87,7 +87,7 @@ type AlgorithmProviderConfig struct {
 // RegisterFitPredicate registers a fit predicate with the algorithm
 // registry. Returns the name with which the predicate was registered.
 func RegisterFitPredicate(name string, predicate algorithm.FitPredicate) string {
-	fmt.Println("Registering FIT Pred")
+	fmt.Println("Registering FIT Pred",name)
 	time.Sleep(time.Second)
 	return RegisterFitPredicateFactory(name, func(PluginFactoryArgs) algorithm.FitPredicate { return predicate })
 }
@@ -95,7 +95,7 @@ func RegisterFitPredicate(name string, predicate algorithm.FitPredicate) string 
 // RegisterFitPredicateFactory registers a fit predicate factory with the
 // algorithm registry. Returns the name with which the predicate was registered.
 func RegisterFitPredicateFactory(name string, predicateFactory FitPredicateFactory) string {
-	fmt.Println("Registering FIT Pred factory")
+	fmt.Println("Registering FIT Pred factory",name)
 	time.Sleep(time.Second)
 	schedulerFactoryMutex.Lock()
 	defer schedulerFactoryMutex.Unlock()
@@ -107,7 +107,7 @@ func RegisterFitPredicateFactory(name string, predicateFactory FitPredicateFacto
 // Registers a custom fit predicate with the algorithm registry.
 // Returns the name, with which the predicate was registered.
 func RegisterCustomFitPredicate(policy schedulerapi.PredicatePolicy) string {
-	fmt.Println("Registering CUSTOM FIT Pred factory")
+	fmt.Println("Registering CUSTOM FIT Pred factory",policy.Name)
 	time.Sleep(time.Second)
 	var predicateFactory FitPredicateFactory
 	var ok bool
@@ -116,8 +116,11 @@ func RegisterCustomFitPredicate(policy schedulerapi.PredicatePolicy) string {
 
 	// generate the predicate function, if a custom type is requested
 	if policy.Argument != nil {
+		fmt.Println("... policy not null !")
+
 		if policy.Argument.ServiceAffinity != nil {
 			predicateFactory = func(args PluginFactoryArgs) algorithm.FitPredicate {
+				fmt.Println("RETURNING SERVICE AFFINITY STUFF")
 				return predicates.NewServiceAffinityPredicate(
 					args.PodLister,
 					args.ServiceLister,
@@ -134,10 +137,12 @@ func RegisterCustomFitPredicate(policy schedulerapi.PredicatePolicy) string {
 			}
 		}
 	} else if predicateFactory, ok = fitPredicateMap[policy.Name]; ok {
+		fmt.Println("... already registerd ")
 		// checking to see if a pre-defined predicate is requested
 		glog.V(2).Infof("Predicate type %s already registered, reusing.", policy.Name)
 		return policy.Name
 	}
+	fmt.Println("... done w custom fit thingy")
 
 	if predicateFactory == nil {
 		glog.Fatalf("Invalid configuration: Predicate type not found for %s", policy.Name)
