@@ -66,7 +66,9 @@ func mustSetupScheduler() (schedulerConfigFactory *factory.ConfigFactory, destro
 	})
 
 	schedulerConfigFactory = factory.NewConfigFactory(c, api.DefaultSchedulerName, api.DefaultHardPodAffinitySymmetricWeight, api.DefaultFailureDomains)
+	schedulerConfigFactory.
 	schedulerConfig, err := schedulerConfigFactory.Create()
+
 	if err != nil {
 		panic("Couldn't create scheduler config")
 	}
