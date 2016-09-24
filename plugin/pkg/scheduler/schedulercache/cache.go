@@ -166,6 +166,7 @@ func (cache *schedulerCache) ForgetPod(pod *api.Pod) error {
 
 func (cache *schedulerCache) AddPod(pod *api.Pod) error {
 	mm["addpod"]=mm["addpod"]+1
+	fmt.Println(mm)
 
 	key, err := getPodKey(pod)
 	if err != nil {
@@ -275,7 +276,7 @@ func (cache *schedulerCache) RemovePod(pod *api.Pod) error {
 
 func (cache *schedulerCache) AddNode(node *api.Node) error {
 	mm["addnode"]=mm["addnode"]+1
-	fmt.Print(mm)
+	fmt.Println(mm)
 
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
