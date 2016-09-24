@@ -134,16 +134,6 @@ func makePodSpec() api.PodSpec {
 					api.ResourceMemory: resource.MustParse("500Mi"),
 				},
 			},
-		}},
-	}
-}
-
-// makePodsFromRC will create a ReplicationController object and
-// a given number of pods (imitating the controller).
-func makePodsFromRC(c client.Interface, name string, podCount int) {
-	rc := &api.ReplicationController{
-		ObjectMeta: api.ObjectMeta{
-			Name: name,
 			Annotations: map[string]string{
 				"scheduler.alpha.kubernetes.io/affinity": `{
         		"nodeAffinity": {
@@ -157,14 +147,22 @@ func makePodsFromRC(c client.Interface, name string, podCount int) {
               			}]
           			}
         		}
-      		}`,
-			},
+      		}`},
+		}},
+	}
+}
+
+// makePodsFromRC will create a ReplicationController object and
+// a given number of pods (imitating the controller).
+func makePodsFromRC(c client.Interface, name string, podCount int) {
+	rc := &api.ReplicationController{
+		ObjectMeta: api.ObjectMeta{
+			Name: name,
 		},
 		Spec: api.ReplicationControllerSpec{
 			Replicas: int32(podCount),
 			Selector: map[string]string{
 				"name": name,
-
 			},
 			Template: &api.PodTemplateSpec{
 				ObjectMeta: api.ObjectMeta{
