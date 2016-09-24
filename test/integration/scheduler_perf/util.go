@@ -92,7 +92,7 @@ func makeNodes(c client.Interface, nodeCount int) {
 		ObjectMeta: api.ObjectMeta{
 			GenerateName: "scheduler-test-node-",
 			Labels:map[string]string{
-				"nodecategory":fmt.Sprint("%v",r.Intn(10)),
+				"nodecategory":fmt.Sprintf("nc%v",r.Intn(10)),
 			},
 		},
 		Spec: api.NodeSpec{
