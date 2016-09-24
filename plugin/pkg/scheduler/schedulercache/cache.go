@@ -29,7 +29,10 @@ import (
 
 var (
 	cleanAssumedPeriod = 1 * time.Second
+	mm = make(map[string]int)
 )
+
+
 
 // New returns a Cache implementation.
 // It automatically starts a go routine that manages expiration of assumed pods.
@@ -162,7 +165,7 @@ func (cache *schedulerCache) ForgetPod(pod *api.Pod) error {
 }
 
 func (cache *schedulerCache) AddPod(pod *api.Pod) error {
-	fmt.Println("... add pod ... ")
+	mm["addpod"]=mm["addpod"]+1
 
 	key, err := getPodKey(pod)
 	if err != nil {
@@ -191,7 +194,7 @@ func (cache *schedulerCache) AddPod(pod *api.Pod) error {
 }
 
 func (cache *schedulerCache) UpdatePod(oldPod, newPod *api.Pod) error {
-	fmt.Println("... update pod ... ")
+	mm["updatepod"]=mm["updatepod"]+1
 
 	key, err := getPodKey(oldPod)
 	if err != nil {
@@ -244,7 +247,7 @@ func (cache *schedulerCache) removePod(pod *api.Pod) error {
 }
 
 func (cache *schedulerCache) RemovePod(pod *api.Pod) error {
-	fmt.Println("... remove pod ... ")
+	mm["removepod"]=mm["removepod"]+1
 
 	key, err := getPodKey(pod)
 	if err != nil {
@@ -271,7 +274,8 @@ func (cache *schedulerCache) RemovePod(pod *api.Pod) error {
 }
 
 func (cache *schedulerCache) AddNode(node *api.Node) error {
-	fmt.Println("... add node ... ")
+	mm["addnode"]=mm["addnode"]+1
+	fmt.Print(mm)
 
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
@@ -299,7 +303,7 @@ func (cache *schedulerCache) UpdateNode(oldNode, newNode *api.Node) error {
 }
 
 func (cache *schedulerCache) RemoveNode(node *api.Node) error {
-	fmt.Println("... remove node ... ")
+	mm["removenode"]=mm["removenode"]+1
 
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
