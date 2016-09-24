@@ -94,7 +94,8 @@ func (cache *schedulerCache) UpdateNodeNameToInfoMap(nodeNameToInfo map[string]*
 }
 
 func (cache *schedulerCache) List(selector labels.Selector) ([]*api.Pod, error) {
-	fmt.Println("... cache listing ... ")
+	mm["listpod"]=mm["listpod"]+1
+
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	var pods []*api.Pod
@@ -140,6 +141,8 @@ func (cache *schedulerCache) assumePod(pod *api.Pod, now time.Time) error {
 }
 
 func (cache *schedulerCache) ForgetPod(pod *api.Pod) error {
+	mm["forgetpod"]=mm["forgetpod"]+1
+
 	key, err := getPodKey(pod)
 	if err != nil {
 		return err
