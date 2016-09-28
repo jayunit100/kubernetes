@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"os"
+	"fmt"
 
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/selection"
@@ -215,7 +216,7 @@ func matches(r *Requirement, ls Labels) bool {
 // string -> {string -> bool}
 var mutex = &sync.Mutex{}
 var matchCache = make(map[string](map[string]bool))
-
+var cacheHits = 0
 // Cached matching implementation for speed when lots of degenerate checks are happening.
 func (r *Requirement) Matches(ls Labels) bool {
 
@@ -230,7 +231,8 @@ func (r *Requirement) Matches(ls Labels) bool {
 
 	if matchCache[rString] != nil {
 		if matchCache[rString][lString] {
-			fmt.Println("Cache hit ! ", rString, "[", lString, "]")
+			cacheHits+=1
+			fmt.Println("Cache hit ! ", rString, "[", lString, "]", cacheHits)
 			return matchCache[rString][lString]
 		}
 	}
