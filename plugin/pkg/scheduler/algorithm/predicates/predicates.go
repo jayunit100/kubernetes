@@ -67,34 +67,39 @@ func (c *CachedNodeInfo) GetNodeInfo(id string) (*api.Node, error) {
 	return node.(*api.Node), nil
 }
 
-// predicateMetadata is a type that is passed as metadata for predicate functions
-type predicateMetadata struct {
-	podBestEffort             bool
-	podRequest                *schedulercache.Resource
-	podPorts                  map[int]bool
-	matchingAntiAffinityTerms []matchingPodAntiAffinityTerm
-}
+/**
+*  Note that predicateMetdata and matchingPodAntiAffinityTerm need to be declared in the same file
+*  due to the way declarations are processed in predicate declaration unit tests.
+ */
 
 type matchingPodAntiAffinityTerm struct {
 	term *api.PodAffinityTerm
 	node *api.Node
 }
 
-func PredicateMetadata(pod *api.Pod, nodeInfoMap map[string]*schedulercache.NodeInfo) interface{} {
-	// If we cannot compute metadata, just return nil
-	if pod == nil {
-		return nil
-	}
-	matchingTerms, err := getMatchingAntiAffinityTerms(pod, nodeInfoMap)
-	if err != nil {
-		return nil
-	}
-	return &predicateMetadata{
-		podBestEffort:             isPodBestEffort(pod),
-		podRequest:                getResourceRequest(pod),
-		podPorts:                  getUsedPorts(pod),
-		matchingAntiAffinityTerms: matchingTerms,
-	}
+// predicateMetadata is a type that is passed as metadata for predicate functions
+type predicateMetadata struct {
+	pod *api.Pod // Hold onto this, we can use the metadata :)
+
+	podBestEffort             bool
+	podRequest                *schedulercache.Resource
+	podPorts                  map[int]bool
+	matchingAntiAffinityTerms []matchingPodAntiAffinityTerm
+	nodeNameToInfo            map[string]*schedulercache.NodeInfo
+
+	servicePods map[string][]*api.Pod
+}
+
+// A set of functions which take in the predicateMetadata type, and add information to it.
+// This map should only be modified when registering predicates.
+var predicatePrecomputations map[string]func(pm *predicateMetadata) = make(map[string]func(pm *predicateMetadata))
+
+var registerLock sync.Mutex
+
+func RegisterPredicatePrecomputation(predicateName string, precomp func(pm *predicateMetadata)) {
+	registerLock.Lock()
+	defer registerLock.Unlock()
+	predicatePrecomputations[predicateName] = precomp
 }
 
 func isVolumeConflict(volume api.Volume, pod *api.Pod) bool {
@@ -627,14 +632,27 @@ type ServiceAffinity struct {
 	labels        []string
 }
 
-func NewServiceAffinityPredicate(podLister algorithm.PodLister, serviceLister algorithm.ServiceLister, nodeInfo NodeInfo, labels []string) algorithm.FitPredicate {
+func NewServiceAffinityPredicate(podLister algorithm.PodLister, serviceLister algorithm.ServiceLister, nodeInfo NodeInfo, labels []string) (algorithm.FitPredicate, func(pm *predicateMetadata)) {
 	affinity := &ServiceAffinity{
 		podLister:     podLister,
 		serviceLister: serviceLister,
 		nodeInfo:      nodeInfo,
 		labels:        labels,
 	}
-	return affinity.CheckServiceAffinity
+
+	return affinity.checkServiceAffinity,
+
+		// Precompute function: Run once by the scheduler before looping through the Predicate.  Alot of times nil, but
+		// in this case, its important to try to only List all service pods once, for performance.
+		func(pm *predicateMetadata) {
+			var err error
+			// We can't know at the start what labels we are selecting against.
+			selector := createSelectorFromLabels(pm.pod.Labels)
+			pm.servicePods[selector.String()], err = podLister.List(selector)
+			if err != nil {
+				glog.Errorf("Error while precalculating ServiceAffinity matches: %v", err)
+			}
+		}
 }
 
 // The checkServiceAffinity predicate matches nodes in such a way to force that
@@ -662,40 +680,44 @@ func NewServiceAffinityPredicate(podLister algorithm.PodLister, serviceLister al
 // 		- L is a label that the ServiceAffinity object needs as a matching constraints.
 // 		- L is not defined in the pod.
 // 		- AND SOME pod from a service is the same namespace, already scheduled onto a node provides that value.
-func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
+
+// WARNING: This Predicate is not gauranteed to work if precomputations haven't been run.  For that reason it is not exported !
+func (s *ServiceAffinity) checkServiceAffinity(pod *api.Pod, meta interface{}, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
+	var predicateMeta *predicateMetadata
+	if pm, ok := meta.(*predicateMetadata); ok {
+		predicateMeta = pm
+	}
+
 	node := nodeInfo.Node()
 	if node == nil {
 		return false, nil, fmt.Errorf("node not found")
 	}
-
-	// check if the pod being scheduled has the affinity labels specified in its NodeSelector
+	// Step 1: Gather as many constraints as possible from the pod.  If we don't try this, then we can easily
+	// starve the pod from ever being placed.
 	affinityLabels := findLabelsInSet(s.labels, labels.Set(pod.Spec.NodeSelector))
 
-	// Introspect services IFF we didn't predefine all the affinity labels in the pod itself.
+	// Step 2: If Step 1 didnt have all constraints, introspect nodes to find the missing constraints.
 	if len(s.labels) > len(affinityLabels) {
 		services, err := s.serviceLister.GetPodServices(pod)
 		if err == nil && len(services) > 0 {
 			// just use the first service and get the other pods within the service
 			// TODO: a separate predicate can be created that tries to handle all services for the pod
 			selector := labels.SelectorFromSet(services[0].Spec.Selector)
-			servicePods, err := s.podLister.List(selector)
 			if err != nil {
 				return false, nil, err
 			}
-			// consider only the pods that belong to the same namespace
-			nsServicePods := filterPodsByNamespace(servicePods, pod.Namespace)
+			nsServicePods := filterPodsByNamespace(predicateMeta.servicePods[selector.String()], pod.Namespace)
 			if len(nsServicePods) > 0 {
-				// consider any service pod and fetch the node its hosted on
-				otherNode, err := s.nodeInfo.GetNodeInfo(nsServicePods[0].Spec.NodeName)
+				nodeWithAffinityLabels, err := s.nodeInfo.GetNodeInfo(nsServicePods[0].Spec.NodeName)
 				if err != nil {
 					return false, nil, err
 				}
-				addUnsetLabelsToMap(affinityLabels, s.labels, labels.Set(otherNode.Labels))
+				// Finally, here is where we fill in the affinity constraints for the pod.
+				addUnsetLabelsToMap(affinityLabels, s.labels, labels.Set(nodeWithAffinityLabels.Labels))
 			}
 		}
 	}
-
-	// check if the node matches the selector
+	// Step 3: Finally complete the affinity predicate based on whatever set of predicates we were able to find.
 	if createSelectorFromLabels(affinityLabels).Matches(labels.Set(node.Labels)) {
 		return true, nil, nil
 	}

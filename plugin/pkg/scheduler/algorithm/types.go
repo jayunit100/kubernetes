@@ -28,7 +28,7 @@ import (
 type FitPredicate func(pod *api.Pod, meta interface{}, nodeInfo *schedulercache.NodeInfo) (bool, []PredicateFailureReason, error)
 
 // PriorityMapFunction is a function that computes per-node results for a given node.
-// TODO: Figure out the exact API of this method.
+// TODO: Figure out the exact API of thiss method.
 // TODO: Change interface{} to a specific type.
 type PriorityMapFunction func(pod *api.Pod, meta interface{}, nodeInfo *schedulercache.NodeInfo) (schedulerapi.HostPriority, error)
 
