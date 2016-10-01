@@ -111,6 +111,7 @@ func replace(set sets.String, replaceWhat, replaceWith string) sets.String {
 }
 
 func defaultPredicates() sets.String {
+
 	return sets.NewString(
 		// Fit is determined by non-conflicting disk volumes.
 		factory.RegisterFitPredicate("NoDiskConflict", predicates.NoDiskConflict),
@@ -157,6 +158,13 @@ func defaultPredicates() sets.String {
 			"MatchInterPodAffinity",
 			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
 				return predicates.NewPodAffinityPredicate(args.NodeInfo, args.PodLister, args.FailureDomains)
+			},
+		),
+
+		factory.RegisterFitPredicateFactory(
+			"ServiceAffinity",
+			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
+				return predicates.NewServiceAffinityPredicate(args.PodLister, args.ServiceLister, args.NodeInfo, []string{"e2e"})
 			},
 		),
 	)
