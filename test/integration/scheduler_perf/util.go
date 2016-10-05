@@ -34,6 +34,11 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/factory"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/integration/framework"
+
+	"k8s.io/kubernetes/pkg/runtime"
+	latestschedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api/latest"
+	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
+
 )
 
 // mustSetupScheduler starts the following components:
@@ -64,7 +69,37 @@ func mustSetupScheduler() (schedulerConfigFactory *factory.ConfigFactory, destro
 	})
 
 	schedulerConfigFactory = factory.NewConfigFactory(c, api.DefaultSchedulerName, api.DefaultHardPodAffinitySymmetricWeight, api.DefaultFailureDomains)
-	schedulerConfig, err := schedulerConfigFactory.Create()
+
+	var policy schedulerapi.Policy
+	configData := []byte(`{
+		"kind" : "Policy",
+		"apiVersion" : "v1",
+		"predicates" : [
+			{"name":"myAffinity",
+			 "argument":{
+				"serviceAffinity":{
+					"labels":["e2e"]
+				}
+			},
+			{"name" : "PodFitsPorts"},
+			{"name" : "PodFitsResources"},
+			{"name" : "NoDiskConflict"},
+			{"name" : "NoVolumeZoneConflict"},
+			{"name" : "MatchNodeSelector"},
+			{"name" : "HostName"}
+	        ],
+		"priorities" : [
+			{"name" : "LeastRequestedPriority", "weight" : 1},
+			{"name" : "BalancedResourceAllocation", "weight" : 1},
+			{"name" : "ServiceSpreadingPriority", "weight" : 1},
+			{"name" : "EqualPriority", "weight" : 1}
+	        ]}`)
+	if err := runtime.DecodeInto(latestschedulerapi.Codec, configData, &policy); err != nil {
+
+	}
+
+	schedulerConfig, err := schedulerConfigFactory.CreateFromConfig(policy)
+
 	if err != nil {
 		panic("Couldn't create scheduler config")
 	}
@@ -81,6 +116,7 @@ func mustSetupScheduler() (schedulerConfigFactory *factory.ConfigFactory, destro
 	}
 	return
 }
+
 
 func makeNodes(c client.Interface, nodeCount int) {
 	glog.Infof("making %d nodes", nodeCount)
