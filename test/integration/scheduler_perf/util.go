@@ -19,7 +19,7 @@ package benchmark
 import (
 	"net/http"
 	"net/http/httptest"
-
+	"testing"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/resource"
@@ -40,6 +40,13 @@ import (
 	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
 
 )
+
+func init() {
+	if testing.Verbose() {
+		flag.Set("alsologtostderr", "true")
+		flag.Set("v", "5")
+	}
+}
 
 // mustSetupScheduler starts the following components:
 // - k8s api server (a.k.a. master)
@@ -75,7 +82,8 @@ func mustSetupScheduler() (schedulerConfigFactory *factory.ConfigFactory, destro
 		"kind" : "Policy",
 		"apiVersion" : "v1",
 		"predicates" : [
-			{"name":"myAffinity",
+			{
+			 "name":"myAffinity",
 			 "argument":{
 				"serviceAffinity":{
 					"labels":["e2e"]

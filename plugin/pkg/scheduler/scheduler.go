@@ -30,6 +30,7 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
 
 	"github.com/golang/glog"
+	"fmt"
 )
 
 // Binder knows how to write a binding.
