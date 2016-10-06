@@ -273,6 +273,7 @@ func (f *ConfigFactory) CreateFromConfig(policy schedulerapi.Policy) (*scheduler
 
 	predicateKeys := sets.NewString()
 	for _, predicate := range policy.Predicates {
+		glog.V(2).Infof("Registering predicate: %s", predicate.Name)
 		glog.Errorf("Registering predicate: %s", predicate.Name)
 		predicateKeys.Insert(RegisterCustomFitPredicate(predicate))
 	}

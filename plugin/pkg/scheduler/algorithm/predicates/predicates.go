@@ -449,7 +449,6 @@ func (c *VolumeZoneChecker) predicate(pod *api.Pod, meta interface{}, nodeInfo *
 			}
 		}
 	}
-
 	return true, nil, nil
 }
 

@@ -36,6 +36,9 @@ import (
 	"k8s.io/kubernetes/test/integration/framework"
 	"k8s.io/kubernetes/pkg/util/intstr"
 	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
+	latestschedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api/latest"
+
+	"k8s.io/kubernetes/pkg/runtime"
 )
 
 // mustSetupScheduler starts the following components:
@@ -66,37 +69,31 @@ func mustSetupScheduler() (schedulerConfigFactory *factory.ConfigFactory, destro
 	schedulerConfigFactory = factory.NewConfigFactory(c, api.DefaultSchedulerName, api.DefaultHardPodAffinitySymmetricWeight, api.DefaultFailureDomains)
 	var policy schedulerapi.Policy
 
-	configData := []byte(`{
-                "kind" : "Policy",
-                "apiVersion" : "v1",
-                "predicates" : [
-                       {
-                        "name":"myAffinity",
-                         "argument":{
-                                "serviceAffinity":{
-                                        "labels":["e2e"]
-                                }
-                       },
-                       {"name" : "PodFitsPorts"},
-                       {"name" : "PodFitsResources"},
-                       {"name" : "NoDiskConflict"}
-	`)
+	configData := []byte(`{"kind": "Policy", "apiVersion": "v1",
+	"predicates": [{
+		"name": "myAffinity",
+		"argument": {
+			"serviceAffinity": {
+				"labels": ["e2e"]
+		}}}, {"name": "PodFitsPorts"}, {"name": "PodFitsResources"}, {"name": "NoDiskConflict"}]}`)
 
-	schedulerConfig, err := schedulerConfigFactory.CreateFromConfig(policy)
-	if err != nil {
-		panic("Couldn't create scheduler config")
+	if err := runtime.DecodeInto(latestschedulerapi.Codec, configData, &policy); err != nil {
+		if err != nil {
+			panic("Couldn't create scheduler config")
+		}
 	}
-	eventBroadcaster := record.NewBroadcaster()
-	schedulerConfig.Recorder = eventBroadcaster.NewRecorder(api.EventSource{Component: "scheduler"})
-	eventBroadcaster.StartRecordingToSink(c.Events(""))
-	scheduler.New(schedulerConfig).Run()
+		schedulerConfig, err := schedulerConfigFactory.CreateFromConfig(policy)
+		eventBroadcaster := record.NewBroadcaster()
+		schedulerConfig.Recorder = eventBroadcaster.NewRecorder(api.EventSource{Component: "scheduler"})
+		eventBroadcaster.StartRecordingToSink(c.Events(""))
+		scheduler.New(schedulerConfig).Run()
 
-	destroyFunc = func() {
-		glog.Infof("destroying")
-		close(schedulerConfig.StopEverything)
-		s.Close()
-		glog.Infof("destroyed")
-	}
+		destroyFunc = func() {
+			glog.Infof("destroying")
+			close(schedulerConfig.StopEverything)
+			s.Close()
+			glog.Infof("destroyed")
+		}
 	return
 }
 
@@ -133,7 +130,7 @@ func makePodSpec() api.PodSpec {
 		Containers: []api.Container{{
 			Name:  "pause",
 			Image: e2e.GetPauseImageNameForHostArch(),
-			Ports: []api.ContainerPort{{ContainerPort: 80}},
+			Ports: []api.ContainerPort{/*{ContainerPort: 80}*/},
 			Resources: api.ResourceRequirements{
 				Limits: api.ResourceList{
 					api.ResourceCPU:    resource.MustParse("100m"),
