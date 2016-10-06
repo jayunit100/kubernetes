@@ -34,6 +34,8 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/factory"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/integration/framework"
+	"k8s.io/kubernetes/pkg/util/intstr"
+	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
 )
 
 // mustSetupScheduler starts the following components:
@@ -62,7 +64,25 @@ func mustSetupScheduler() (schedulerConfigFactory *factory.ConfigFactory, destro
 	})
 
 	schedulerConfigFactory = factory.NewConfigFactory(c, api.DefaultSchedulerName, api.DefaultHardPodAffinitySymmetricWeight, api.DefaultFailureDomains)
-	schedulerConfig, err := schedulerConfigFactory.Create()
+	var policy schedulerapi.Policy
+
+	configData := []byte(`{
+                "kind" : "Policy",
+                "apiVersion" : "v1",
+                "predicates" : [
+                       {
+                        "name":"myAffinity",
+                         "argument":{
+                                "serviceAffinity":{
+                                        "labels":["e2e"]
+                                }
+                       },
+                       {"name" : "PodFitsPorts"},
+                       {"name" : "PodFitsResources"},
+                       {"name" : "NoDiskConflict"}
+	`)
+
+	schedulerConfig, err := schedulerConfigFactory.CreateFromConfig(policy)
 	if err != nil {
 		panic("Couldn't create scheduler config")
 	}
@@ -131,6 +151,22 @@ func makePodSpec() api.PodSpec {
 // makePodsFromRC will create a ReplicationController object and
 // a given number of pods (imitating the controller).
 func makePodsFromRC(c client.Interface, name string, podCount int) {
+	_, err := c.Services("default").Create(&api.Service{
+	              ObjectMeta: api.ObjectMeta{
+	                       Name: name,
+	              },
+	              Spec: api.ServiceSpec{
+			      Ports: []api.ServicePort{{Port: 8080, TargetPort: intstr.FromInt(8080)}},
+			      Selector: map[string]string{
+				    "name":name,
+	                            "e2e": "1",
+	                      },
+			},
+	})
+	glog.Errorf("created service, error == %v",err)
+	if err != nil{
+		panic("ASDFASDFASDFASD")
+	}
 	rc := &api.ReplicationController{
 		ObjectMeta: api.ObjectMeta{
 			Name: name,

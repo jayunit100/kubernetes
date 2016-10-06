@@ -673,7 +673,9 @@ func NewServiceAffinityPredicate(podLister algorithm.PodLister, serviceLister al
 
 	return affinity.CheckServiceAffinity, func(pm *predicateMetadata) {
 		var err error
-		// We can't know at the start what labels we are selecting against.
+		// We can't know at the start what labels we are selecting against, but this query will match everything.
+		// Some intelligent optimizations in the lister itself later on may be able to make subsequent list ops
+		// fast based on the knowledge that we have a superset.
 		pm.servicePods[""], err = podLister.List(createSelectorFromLabels(nil))
 		if err != nil {
 			glog.Errorf("Error while calculating ServiceAffinity matches: %v", err)
@@ -721,6 +723,7 @@ func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, n
 	if pm, ok := meta.(*predicateMetadata); ok {
 		predicateMeta = pm
 	}
+
 	node := nodeInfo.Node()
 	if node == nil {
 		return false, nil, fmt.Errorf("node not found")
@@ -732,6 +735,7 @@ func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, n
 	// Step 2: If Step 1 didnt have all constraints, introspect nodes to find the missing constraints.
 	if len(s.labels) > len(affinityLabels) {
 		services, err := s.serviceLister.GetPodServices(pod)
+		fmt.Println("CHECKED SERVICES :::::::::::: pod ", pod, "pod spec", pod.Spec, "services matching = " , services, "error=", err)
 		if err == nil && len(services) > 0 {
 			// just use the first service and get the other pods within the service
 			// TODO: a separate predicate can be created that tries to handle all services for the pod

@@ -2,6 +2,14 @@
 "kind" : "Policy",
 "apiVersion" : "v1",
 "predicates" : [
+	       {
+	         "name":"myAffinity",
+         "argument":{
+            "serviceAffinity":{
+              "labels":["e2e"]
+            }
+         }
+       },
 	{"name" : "PodFitsPorts"},
 	{"name" : "PodFitsResources"},
 	{"name" : "NoDiskConflict"},
