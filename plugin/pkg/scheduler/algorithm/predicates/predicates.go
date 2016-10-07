@@ -122,6 +122,7 @@ func PredicateMetadata(pod *api.Pod, nodeInfoMap map[string]*schedulercache.Node
 		matchingAntiAffinityTerms: matchingTerms,
 		servicePods:               make(map[string]([]*api.Pod)),
 		podServices: 		   make(map[string]([]*api.Service)),
+		lock:			   &sync.Mutex{},
 	}
 
 	// predicates is optional: its just a mechanism for us to iterate and possible precompute some things.
