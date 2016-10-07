@@ -102,6 +102,7 @@ func makeNodes(c client.Interface, nodeCount int) {
 	baseNode := &api.Node{
 		ObjectMeta: api.ObjectMeta{
 			GenerateName: "scheduler-test-node-",
+			Labels:map[string]string{"e2e":"1"},
 		},
 		Spec: api.NodeSpec{
 			ExternalID: "foobar",

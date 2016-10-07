@@ -734,7 +734,7 @@ func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, n
 	// Step 2: If Step 1 didnt have all constraints, introspect nodes to find the missing constraints.
 	if len(s.labels) > len(affinityLabels) {
 		services, err := s.serviceLister.GetPodServices(pod)
-		fmt.Println("CHECKED SERVICES :::::::::::: pod ", pod, "pod spec", pod.Spec, "services matching = " , services, "error=", err)
+		// fmt.Println("CHECKED SERVICES :::::::::::: pod ", pod, "pod spec", pod.Spec, "services matching = " , services, "error=", err)
 		if err == nil && len(services) > 0 {
 			// just use the first service and get the other pods within the service
 			// TODO: a separate predicate can be created that tries to handle all services for the pod
