@@ -34,6 +34,7 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm"
 	priorityutil "k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/priorities/util"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
+	"os"
 )
 
 type NodeInfo interface {
@@ -682,20 +683,20 @@ func NewServiceAffinityPredicate(podLister algorithm.PodLister, serviceLister al
 	}
 }
 
-var calls = 0
-var lists = 0
+// var calls = 0
+// var lists = 0
 func (s *ServiceAffinity) UpdatePredicateMetaServicePods(selector labels.Selector, predicateMeta *predicateMetadata) error {
-	start := time.Now()
-	calls+=1
+//	start := time.Now()
+//	calls+=1
 	var err error
 	if predicateMeta.servicePods[selector.String()] == nil {
 		predicateMeta.lock.Lock()
 		defer predicateMeta.lock.Unlock()
 		predicateMeta.servicePods[selector.String()], err = s.podLister.List(selector)
-		lists += 1
+//		lists += 1
 	}
-	elapsed := time.Since(start)
-	fmt.Println("Time for list function = ",elapsed, "calls / lists = ", calls, lists)
+//	elapsed := time.Since(start)
+//	glog.Errorf("Time for list function = ",elapsed, "calls / lists = ", calls, lists)
 	return err
 }
 
@@ -746,7 +747,15 @@ func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, n
 			// just use the first service and get the other pods within the service
 			// TODO: a separate predicate can be created that tries to handle all services for the pod
 			selector := labels.SelectorFromSet(services[0].Spec.Selector)
-			err = s.UpdatePredicateMetaServicePods(selector, predicateMeta)
+			if os.Getenv("SERVICE_PODS") == "true" {
+				err = s.UpdatePredicateMetaServicePods(selector, predicateMeta)
+			} else { // this is just instrumented for A/B comparison
+				func() {
+					predicateMeta.lock.Lock()
+					defer predicateMeta.lock.Unlock()
+					predicateMeta.servicePods[selector.String()], err = s.podLister.List(selector)
+				}()
+			}
 			if err != nil {
 				return false, nil, err
 			}
