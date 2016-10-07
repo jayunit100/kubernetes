@@ -747,7 +747,9 @@ func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, n
 
 		// Optimization
 		if predicateMeta.podServices[pod.Namespace+labels.Set(pod.Labels).String()] == nil {
-				predicateMeta.podServices[pod.Namespace+labels.Set(pod.Labels).String()], err = s.serviceLister.GetPodServices(pod)
+			predicateMeta.lock.Lock()
+			defer predicateMeta.lock.Unlock()
+			predicateMeta.podServices[pod.Namespace+labels.Set(pod.Labels).String()], err = s.serviceLister.GetPodServices(pod)
 		}
 		services := predicateMeta.podServices[pod.Namespace+labels.Set(pod.Labels).String()]
 		// fmt.Println("CHECKED SERVICES :::::::::::: pod ", pod, "pod spec", pod.Spec, "services matching = " , services, "error=", err)
