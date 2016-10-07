@@ -748,6 +748,12 @@ func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, n
 		// Optimization
 		if predicateMeta.podServices[pod.Namespace+labels.Set(pod.Labels).String()] == nil {
 			func() {
+				if predicateMeta == nil {
+					panic("PREDICATE META IS NULL")
+				} else if predicateMeta.lock == nil {
+					panic("PREDICATE META (lock) IS NULL")
+
+				}
 				predicateMeta.lock.Lock()
 				defer predicateMeta.lock.Unlock()
 				predicateMeta.podServices[pod.Namespace + labels.Set(pod.Labels).String()], err = s.serviceLister.GetPodServices(pod)
