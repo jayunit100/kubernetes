@@ -682,13 +682,20 @@ func NewServiceAffinityPredicate(podLister algorithm.PodLister, serviceLister al
 	}
 }
 
+var calls = 0
+var lists = 0
 func (s *ServiceAffinity) UpdatePredicateMetaServicePods(selector labels.Selector, predicateMeta *predicateMetadata) error {
+	start := time.Now()
+	calls+=1
 	var err error
 	if predicateMeta.servicePods[selector.String()] == nil {
 		predicateMeta.lock.Lock()
 		defer predicateMeta.lock.Unlock()
 		predicateMeta.servicePods[selector.String()], err = s.podLister.List(selector)
+		lists += 1
 	}
+	elapsed := time.Since(start)
+	fmt.Println("Time for list function = ",elapsed, "calls / lists = ", calls, lists)
 	return err
 }
 
