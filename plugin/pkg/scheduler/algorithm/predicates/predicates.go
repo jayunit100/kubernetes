@@ -77,7 +77,7 @@ type predicateMetadata struct {
 
 	// CheckServiceAffinity: pods cache, otherwise this is a large query, will slow things down
 	// when there are 100s of services/pods.
-	lock        sync.Mutex
+	lock        *sync.Mutex
 	servicePods map[string][]*api.Pod
 	podServices map[string][]*api.Service
 }
