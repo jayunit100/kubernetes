@@ -79,6 +79,7 @@ type predicateMetadata struct {
 	// when there are 100s of services/pods.
 	lock        sync.Mutex
 	servicePods map[string][]*api.Pod
+	podServices map[string][]*api.Service
 }
 
 type matchingPodAntiAffinityTerm struct {
@@ -120,6 +121,7 @@ func PredicateMetadata(pod *api.Pod, nodeInfoMap map[string]*schedulercache.Node
 		podPorts:                  getUsedPorts(pod),
 		matchingAntiAffinityTerms: matchingTerms,
 		servicePods:               make(map[string]([]*api.Pod)),
+		podServices: 		   make(map[string]([]*api.Service)),
 	}
 
 	// predicates is optional: its just a mechanism for us to iterate and possible precompute some things.
@@ -741,7 +743,13 @@ func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, n
 
 	// Step 2: If Step 1 didnt have all constraints, introspect nodes to find the missing constraints.
 	if len(s.labels) > len(affinityLabels) {
-		services, err := s.serviceLister.GetPodServices(pod)
+		var err error = nil
+
+		// Optimization
+		if predicateMeta.podServices[pod.Namespace+labels.Set(pod.Labels).String()] == nil {
+				predicateMeta.podServices[pod.Namespace+labels.Set(pod.Labels).String()], err = s.serviceLister.GetPodServices(pod)
+		}
+		services := predicateMeta.podServices[pod.Namespace+labels.Set(pod.Labels).String()]
 		// fmt.Println("CHECKED SERVICES :::::::::::: pod ", pod, "pod spec", pod.Spec, "services matching = " , services, "error=", err)
 		if err == nil && len(services) > 0 {
 			// just use the first service and get the other pods within the service
