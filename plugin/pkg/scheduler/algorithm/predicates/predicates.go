@@ -77,7 +77,7 @@ type predicateMetadata struct {
 
 	// CheckServiceAffinity: pods cache, otherwise this is a large query, will slow things down
 	// when there are 100s of services/pods.
-	lock        *sync.Mutex
+	lock        *sync.RWMutex
 	servicePods map[string][]*api.Pod
 	podServices map[string][]*api.Service
 }
@@ -98,6 +98,7 @@ func RegisterPredicatePrecomputation(predicateName string, precomp func(pm *pred
 // PredicateMetadata generates whatever metadata will be used over time to process predicate logic.
 // Optional Vararg: PredicateMetadata is given access to all predicate information, so that it precompute data as necessary as an optimization.
 func PredicateMetadata(pod *api.Pod, nodeInfoMap map[string]*schedulercache.NodeInfo, predicatesOptionalArg ...map[string]algorithm.FitPredicate) interface{} {
+	glog.Errorf("MAKING PREDICATE METADATA !!!!")
 	var predicates map[string]algorithm.FitPredicate
 	if len(predicatesOptionalArg) == 1 {
 		predicates = predicatesOptionalArg[0]
@@ -122,7 +123,7 @@ func PredicateMetadata(pod *api.Pod, nodeInfoMap map[string]*schedulercache.Node
 		matchingAntiAffinityTerms: matchingTerms,
 		servicePods:               make(map[string]([]*api.Pod)),
 		podServices: 		   make(map[string]([]*api.Service)),
-		lock:			   &sync.Mutex{},
+		lock:			   &sync.RWMutex{},
 	}
 
 	// predicates is optional: its just a mechanism for us to iterate and possible precompute some things.
@@ -679,7 +680,8 @@ func NewServiceAffinityPredicate(podLister algorithm.PodLister, serviceLister al
 		// We can't know at the start what labels we are selecting against, but this query will match everything.
 		// Some intelligent optimizations in the lister itself later on may be able to make subsequent list ops
 		// fast based on the knowledge that we have a superset.
-		pm.servicePods[""], err = podLister.List(createSelectorFromLabels(nil))
+		// This precompute could be done, but it is of limited value until we know that it will be useful .
+		// pm.servicePods[""], err = podLister.List(createSelectorFromLabels(nil))
 		if err != nil {
 			glog.Errorf("Error while calculating ServiceAffinity matches: %v", err)
 		}
@@ -747,6 +749,8 @@ func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, n
 		var err error = nil
 
 		// Optimization
+		predicateMeta.lock.RLock()
+		predicateMeta.lock.RUnlock()
 		if predicateMeta.podServices[pod.Namespace+labels.Set(pod.Labels).String()] == nil {
 			func() {
 				if predicateMeta == nil {
