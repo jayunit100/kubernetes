@@ -95,6 +95,9 @@ func RegisterPredicatePrecomputation(predicateName string, precomp func(pm *pred
 	predicatePrecomputations[predicateName] = precomp
 }
 
+var servicePods = make(map[string]([]*api.Pod))
+var podServices = make(map[string]([]*api.Service))
+
 // PredicateMetadata generates whatever metadata will be used over time to process predicate logic.
 // Optional Vararg: PredicateMetadata is given access to all predicate information, so that it precompute data as necessary as an optimization.
 func PredicateMetadata(pod *api.Pod, nodeInfoMap map[string]*schedulercache.NodeInfo, predicatesOptionalArg ...map[string]algorithm.FitPredicate) interface{} {
@@ -121,8 +124,6 @@ func PredicateMetadata(pod *api.Pod, nodeInfoMap map[string]*schedulercache.Node
 		podRequest:                getResourceRequest(pod),
 		podPorts:                  getUsedPorts(pod),
 		matchingAntiAffinityTerms: matchingTerms,
-		servicePods:               make(map[string]([]*api.Pod)),
-		podServices: 		   make(map[string]([]*api.Service)),
 		lock:			   &sync.RWMutex{},
 	}
 
@@ -694,10 +695,10 @@ func (s *ServiceAffinity) UpdatePredicateMetaServicePods(selector labels.Selecto
 //	start := time.Now()
 //	calls+=1
 	var err error
-	if predicateMeta.servicePods[selector.String()] == nil {
+	if servicePods[selector.String()] == nil {
 		predicateMeta.lock.Lock()
 		defer predicateMeta.lock.Unlock()
-		predicateMeta.servicePods[selector.String()], err = s.podLister.List(selector)
+		servicePods[selector.String()], err = s.podLister.List(selector)
 //		lists += 1
 	}
 //	elapsed := time.Since(start)
@@ -751,7 +752,7 @@ func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, n
 		// Optimization
 		predicateMeta.lock.RLock()
 		predicateMeta.lock.RUnlock()
-		if predicateMeta.podServices[pod.Namespace+labels.Set(pod.Labels).String()] == nil {
+		if podServices[pod.Namespace+labels.Set(pod.Labels).String()] == nil {
 			func() {
 				if predicateMeta == nil {
 					panic("PREDICATE META IS NULL")
@@ -761,10 +762,10 @@ func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, n
 				}
 				predicateMeta.lock.Lock()
 				defer predicateMeta.lock.Unlock()
-				predicateMeta.podServices[pod.Namespace + labels.Set(pod.Labels).String()], err = s.serviceLister.GetPodServices(pod)
+				podServices[pod.Namespace + labels.Set(pod.Labels).String()], err = s.serviceLister.GetPodServices(pod)
 			}()
 		}
-		services := predicateMeta.podServices[pod.Namespace+labels.Set(pod.Labels).String()]
+		services := podServices[pod.Namespace+labels.Set(pod.Labels).String()]
 		// fmt.Println("CHECKED SERVICES :::::::::::: pod ", pod, "pod spec", pod.Spec, "services matching = " , services, "error=", err)
 		if err == nil && len(services) > 0 {
 			// just use the first service and get the other pods within the service
@@ -776,7 +777,7 @@ func (s *ServiceAffinity) CheckServiceAffinity(pod *api.Pod, meta interface{}, n
 				func() {
 					predicateMeta.lock.Lock()
 					defer predicateMeta.lock.Unlock()
-					predicateMeta.servicePods[selector.String()], err = s.podLister.List(selector)
+					servicePods[selector.String()], err = s.podLister.List(selector)
 				}()
 			}
 			if err != nil {
