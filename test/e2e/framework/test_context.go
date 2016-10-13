@@ -20,12 +20,23 @@ import (
 	"flag"
 	"os"
 	"time"
-
+"fmt"
 	"github.com/onsi/ginkgo/config"
 	"github.com/spf13/viper"
 	"k8s.io/kubernetes/pkg/client/unversioned/clientcmd"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 )
+
+
+type ClusterLoaderStruct struct {
+                Number    int    `json:"num"`
+                BaseName  string `json:"basename"`
+                Tuning    string `json:"tuning"`
+                Templates []struct {
+                      Number int    `json:"num"`
+                      File   string `json:"file"`
+                }
+}
 
 type TestContextType struct {
 	KubeConfig         string
@@ -98,15 +109,7 @@ type TestContextType struct {
 	}
 
 	ClusterLoader struct {
-		Projects []struct {
-			Number    int    `json:"num"`
-			BaseName  string `json:"basename"`
-			Tuning    string `json:"tuning"`
-			Templates []struct {
-				Number int    `json:"num"`
-				File   string `json:"file"`
-			} `json:"projects"`
-		} `json:"projects"`
+		Projects []ClusterLoaderStruct
 	}
 }
 
@@ -242,6 +245,8 @@ func ViperizeFlags() {
 
 	viper.Unmarshal(&TestContext)
 
+	fmt.Println(&TestContext.ClusterLoader)
+	panic ("ASDFASDFASDF")
 	/** This can be used to overwrite a flag value.
 	*
 	*	viperFlagSetter := func(f *flag.Flag) {
