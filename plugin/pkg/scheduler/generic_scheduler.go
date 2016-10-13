@@ -61,14 +61,15 @@ func (f *FitError) Error() string {
 }
 
 type genericScheduler struct {
-	cache                schedulercache.Cache
-	predicates           map[string]algorithm.FitPredicate
-	priorityMetaProducer algorithm.MetadataProducer
-	prioritizers         []algorithm.PriorityConfig
-	extenders            []algorithm.SchedulerExtender
-	pods                 algorithm.PodLister
-	lastNodeIndexLock    sync.Mutex
-	lastNodeIndex        uint64
+	cache                 schedulercache.Cache
+	predicates            map[string]algorithm.FitPredicate
+	priorityMetaProducer  algorithm.MetadataProducer
+	predicateMetaProducer algorithm.MetadataProducer
+	prioritizers          []algorithm.PriorityConfig
+	extenders             []algorithm.SchedulerExtender
+	pods                  algorithm.PodLister
+	lastNodeIndexLock     sync.Mutex
+	lastNodeIndex         uint64
 
 	cachedNodeInfoMap map[string]*schedulercache.NodeInfo
 }
@@ -83,7 +84,7 @@ func (g *genericScheduler) Schedule(pod *api.Pod, nodeLister algorithm.NodeListe
 	} else {
 		trace = util.NewTrace("Scheduling <nil> pod")
 	}
-	defer trace.LogIfLong(20 * time.Millisecond)
+	defer trace.LogIfLong(100 * time.Millisecond)
 
 	nodes, err := nodeLister.List()
 	if err != nil {
@@ -100,7 +101,7 @@ func (g *genericScheduler) Schedule(pod *api.Pod, nodeLister algorithm.NodeListe
 	}
 
 	trace.Step("Computing predicates")
-	filteredNodes, failedPredicateMap, err := findNodesThatFit(pod, g.cachedNodeInfoMap, nodes, g.predicates, g.extenders)
+	filteredNodes, failedPredicateMap, err := findNodesThatFit(pod, g.cachedNodeInfoMap, nodes, g.predicates, g.extenders, g.predicateMetaProducer)
 	if err != nil {
 		return "", err
 	}
@@ -113,8 +114,8 @@ func (g *genericScheduler) Schedule(pod *api.Pod, nodeLister algorithm.NodeListe
 	}
 
 	trace.Step("Prioritizing")
-	meta := g.priorityMetaProducer(pod)
-	priorityList, err := PrioritizeNodes(pod, g.cachedNodeInfoMap, meta, g.prioritizers, filteredNodes, g.extenders)
+	metaPrioritiesInterface := g.priorityMetaProducer(pod, g.cachedNodeInfoMap)
+	priorityList, err := PrioritizeNodes(pod, g.cachedNodeInfoMap, metaPrioritiesInterface, g.prioritizers, filteredNodes, g.extenders)
 	if err != nil {
 		return "", err
 	}
@@ -149,7 +150,19 @@ func findNodesThatFit(
 	nodeNameToInfo map[string]*schedulercache.NodeInfo,
 	nodes []*api.Node,
 	predicateFuncs map[string]algorithm.FitPredicate,
-	extenders []algorithm.SchedulerExtender) ([]*api.Node, FailedPredicateMap, error) {
+	extenders []algorithm.SchedulerExtender,
+	metaFactory interface{},
+) ([]*api.Node, FailedPredicateMap, error) {
+
+	/**
+	 * PredicateMetadata is an internal package of predicates.  We don't want or need to know the type.
+	 * instead, we use its GetMetadata function to capture the interface, and forward the interface to the
+	 * fit functions later on.
+	 */
+	pFactory := algorithm.EmptyMetadataProducer
+	if metaFactory != nil {
+		pFactory = metaFactory.(algorithm.MetadataProducer)
+	}
 	var filtered []*api.Node
 	failedPredicateMap := FailedPredicateMap{}
 
@@ -159,14 +172,15 @@ func findNodesThatFit(
 		// Create filtered list with enough space to avoid growing it
 		// and allow assigning.
 		filtered = make([]*api.Node, len(nodes))
-		meta := predicates.PredicateMetadata(pod, nodeNameToInfo)
+
 		errs := []error{}
 
 		var predicateResultLock sync.Mutex
 		var filteredLen int32
 		checkNode := func(i int) {
 			nodeName := nodes[i].Name
-			fits, failedPredicates, err := podFitsOnNode(pod, meta, nodeNameToInfo[nodeName], predicateFuncs)
+			// We don't know necessarily about details of the predicateMeta type, that is for the predicates package functions to handle.
+			fits, failedPredicates, err := podFitsOnNode(pod, pFactory(pod, nodeNameToInfo), nodeNameToInfo[nodeName], predicateFuncs)
 			if err != nil {
 				predicateResultLock.Lock()
 				errs = append(errs, err)
@@ -378,14 +392,16 @@ func NewGenericScheduler(
 	cache schedulercache.Cache,
 	predicates map[string]algorithm.FitPredicate,
 	priorityMetaProducer algorithm.MetadataProducer,
+	predicateMetaProducer algorithm.MetadataProducer,
 	prioritizers []algorithm.PriorityConfig,
 	extenders []algorithm.SchedulerExtender) algorithm.ScheduleAlgorithm {
 	return &genericScheduler{
-		cache:                cache,
-		predicates:           predicates,
-		priorityMetaProducer: priorityMetaProducer,
-		prioritizers:         prioritizers,
-		extenders:            extenders,
-		cachedNodeInfoMap:    make(map[string]*schedulercache.NodeInfo),
+		cache:                 cache,
+		predicates:            predicates,
+		priorityMetaProducer:  priorityMetaProducer,
+		predicateMetaProducer: predicateMetaProducer,
+		prioritizers:          prioritizers,
+		extenders:             extenders,
+		cachedNodeInfoMap:     make(map[string]*schedulercache.NodeInfo),
 	}
 }
