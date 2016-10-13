@@ -28,6 +28,16 @@ import (
 	"time"
 )
 
+type ClusterLoaderStruct struct {
+	Number    int    `json:"num"`
+	BaseName  string `json:"basename"`
+	Tuning    string `json:"tuning"`
+	Templates []struct {
+		Number int    `json:"num"`
+		File   string `json:"file"`
+	}
+}
+
 var _ = framework.KubeDescribe("Logging soak [Performance] [Slow] [Disruptive]", func() {
 
 	f := framework.NewDefaultFramework("logging-soak")
@@ -47,7 +57,7 @@ var _ = framework.KubeDescribe("Logging soak [Performance] [Slow] [Disruptive]",
 		// Read in configuration settings, reasonable defaults.
 		project := framework.TestContext.ClusterLoader.Projects
 		framework.Logf("Loaded project config: %v", project)
-
+		panic("ASDF")
 		scale := framework.TestContext.LoggingSoak.Scale
 		if framework.TestContext.LoggingSoak.Scale == 0 {
 			scale = 1
