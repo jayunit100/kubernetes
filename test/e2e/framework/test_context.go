@@ -27,6 +27,10 @@ import (
 	"time"
 )
 
+func init() {
+	ViperizeFlags()
+}
+
 // Types that we use the individual tests.
 type ClusterLoaderStruct struct {
 	Number    int    `json:"num"`

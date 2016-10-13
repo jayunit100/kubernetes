@@ -28,7 +28,6 @@ import (
 	"time"
 )
 
-
 var _ = framework.KubeDescribe("Logging soak [Performance] [Slow] [Disruptive]", func() {
 
 	f := framework.NewDefaultFramework("logging-soak")
@@ -64,7 +63,7 @@ var _ = framework.KubeDescribe("Logging soak [Performance] [Slow] [Disruptive]",
 		return scale, time.Duration(milliSecondsBetweenWaves) * time.Millisecond
 	}
 
-	framework.ViperizeFlags()
+	framework.Logf(framework.TestContext.KubeConfig)
 	scale, millisecondsBetweenWaves := readConfig()
 
 	It(fmt.Sprintf("should survive logging 1KB every %v seconds, for a duration of %v, scaling up to %v pods per node", kbRateInSeconds, totalLogTime, scale), func() {
@@ -86,6 +85,7 @@ var _ = framework.KubeDescribe("Logging soak [Performance] [Slow] [Disruptive]",
 		wg.Wait()
 	})
 })
+
 
 // RunLogPodsWithSleepOf creates a pod on every node, logs continuously (with "sleep" pauses), and verifies that the log string
 // was produced in each and every pod at least once.  The final arg is the timeout for the test to verify all the pods got logs.
