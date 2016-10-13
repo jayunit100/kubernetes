@@ -28,15 +28,6 @@ import (
 	"time"
 )
 
-type ClusterLoaderStruct struct {
-	Number    int    `json:"num"`
-	BaseName  string `json:"basename"`
-	Tuning    string `json:"tuning"`
-	Templates []struct {
-		Number int    `json:"num"`
-		File   string `json:"file"`
-	}
-}
 
 var _ = framework.KubeDescribe("Logging soak [Performance] [Slow] [Disruptive]", func() {
 
@@ -73,7 +64,9 @@ var _ = framework.KubeDescribe("Logging soak [Performance] [Slow] [Disruptive]",
 		return scale, time.Duration(milliSecondsBetweenWaves) * time.Millisecond
 	}
 
+	framework.ViperizeFlags()
 	scale, millisecondsBetweenWaves := readConfig()
+
 	It(fmt.Sprintf("should survive logging 1KB every %v seconds, for a duration of %v, scaling up to %v pods per node", kbRateInSeconds, totalLogTime, scale), func() {
 		defer GinkgoRecover()
 		var wg sync.WaitGroup

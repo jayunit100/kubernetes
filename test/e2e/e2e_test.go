@@ -24,6 +24,7 @@ import (
 )
 
 func init() {
+	viper.Debug()
 	framework.ViperizeFlags()
 }
 
