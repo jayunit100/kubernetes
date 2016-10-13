@@ -22,6 +22,7 @@ KUBE_ROOT=$(dirname "${BASH_SOURCE}")/../../../
 source "${KUBE_ROOT}/hack/lib/init.sh"
 
 kube::golang::setup_env
+echo "note: you can export PPROF_RUN for unique .out files"
 
 DIR_BASENAME=$(dirname "${BASH_SOURCE}")
 pushd ${DIR_BASENAME}
@@ -41,7 +42,7 @@ kube::log::status "performance test start"
 # theoretically it has less variance.
 if ${RUN_BENCHMARK:-false}; then
   go test -c -o "perf.test"
-  "./perf.test" -test.bench=. -test.run=xxxx -test.cpuprofile=prof.out -test.short=false
+  "./perf.test" -test.bench=. -test.run=xxxx -test.cpuprofile=prof${PPROF_RUN}.out -test.short=false
   kube::log::status "benchmark tests finished"
   exit
 fi

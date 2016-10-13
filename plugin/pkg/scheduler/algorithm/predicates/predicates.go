@@ -34,7 +34,16 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm"
 	priorityutil "k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/priorities/util"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
+	"os"
+	// "flag"
 )
+
+
+func init() {
+	//	flag.Set("alsologtostderr", "true")
+	//	flag.Set("v", "5")
+}
+
 
 type NodeInfo interface {
 	GetNodeInfo(nodeID string) (*api.Node, error)
@@ -648,10 +657,12 @@ func NewServiceAffinityPredicate(podLister algorithm.PodLister, serviceLister al
 			var err error
 			// We can't know at the start what labels we are selecting against.
 			selector := createSelectorFromLabels(pm.pod.Labels)
-			pm.servicePods[selector.String()], err = podLister.List(selector)
-			if err != nil {
-				glog.Errorf("Error while precalculating ServiceAffinity matches: %v", err)
-			}
+			// if _, ok := pm.servicePods[selector.String()]; !ok {
+				pm.servicePods[selector.String()], err = podLister.List(selector)
+				if err != nil {
+					glog.Errorf("Error while precalculating ServiceAffinity matches: %v", err)
+				}
+			//}
 		}
 }
 
@@ -701,6 +712,11 @@ func (s *ServiceAffinity) checkServiceAffinity(pod *api.Pod, meta interface{}, n
 			selector := labels.SelectorFromSet(services[0].Spec.Selector)
 			if err != nil {
 				return false, nil, err
+			}
+
+			if os.Getenv("RECOMPUTE") == "true" {
+				predicatePrecomputations["myAffinity"](predicateMeta)
+			} else {
 			}
 			nsServicePods := filterPodsByNamespace(predicateMeta.servicePods[selector.String()], pod.Namespace)
 			if len(nsServicePods) > 0 {

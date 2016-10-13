@@ -156,8 +156,7 @@ func makePodsFromRC(c client.Interface, name string, podCount int) {
 	              Spec: api.ServiceSpec{
 			      Ports: []api.ServicePort{{Port: 8080, TargetPort: intstr.FromInt(8080)}},
 			      Selector: map[string]string{
-				    "name":name,
-	                            "e2e": "1",
+	                            "podLabelToMatch": "affinityPod",
 	                      },
 			},
 	})
@@ -171,10 +170,10 @@ func makePodsFromRC(c client.Interface, name string, podCount int) {
 		},
 		Spec: api.ReplicationControllerSpec{
 			Replicas: int32(podCount),
-			Selector: map[string]string{"name": name},
+			Selector: map[string]string{"name": name, "podLabelToMatch":"affinityPod",},
 			Template: &api.PodTemplateSpec{
 				ObjectMeta: api.ObjectMeta{
-					Labels: map[string]string{"name": name},
+					Labels: map[string]string{"name": name, "podLabelToMatch":"affinityPod",},
 				},
 				Spec: makePodSpec(),
 			},
@@ -187,7 +186,7 @@ func makePodsFromRC(c client.Interface, name string, podCount int) {
 	basePod := &api.Pod{
 		ObjectMeta: api.ObjectMeta{
 			GenerateName: "scheduler-test-pod-",
-			Labels:       map[string]string{"name": name},
+			Labels:       map[string]string{"name": name, "podLabelToMatch":"affinityPod",},
 		},
 		Spec: makePodSpec(),
 	}

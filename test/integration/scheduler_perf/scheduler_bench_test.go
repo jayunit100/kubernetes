@@ -19,25 +19,8 @@ package benchmark
 import (
 	"testing"
 	"time"
+	"fmt"
 )
-
-// BenchmarkScheduling100Nodes0Pods benchmarks the scheduling rate
-// when the cluster has 100 nodes and 0 scheduled pods
-func BenchmarkScheduling100Nodes0Pods(b *testing.B) {
-	benchmarkScheduling(100, 0, b)
-}
-
-// BenchmarkScheduling100Nodes1000Pods benchmarks the scheduling rate
-// when the cluster has 100 nodes and 1000 scheduled pods
-func BenchmarkScheduling100Nodes1000Pods(b *testing.B) {
-	benchmarkScheduling(100, 1000, b)
-}
-
-// BenchmarkScheduling1000Nodes0Pods benchmarks the scheduling rate
-// when the cluster has 1000 nodes and 0 scheduled pods
-func BenchmarkScheduling1000Nodes0Pods(b *testing.B) {
-	benchmarkScheduling(1000, 0, b)
-}
 
 // BenchmarkScheduling1000Nodes1000Pods benchmarks the scheduling rate
 // when the cluster has 1000 nodes and 1000 scheduled pods
@@ -62,6 +45,7 @@ func benchmarkScheduling(numNodes, numScheduledPods int, b *testing.B) {
 		}
 		time.Sleep(1 * time.Second)
 	}
+	fmt.Println("Done seeding",b.N)
 	// start benchmark
 	b.ResetTimer()
 	makePodsFromRC(c, "rc2", b.N)
