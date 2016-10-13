@@ -43,6 +43,7 @@ if ${RUN_BENCHMARK:-false}; then
   go test -c -o "perf.test"
   "./perf.test" -test.bench=. -test.run=xxxx -test.cpuprofile=prof.out -test.short=false
   kube::log::status "benchmark tests finished"
+  exit
 fi
 # Running density tests. It might take a long time.
 go test -test.run=. -test.timeout=60m -test.short=false

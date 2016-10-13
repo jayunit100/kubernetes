@@ -23,7 +23,7 @@ import (
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/resource"
-	"k8s.io/kubernetes/pkg/api/testapi"
+	"k8s.io/kubernetes/pkg/apimachinery/registered"
 	"k8s.io/kubernetes/pkg/client/record"
 	"k8s.io/kubernetes/pkg/client/restclient"
 	client "k8s.io/kubernetes/pkg/client/unversioned"
@@ -34,6 +34,11 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/factory"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/integration/framework"
+	"k8s.io/kubernetes/pkg/util/intstr"
+	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
+	latestschedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api/latest"
+
+	"k8s.io/kubernetes/pkg/runtime"
 )
 
 // mustSetupScheduler starts the following components:
@@ -44,8 +49,6 @@ import (
 // Notes on rate limiter:
 //   - client rate limit is set to 5000.
 func mustSetupScheduler() (schedulerConfigFactory *factory.ConfigFactory, destroyFunc func()) {
-	// framework.DeleteAllEtcdKeys()
-
 	var m *master.Master
 	masterConfig := framework.NewIntegrationTestMasterConfig()
 	m, err := masterConfig.Complete().New()
@@ -58,27 +61,39 @@ func mustSetupScheduler() (schedulerConfigFactory *factory.ConfigFactory, destro
 
 	c := client.NewOrDie(&restclient.Config{
 		Host:          s.URL,
-		ContentConfig: restclient.ContentConfig{GroupVersion: testapi.Default.GroupVersion()},
+		ContentConfig: restclient.ContentConfig{GroupVersion: &registered.GroupOrDie(api.GroupName).GroupVersion},
 		QPS:           5000.0,
 		Burst:         5000,
 	})
 
 	schedulerConfigFactory = factory.NewConfigFactory(c, api.DefaultSchedulerName, api.DefaultHardPodAffinitySymmetricWeight, api.DefaultFailureDomains)
-	schedulerConfig, err := schedulerConfigFactory.Create()
-	if err != nil {
-		panic("Couldn't create scheduler config")
-	}
-	eventBroadcaster := record.NewBroadcaster()
-	schedulerConfig.Recorder = eventBroadcaster.NewRecorder(api.EventSource{Component: "scheduler"})
-	eventBroadcaster.StartRecordingToSink(c.Events(""))
-	scheduler.New(schedulerConfig).Run()
+	var policy schedulerapi.Policy
 
-	destroyFunc = func() {
-		glog.Infof("destroying")
-		close(schedulerConfig.StopEverything)
-		s.Close()
-		glog.Infof("destroyed")
+	configData := []byte(`{"kind": "Policy", "apiVersion": "v1",
+	"predicates": [{
+		"name": "myAffinity",
+		"argument": {
+			"serviceAffinity": {
+				"labels": ["e2e"]
+		}}}, {"name": "PodFitsPorts"}, {"name": "PodFitsResources"}, {"name": "NoDiskConflict"}]}`)
+
+	if err := runtime.DecodeInto(latestschedulerapi.Codec, configData, &policy); err != nil {
+		if err != nil {
+			panic("Couldn't create scheduler config")
+		}
 	}
+		schedulerConfig, err := schedulerConfigFactory.CreateFromConfig(policy)
+		eventBroadcaster := record.NewBroadcaster()
+		schedulerConfig.Recorder = eventBroadcaster.NewRecorder(api.EventSource{Component: "scheduler"})
+		eventBroadcaster.StartRecordingToSink(c.Events(""))
+		scheduler.New(schedulerConfig).Run()
+
+		destroyFunc = func() {
+			glog.Infof("destroying")
+			close(schedulerConfig.StopEverything)
+			s.Close()
+			glog.Infof("destroyed")
+		}
 	return
 }
 
@@ -87,6 +102,7 @@ func makeNodes(c client.Interface, nodeCount int) {
 	baseNode := &api.Node{
 		ObjectMeta: api.ObjectMeta{
 			GenerateName: "scheduler-test-node-",
+			Labels:map[string]string{"e2e":"1"},
 		},
 		Spec: api.NodeSpec{
 			ExternalID: "foobar",
@@ -115,7 +131,7 @@ func makePodSpec() api.PodSpec {
 		Containers: []api.Container{{
 			Name:  "pause",
 			Image: e2e.GetPauseImageNameForHostArch(),
-			Ports: []api.ContainerPort{{ContainerPort: 80}},
+			Ports: []api.ContainerPort{/*{ContainerPort: 80}*/},
 			Resources: api.ResourceRequirements{
 				Limits: api.ResourceList{
 					api.ResourceCPU:    resource.MustParse("100m"),
@@ -133,6 +149,22 @@ func makePodSpec() api.PodSpec {
 // makePodsFromRC will create a ReplicationController object and
 // a given number of pods (imitating the controller).
 func makePodsFromRC(c client.Interface, name string, podCount int) {
+	_, err := c.Services("default").Create(&api.Service{
+	              ObjectMeta: api.ObjectMeta{
+	                       Name: name,
+	              },
+	              Spec: api.ServiceSpec{
+			      Ports: []api.ServicePort{{Port: 8080, TargetPort: intstr.FromInt(8080)}},
+			      Selector: map[string]string{
+				    "name":name,
+	                            "e2e": "1",
+	                      },
+			},
+	})
+	glog.Errorf("created service, error == %v",err)
+	if err != nil{
+		panic("ASDFASDFASDFASD")
+	}
 	rc := &api.ReplicationController{
 		ObjectMeta: api.ObjectMeta{
 			Name: name,
