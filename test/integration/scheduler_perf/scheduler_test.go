@@ -49,7 +49,7 @@ func TestPodsPerNode(t *testing.T) {
 	for pods := 1000; pods < 10000; pods += 2000 {
 		for nodes := int32(math.Max(float64(pods/50), 100.0)); nodes < pods/4; nodes *= 2 {
 			fmt.Printf("STARTING TEST!!!!", pods, " per ", nodes, "nodes")
-			config := defaultSchedulerBenchmarkConfig(pods, nodes)
+			config := defaultSchedulerBenchmarkConfig(pods, int(nodes))
 			minQPS := schedulePods(config)
 			if minQPS < threshold {
 				// TODO, re-enable this threshold once we know what we expect.
