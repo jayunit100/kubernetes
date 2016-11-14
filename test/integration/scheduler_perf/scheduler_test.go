@@ -218,7 +218,11 @@ func schedulePods(config *testConfig) int32 {
 		scheduled := config.schedulerConfigFactory.ScheduledPodLister.Indexer.List()
 		// There's no point in printing it for the last iteration, as the value is random
 		qps = append(qps, int32(len(scheduled) - prev))
-		if currQps := qps[len(qps)-1]; currQps < minQps {
+
+		// ignore 0 qps measurements, they are uninteresting.
+		// the per-second pods may look something like this.
+		// 192 0 0 0 0 0 0 0 946 0 0 0 0 0 0 0
+		if currQps := qps[len(qps)-1]; currQps > 0 && currQps < minQps {
 			minQps = currQps
 		}
 		fmt.Printf("%ds\trate: %d\ttotal: %d\n", time.Since(start)/time.Second, qps, len(scheduled))
