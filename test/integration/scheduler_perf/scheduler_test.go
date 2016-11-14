@@ -141,15 +141,6 @@ func schedulePods(config *testConfig) int32 {
 		// Listing 10000 pods is an expensive operation, so running it frequently may impact scheduler.
 		// TODO: Setup watch on apiserver and wait until all pods scheduled.
 		scheduled := config.schedulerConfigFactory.ScheduledPodLister.Indexer.List()
-		if len(scheduled) >= config.numPods {
-			fmt.Printf("Scheduled %v Pods in %v seconds (%v per second on average). min QPS was %v\n",
-				config.numPods, int(time.Since(start)/time.Second), config.numPods/int(time.Since(start)/time.Second), minQps)
-			// We will be completed when all pods are done being scheduled.
-			// return the worst-case-scenario interval that was seen during this time.
-			// Note this should never be low due to cold-start, so allow bake in sched time if necessary.
-			return minQps
-		}
-		time.Sleep(1000 * time.Millisecond)
 
 		// There's no point in printing it for the last iteration, as the value is random
 		qps = append(qps, int32(len(scheduled)-prev))
@@ -165,8 +156,16 @@ func schedulePods(config *testConfig) int32 {
 			if currQps := qps[len(qps)-1]; currQps > 0 && currQps < minQps {
 				minQps = currQps
 			}
+			fmt.Printf("%ds\trate: %d\ttotal: %d\n", time.Since(start)/time.Second, qps, len(scheduled))
+			prev = len(scheduled)
+			time.Sleep(1000 * time.Millisecond)
+		} else {
+			fmt.Printf("Scheduled %v Pods in %v seconds (%v per second on average). min QPS was %v\n",
+				config.numPods, int(time.Since(start)/time.Second), config.numPods/int(time.Since(start)/time.Second), minQps)
+			// We will be completed when all pods are done being scheduled.
+			// return the worst-case-scenario interval that was seen during this time.
+			// Note this should never be low due to cold-start, so allow bake in sched time if necessary.
+			return minQps
 		}
-		fmt.Printf("%ds\trate: %d\ttotal: %d\n", time.Since(start)/time.Second, qps, len(scheduled))
-		prev = len(scheduled)
 	}
 }
