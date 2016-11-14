@@ -40,8 +40,8 @@ func TestPodsPerNode(t *testing.T) {
 	}
 
 	results := map[string]int32{}
-	for pods := 1; pods < 2000; pods += 500 {
-		for nodes := 1; nodes < 3000; nodes += 500 {
+	for pods := 1000; pods < 2000; pods += 500 {
+		for nodes := pods / 10; nodes < pods/20; nodes += 20 {
 			config := defaultSchedulerBenchmarkConfig(pods, nodes)
 			if minQPS := schedulePods(config); minQPS < threshold {
 				// TODO, re-enable this threshold once we know what we expect.
