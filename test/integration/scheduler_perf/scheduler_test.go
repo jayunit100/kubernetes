@@ -49,10 +49,12 @@ func TestPodsPerNode(t *testing.T) {
 			} else {
 				fmt.Printf("Minimal observed throughput for 3k pod test: %v\n", minQPS)
 				results[fmt.Sprintf("%v pods, %v nodes minQPS", pods, nodes)] = minQPS
+				fmt.Println(results)
 			}
 		}
 	}
 	fmt.Print("Done measuring all scenarios for pods/nodes:")
+	fmt.Println("-----------------FINAL RESULT--------------")
 	fmt.Sprint(results)
 }
 
