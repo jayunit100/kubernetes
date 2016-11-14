@@ -150,6 +150,7 @@ func (c *Controller) RunKubernetesNamespaces(ch chan struct{}) {
 	}, c.SystemNamespacesInterval, ch)
 }
 
+var failures = 0
 // RunKubernetesService periodically updates the kubernetes service
 func (c *Controller) RunKubernetesService(ch chan struct{}) {
 	wait.Until(func() {
@@ -157,7 +158,8 @@ func (c *Controller) RunKubernetesService(ch chan struct{}) {
 		// run, ports and type will be corrected only during
 		// start.
 		if err := c.UpdateKubernetesService(false); err != nil {
-			runtime.HandleError(fmt.Errorf("unable to sync kubernetes service: %v", err))
+			failures += 1
+			runtime.HandleError(fmt.Errorf("unable to sync kubernetes service: (%v,%v)", failures, err))
 		}
 	}, c.EndpointInterval, ch)
 }
