@@ -37,94 +37,17 @@ const (
 	threshold60K = 30
 )
 
-// TestSchedule100Node3KPods schedules 3k pods on 100 nodes.
-func TestSchedule100Node3KPods(t *testing.T) {
+// TestSchedule2000Node3KPods schedules 3k pods on 100 nodes.
+func TestSchedule200Node3KPods(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping because we want to run short tests")
 	}
 
-	config := defaultSchedulerBenchmarkConfig(100, 3000)
+	config := defaultSchedulerBenchmarkConfig(200, 3000)
 	if min := schedulePods(config); min < threshold3K {
 		t.Errorf("Too small pod scheduling throughput for 3k pods. Expected %v got %v", threshold3K, min)
 	} else {
 		fmt.Printf("Minimal observed throughput for 3k pod test: %v\n", min)
-	}
-}
-
-// TestSchedule100Node3KNodeAffinityPods schedules 3k pods using Node affinity on 100 nodes.
-func TestSchedule100Node3KNodeAffinityPods(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping because we want to run short tests")
-	}
-
-	config := baseConfig()
-	config.numNodes = 100
-	config.numPods = 3000
-
-	// number of Node-Pod sets with Pods NodeAffinity matching given Nodes.
-	numGroups := 10
-	nodeAffinityKey := "kubernetes.io/sched-perf-node-affinity"
-
-	nodeStrategies := make([]testutils.CountToStrategy, 0, 10)
-	for i := 0; i < numGroups; i++ {
-		nodeStrategies = append(nodeStrategies, testutils.CountToStrategy{
-			Count:    config.numNodes / numGroups,
-			Strategy: testutils.NewLabelNodePrepareStrategy(nodeAffinityKey, fmt.Sprintf("%v", i)),
-		})
-	}
-	config.nodePreparer = framework.NewIntegrationTestNodePreparer(
-		config.schedulerConfigFactory.Client,
-		nodeStrategies,
-		"scheduler-perf-",
-	)
-
-	affinityTemplate := dedent.Dedent(`
-		{
-			"nodeAffinity": {
-				"requiredDuringSchedulingIgnoredDuringExecution": {
-					"nodeSelectorTerms": [{
-						"matchExpressions": [{
-							"key": "` + nodeAffinityKey + `",
-							"operator": "In",
-							"values": ["%v"]
-						}]
-					}]
-				}
-			}
-		}`)
-
-	podCreatorConfig := testutils.NewTestPodCreatorConfig()
-	for i := 0; i < numGroups; i++ {
-		podCreatorConfig.AddStrategy("sched-perf-node-affinity", config.numPods/numGroups,
-			testutils.NewCustomCreatePodStrategy(&api.Pod{
-				ObjectMeta: api.ObjectMeta{
-					GenerateName: "sched-perf-node-affinity-pod-",
-					Annotations:  map[string]string{api.AffinityAnnotationKey: fmt.Sprintf(affinityTemplate, i)},
-				},
-				Spec: testutils.MakePodSpec(),
-			}),
-		)
-	}
-	config.podCreator = testutils.NewTestPodCreator(config.schedulerConfigFactory.Client, podCreatorConfig)
-
-	if min := schedulePods(config); min < threshold30K {
-		t.Errorf("Too small pod scheduling throughput for 30k pods. Expected %v got %v", threshold30K, min)
-	} else {
-		fmt.Printf("Minimal observed throughput for 30k pod test: %v\n", min)
-	}
-}
-
-// TestSchedule1000Node30KPods schedules 30k pods on 1000 nodes.
-func TestSchedule1000Node30KPods(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping because we want to run short tests")
-	}
-
-	config := defaultSchedulerBenchmarkConfig(1000, 30000)
-	if min := schedulePods(config); min < threshold30K {
-		t.Errorf("To small pod scheduling throughput for 30k pods. Expected %v got %v", threshold30K, min)
-	} else {
-		fmt.Printf("Minimal observed throughput for 30k pod test: %v\n", min)
 	}
 }
 
