@@ -40,6 +40,12 @@ func TestPodsPerNode(t *testing.T) {
 	}
 
 	results := map[string]int32{}
+	printResults := func() {
+		for k, v := range results {
+			fmt.Println("%v = %v", k, v)
+		}
+	}
+
 	for pods := 1000; pods < 10000; pods += 2000 {
 		// measure: 20 pods per node -> 50 pods per node
 		for nodes := pods / 50; nodes < pods/4; nodes += 10 {
@@ -51,12 +57,12 @@ func TestPodsPerNode(t *testing.T) {
 			}
 			fmt.Printf("Minimal observed throughput for 3k pod test: %v\n", minQPS)
 			results[fmt.Sprintf("%v pods, %v nodes minQPS", pods, nodes)] = minQPS
-			fmt.Println(results)
+			printResults()
 		}
 	}
 	fmt.Print("Done measuring all scenarios for pods/nodes:")
 	fmt.Println("-----------------FINAL RESULT--------------")
-	fmt.Sprint(results)
+	printResults()
 }
 
 type testConfig struct {
