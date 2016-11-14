@@ -47,11 +47,10 @@ func TestPodsPerNode(t *testing.T) {
 			if minQPS := schedulePods(config); minQPS < threshold {
 				// TODO, re-enable this threshold once we know what we expect.
 				// t.Errorf("Too small pod scheduling throughput for 3k pods. Expected %v got %v", threshold3K, min)
-			} else {
-				fmt.Printf("Minimal observed throughput for 3k pod test: %v\n", minQPS)
-				results[fmt.Sprintf("%v pods, %v nodes minQPS", pods, nodes)] = minQPS
-				fmt.Println(results)
 			}
+			fmt.Printf("Minimal observed throughput for 3k pod test: %v\n", minQPS)
+			results[fmt.Sprintf("%v pods, %v nodes minQPS", pods, nodes)] = minQPS
+			fmt.Println(results)
 		}
 	}
 	fmt.Print("Done measuring all scenarios for pods/nodes:")
