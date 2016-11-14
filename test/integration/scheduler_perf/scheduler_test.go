@@ -34,7 +34,7 @@ const (
 )
 
 // TestPodsPerNode tests a matrix of pods/node with minQPS.
-func TestPodsPerNode(t *testing.T) {
+func PodsPerNode(pods int, t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping because we want to run short tests")
 	}
@@ -46,23 +46,36 @@ func TestPodsPerNode(t *testing.T) {
 		}
 	}
 
-	for pods := 1000; pods < 10000; pods += 2000 {
-		for nodes := int32(math.Max(float64(pods/50), 100.0)); nodes < int32(pods/4); nodes *= int32(2) {
-			fmt.Printf("STARTING TEST!!!!", pods, " per ", nodes, "nodes")
-			config := defaultSchedulerBenchmarkConfig(pods, int(nodes))
-			minQPS := schedulePods(config)
-			if minQPS < threshold {
-				// TODO, re-enable this threshold once we know what we expect.
-				// t.Errorf("Too small pod scheduling throughput for 3k pods. Expected %v got %v", threshold3K, min)
-			}
-			fmt.Printf("Minimal observed throughput for 3k pod test: %v\n", minQPS)
-			results = append(results, fmt.Sprintf("[%v pods/%v nodes] = %v (min qps)", pods, nodes, minQPS))
-			printResults()
+	for nodes := int32(math.Max(float64(pods/50), 100.0)); nodes < int32(pods/4); nodes *= int32(2) {
+		fmt.Printf("STARTING TEST!!!!", pods, " per ", nodes, "nodes")
+		config := defaultSchedulerBenchmarkConfig(pods, int(nodes))
+		minQPS := schedulePods(config)
+		if minQPS < threshold {
+			// TODO, re-enable this threshold once we know what we expect.
+			// t.Errorf("Too small pod scheduling throughput for 3k pods. Expected %v got %v", threshold3K, min)
 		}
+		fmt.Printf("Minimal observed throughput for 3k pod test: %v\n", minQPS)
+		results = append(results, fmt.Sprintf("[%v pods/%v nodes] = %v (min qps)", pods, nodes, minQPS))
+		printResults()
 	}
 	fmt.Print("Done measuring all scenarios for pods/nodes:")
 	fmt.Println("-----------------FINAL RESULT--------------")
 	printResults()
+}
+
+// Separate tests, otherwise master_utils gets slow loading a new master up.
+func Test1KPods(t *testing.T) {
+	PodsPerNode(1000, t)
+}
+
+// Separate tests, otherwise master_utils gets slow loading a new master up.
+func Test5KPods(t *testing.T) {
+	PodsPerNode(5000, t)
+}
+
+// Separate tests, otherwise master_utils gets slow loading a new master up.
+func Test10KPods(t *testing.T) {
+	PodsPerNode(10000, t)
 }
 
 type testConfig struct {
