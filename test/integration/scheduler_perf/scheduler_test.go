@@ -39,7 +39,7 @@ func TestPodsPerNode(t *testing.T) {
 		t.Skip("Skipping because we want to run short tests")
 	}
 
-	results := map[string]int{}
+	results := map[string]int32{}
 	for pods := 1; pods < 2000; pods += 500 {
 		for nodes := 1; nodes < 3000; nodes += 500 {
 			config := defaultSchedulerBenchmarkConfig(pods, nodes)
