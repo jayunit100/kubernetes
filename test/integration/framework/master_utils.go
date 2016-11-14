@@ -248,7 +248,7 @@ func startMasterOrDie(masterConfig *master.Config, incomingServer *httptest.Serv
 	if err != nil {
 		glog.Fatal(err)
 	}
-	err = wait.PollImmediate(100*time.Millisecond, 30*time.Second, func() (bool, error) {
+	err = wait.PollImmediate(100*time.Millisecond, 120*time.Second, func() (bool, error) {
 		result := privilegedClient.Get().AbsPath("/healthz").Do()
 		status := 0
 		result.StatusCode(&status)
