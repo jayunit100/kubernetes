@@ -23,7 +23,9 @@ import (
 	e2eframework "k8s.io/kubernetes/test/e2e/framework"
 	testutils "k8s.io/kubernetes/test/utils"
 
+	"fmt"
 	"github.com/golang/glog"
+	"time"
 )
 
 const (
@@ -73,7 +75,11 @@ func (p *IntegrationTestNodePreparer) PrepareNodes() error {
 	}
 	for i := 0; i < numNodes; i++ {
 		if _, err := p.client.Core().Nodes().Create(baseNode); err != nil {
-			glog.Fatalf("Error creating node: %v", err)
+			time.Sleep(time.Second)
+			fmt.Println("Retrying node create", i)
+			if _, err = p.client.Core().Nodes().Create(baseNode); err != nil {
+				glog.Fatalf("Error creating node: %v", err)
+			}
 		}
 	}
 
