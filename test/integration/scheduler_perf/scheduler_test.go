@@ -44,7 +44,8 @@ func TestPodsPerNode(t *testing.T) {
 		// measure: 20 pods per node -> 50 pods per node
 		for nodes := pods / 50; nodes < pods/4; nodes += 10 {
 			config := defaultSchedulerBenchmarkConfig(pods, nodes)
-			if minQPS := schedulePods(config); minQPS < threshold {
+			minQPS := schedulePods(config)
+			if minQPS < threshold {
 				// TODO, re-enable this threshold once we know what we expect.
 				// t.Errorf("Too small pod scheduling throughput for 3k pods. Expected %v got %v", threshold3K, min)
 			}
