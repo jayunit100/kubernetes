@@ -49,6 +49,7 @@ func TestPodsPerNode(t *testing.T) {
 	for pods := 1000; pods < 10000; pods += 2000 {
 		// measure: 20 pods per node -> 50 pods per node
 		for nodes := pods / 50; nodes < pods/4; nodes += 10 {
+			fmt.Printf("STARTING TEST!!!!", pods, " per ", nodes, "nodes")
 			config := defaultSchedulerBenchmarkConfig(pods, nodes)
 			minQPS := schedulePods(config)
 			if minQPS < threshold {
