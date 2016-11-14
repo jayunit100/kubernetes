@@ -137,8 +137,20 @@ func schedulePods(config *testConfig) int32 {
 
 	// Now that scheduling has started, lets start taking the pulse on how many pods are happening per second.
 	for {
-		time.Sleep(1000 * time.Millisecond)
+		// This can potentially affect performance of scheduler, since List() is done under mutex.
+		// Listing 10000 pods is an expensive operation, so running it frequently may impact scheduler.
+		// TODO: Setup watch on apiserver and wait until all pods scheduled.
 		scheduled := config.schedulerConfigFactory.ScheduledPodLister.Indexer.List()
+		if len(scheduled) >= config.numPods {
+			fmt.Printf("Scheduled %v Pods in %v seconds (%v per second on average). min QPS was %v\n",
+				config.numPods, int(time.Since(start)/time.Second), config.numPods/int(time.Since(start)/time.Second), minQps)
+			// We will be completed when all pods are done being scheduled.
+			// return the worst-case-scenario interval that was seen during this time.
+			// Note this should never be low due to cold-start, so allow bake in sched time if necessary.
+			return minQps
+		}
+		time.Sleep(1000 * time.Millisecond)
+
 		// There's no point in printing it for the last iteration, as the value is random
 		qps = append(qps, int32(len(scheduled)-prev))
 
@@ -150,17 +162,5 @@ func schedulePods(config *testConfig) int32 {
 		}
 		fmt.Printf("%ds\trate: %d\ttotal: %d\n", time.Since(start)/time.Second, qps, len(scheduled))
 		prev = len(scheduled)
-
-		// This can potentially affect performance of scheduler, since List() is done under mutex.
-		// Listing 10000 pods is an expensive operation, so running it frequently may impact scheduler.
-		// TODO: Setup watch on apiserver and wait until all pods scheduled.
-		if len(scheduled) >= config.numPods {
-			fmt.Printf("Scheduled %v Pods in %v seconds (%v per second on average). min QPS was %v\n",
-				config.numPods, int(time.Since(start)/time.Second), config.numPods/int(time.Since(start)/time.Second), minQps)
-			// We will be completed when all pods are done being scheduled.
-			// return the worst-case-scenario interval that was seen during this time.
-			// Note this should never be low due to cold-start, so allow bake in sched time if necessary.
-			return minQps
-		}
 	}
 }
