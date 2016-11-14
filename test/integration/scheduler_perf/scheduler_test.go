@@ -213,7 +213,7 @@ func schedulePods(config *testConfig) int32 {
 
 	// Now that scheduling has started, lets start taking the pulse on how many pods are happening per second.
 	for {
-		time.Sleep(1 * time.Second)
+		time.Sleep(2 * time.Second)
 		scheduled := config.schedulerConfigFactory.ScheduledPodLister.Indexer.List()
 		// There's no point in printing it for the last iteration, as the value is random
 		qps := len(scheduled) - prev
