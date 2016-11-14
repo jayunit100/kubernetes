@@ -42,7 +42,7 @@ func TestPodsPerNode(t *testing.T) {
 	results := map[string]int32{}
 	printResults := func() {
 		for k, v := range results {
-			fmt.Println("%v = %v", k, v)
+			fmt.Println(fmt.Sprintf("%v = %v", k, v))
 		}
 	}
 
@@ -56,7 +56,7 @@ func TestPodsPerNode(t *testing.T) {
 				// t.Errorf("Too small pod scheduling throughput for 3k pods. Expected %v got %v", threshold3K, min)
 			}
 			fmt.Printf("Minimal observed throughput for 3k pod test: %v\n", minQPS)
-			results[fmt.Sprintf("%v pods, %v nodes minQPS", pods, nodes)] = minQPS
+			results[fmt.Sprintf("[%v pods/%v nodes](minQPS)", pods, nodes)] = minQPS
 			printResults()
 		}
 	}
