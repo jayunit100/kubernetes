@@ -203,10 +203,14 @@ func schedulePods(config *testConfig) int32 {
 	for {
 		time.Sleep(50 * time.Millisecond)
 		scheduled := config.schedulerConfigFactory.ScheduledPodLister.Indexer.List()
-		if len(scheduled) > 10 {
+		// 30,000 pods -> wait till @ least 300 are scheduled to start measuring.
+		// TODO Find out why sometimes there may be scheduling blips in the beggining.
+		if len(scheduled) > config.numPods/100 {
 			break
 		}
 	}
+	// map minimum QPS entries in a counter.  useful for debugging tests.
+	qpsStats := map[int]int{}
 
 	// Now that scheduling has started, lets start taking the pulse on how many pods are happening per second.
 	for {
@@ -223,12 +227,14 @@ func schedulePods(config *testConfig) int32 {
 				config.numPods, int(time.Since(start)/time.Second), config.numPods/int(time.Since(start)/time.Second), minQps)
 			return minQps
 		}
+
 		// There's no point in printing it for the last iteration, as the value is random
 		qps := len(scheduled) - prev
+		qpsStats[qps] += 1
 		if int32(qps) < minQps {
 			minQps = int32(qps)
 		}
-		fmt.Printf("%ds\trate: %d\ttotal: %d\n", time.Since(start)/time.Second, qps, len(scheduled))
+		fmt.Printf("%ds\trate: %d\ttotal: %d (qps frequency: %v)\n", time.Since(start)/time.Second, qps, len(scheduled), qpsStats)
 		prev = len(scheduled)
 		time.Sleep(1 * time.Second)
 	}
