@@ -75,7 +75,7 @@ func Test5KPods(t *testing.T) {
 
 // Separate tests, otherwise master_utils gets slow loading a new master up.
 func Test10KPods(t *testing.T) {
-	PodsPerNode(10000, t)
+	PodsPerNode(7500, t)
 }
 
 type testConfig struct {
