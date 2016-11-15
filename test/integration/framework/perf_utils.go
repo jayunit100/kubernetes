@@ -24,6 +24,7 @@ import (
 	testutils "k8s.io/kubernetes/test/utils"
 
 	"github.com/golang/glog"
+	"time"
 )
 
 const (
@@ -75,6 +76,7 @@ func (p *IntegrationTestNodePreparer) PrepareNodes() error {
 		if _, err := p.client.Core().Nodes().Create(baseNode); err != nil {
 			glog.Fatalf("Error creating node: %v", err)
 		}
+		time.Sleep(2 * time.Millisecond)
 	}
 
 	nodes := e2eframework.GetReadySchedulableNodesOrDie(p.client)
