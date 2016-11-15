@@ -46,7 +46,7 @@ func PodsPerNode(pods int, t *testing.T) {
 		}
 	}
 
-	for nodes := int32(math.Max(float64(pods/50), 100.0)); nodes < int32(pods/4); nodes *= int32(2) {
+	for nodes := int32(math.Max(float64(pods/50), 100.0)); nodes < int32(pods); nodes *= int32(2) {
 		fmt.Printf("STARTING TEST!!!!", pods, " per ", nodes, "nodes")
 		config := defaultSchedulerBenchmarkConfig(pods, int(nodes))
 		minQPS := schedulePods(config)
