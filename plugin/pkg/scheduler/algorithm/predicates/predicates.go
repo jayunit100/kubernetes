@@ -361,7 +361,7 @@ func (c *VolumeZoneChecker) predicate(pod *v1.Pod, meta interface{}, nodeInfo *s
 
 	node := nodeInfo.Node()
 	if node == nil {
-		return false, nil, fmt.Errorf("node not found: %v", node)
+		return false, nil, fmt.Errorf("node not found: %v", nodeInfo)
 	}
 
 	nodeConstraints := make(map[string]string)
@@ -489,7 +489,7 @@ func podName(pod *v1.Pod) string {
 func PodFitsResources(pod *v1.Pod, meta interface{}, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
 	node := nodeInfo.Node()
 	if node == nil {
-		return false, nil, fmt.Errorf("node not found: %v", node)
+		return false, nil, fmt.Errorf("node not found: %v", nodeInfo)
 	}
 
 	var predicateFails []algorithm.PredicateFailureReason
@@ -649,7 +649,7 @@ func NewNodeLabelPredicate(labels []string, presence bool) algorithm.FitPredicat
 func (n *NodeLabelChecker) CheckNodeLabelPresence(pod *v1.Pod, meta interface{}, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
 	node := nodeInfo.Node()
 	if node == nil {
-		return false, nil, fmt.Errorf("node not found: %v", node)
+		return false, nil, fmt.Errorf("node not found: %v", nodeInfo)
 	}
 
 	var exists bool
@@ -739,7 +739,7 @@ func (s *ServiceAffinity) checkServiceAffinity(pod *v1.Pod, meta interface{}, no
 	}
 	node := nodeInfo.Node()
 	if node == nil {
-		return false, nil, fmt.Errorf("node not found: %v", node)
+		return false, nil, fmt.Errorf("node not found: %v", nodeInfo)
 	}
 	// check if the pod being scheduled has the affinity labels specified in its NodeSelector
 	affinityLabels := FindLabelsInSet(s.labels, labels.Set(pod.Spec.NodeSelector))
@@ -869,7 +869,7 @@ func NewPodAffinityPredicate(info NodeInfo, podLister algorithm.PodLister, failu
 func (c *PodAffinityChecker) InterPodAffinityMatches(pod *v1.Pod, meta interface{}, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
 	node := nodeInfo.Node()
 	if node == nil {
-		return false, nil, fmt.Errorf("node not found: %v", node)
+		return false, nil, fmt.Errorf("node not found: %v", nodeInfo)
 	}
 	if !c.satisfiesExistingPodsAntiAffinity(pod, meta, node) {
 		return false, []algorithm.PredicateFailureReason{ErrPodAffinityNotMatch}, nil
@@ -973,7 +973,7 @@ func getMatchingAntiAffinityTerms(pod *v1.Pod, nodeInfoMap map[string]*scheduler
 		nodeInfo := nodeInfoMap[allNodeNames[i]]
 		node := nodeInfo.Node()
 		if node == nil {
-			catchError(fmt.Errorf("node not found: %v", node))
+			catchError(fmt.Errorf("node not found: %v", nodeInfo))
 			return
 		}
 		var nodeResult []matchingPodAntiAffinityTerm
@@ -1114,7 +1114,7 @@ func (c *PodAffinityChecker) satisfiesPodsAffinityAntiAffinity(pod *v1.Pod, node
 func PodToleratesNodeTaints(pod *v1.Pod, meta interface{}, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
 	node := nodeInfo.Node()
 	if node == nil {
-		return false, nil, fmt.Errorf("node not found: %v", node)
+		return false, nil, fmt.Errorf("node not found: %v", nodeInfo)
 	}
 
 	taints, err := v1.GetTaintsFromNodeAnnotations(node.Annotations)
@@ -1169,7 +1169,7 @@ func isPodBestEffort(pod *v1.Pod) bool {
 func CheckNodeMemoryPressurePredicate(pod *v1.Pod, meta interface{}, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
 	node := nodeInfo.Node()
 	if node == nil {
-		return false, nil, fmt.Errorf("node not found: %v", node)
+		return false, nil, fmt.Errorf("node not found: %v", nodeInfo)
 	}
 
 	var podBestEffort bool
@@ -1200,7 +1200,7 @@ func CheckNodeMemoryPressurePredicate(pod *v1.Pod, meta interface{}, nodeInfo *s
 func CheckNodeDiskPressurePredicate(pod *v1.Pod, meta interface{}, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
 	node := nodeInfo.Node()
 	if node == nil {
-		return false, nil, fmt.Errorf("node not found: %v", node)
+		return false, nil, fmt.Errorf("node not found: %v", nodeInfo)
 	}
 
 	// is node under pressure?
