@@ -255,6 +255,7 @@ type recorderImpl struct {
 func (recorder *recorderImpl) generateEvent(object runtime.Object, timestamp unversioned.Time, eventtype, reason, message string) {
 	ref, err := v1.GetReference(object)
 	if err != nil {
+
 		glog.Errorf("Could not construct reference to: '%#v' due to: '%v'. Will not report event: '%v' '%v' '%v'", object, err, eventtype, reason, message)
 		return
 	}
