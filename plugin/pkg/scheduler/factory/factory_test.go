@@ -138,6 +138,7 @@ func TestDefaultErrorFunc(t *testing.T) {
 		ObjectMeta: v1.ObjectMeta{Name: "foo", Namespace: "bar"},
 		Spec:       apitesting.V1DeepEqualSafePodSpec(),
 	}
+
 	handler := utiltesting.FakeHandler{
 		StatusCode:   200,
 		ResponseBody: runtime.EncodeOrDie(testapi.Default.Codec(), testPod),
