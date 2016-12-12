@@ -165,13 +165,13 @@ func TestExtractPodsFromHTTP(t *testing.T) {
 						SelfLink:    getSelfLink("foo-"+nodeName, "mynamespace"),
 					},
 					Spec: v1.PodSpec{
-						NodeName:                      nodeName,
-						RestartPolicy:                 v1.RestartPolicyAlways,
-						DNSPolicy:                     v1.DNSClusterFirst,
-						SecurityContext:               &v1.PodSecurityContext{},
-						TerminationGracePeriodSeconds: &grace,
-						Affinity:                      &v1.Affinity{},
-
+						NodeName:        nodeName,
+						RestartPolicy:   v1.RestartPolicyAlways,
+						DNSPolicy:       v1.DNSClusterFirst,
+						SecurityContext: &v1.PodSecurityContext{},
+						Affinity:        &v1.Affinity{},
+						SchedulingMismatchedPredicateResults: make(map[string]int32),
+						TerminationGracePeriodSeconds:        &grace,
 						Containers: []v1.Container{{
 							Name:  "1",
 							Image: "foo",
@@ -198,10 +198,11 @@ func TestExtractPodsFromHTTP(t *testing.T) {
 							UID:  "111",
 						},
 						Spec: v1.PodSpec{
-							NodeName:        nodeName,
-							Containers:      []v1.Container{{Name: "1", Image: "foo", ImagePullPolicy: v1.PullAlways}},
-							SecurityContext: &v1.PodSecurityContext{},
-							Affinity:        &v1.Affinity{},
+							NodeName:                             nodeName,
+							Containers:                           []v1.Container{{Name: "1", Image: "foo", ImagePullPolicy: v1.PullAlways}},
+							Affinity:                             &v1.Affinity{},
+							SecurityContext:                      &v1.PodSecurityContext{},
+							SchedulingMismatchedPredicateResults: make(map[string]int32),
 						},
 						Status: v1.PodStatus{
 							Phase: v1.PodPending,
@@ -217,6 +218,7 @@ func TestExtractPodsFromHTTP(t *testing.T) {
 							Containers:      []v1.Container{{Name: "2", Image: "bar:bartag", ImagePullPolicy: ""}},
 							SecurityContext: &v1.PodSecurityContext{},
 							Affinity:        &v1.Affinity{},
+							SchedulingMismatchedPredicateResults: make(map[string]int32),
 						},
 						Status: v1.PodStatus{
 							Phase: v1.PodPending,
@@ -241,7 +243,7 @@ func TestExtractPodsFromHTTP(t *testing.T) {
 						TerminationGracePeriodSeconds: &grace,
 						SecurityContext:               &v1.PodSecurityContext{},
 						Affinity:                      &v1.Affinity{},
-
+						SchedulingMismatchedPredicateResults: make(map[string]int32),
 						Containers: []v1.Container{{
 							Name:  "1",
 							Image: "foo",
@@ -262,13 +264,14 @@ func TestExtractPodsFromHTTP(t *testing.T) {
 						SelfLink:    getSelfLink("bar-"+nodeName, kubetypes.NamespaceDefault),
 					},
 					Spec: v1.PodSpec{
-						NodeName:                      nodeName,
+						NodeName: nodeName,
+
 						RestartPolicy:                 v1.RestartPolicyAlways,
 						DNSPolicy:                     v1.DNSClusterFirst,
 						TerminationGracePeriodSeconds: &grace,
 						SecurityContext:               &v1.PodSecurityContext{},
 						Affinity:                      &v1.Affinity{},
-
+						SchedulingMismatchedPredicateResults: make(map[string]int32),
 						Containers: []v1.Container{{
 							Name:  "2",
 							Image: "bar:bartag",
