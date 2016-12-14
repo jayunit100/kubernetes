@@ -596,7 +596,7 @@ func (s *Server) getAttach(request *restful.Request, response *restful.Response)
 	podFullName := kubecontainer.GetPodFullName(pod)
 	redirect, err := s.host.GetAttach(podFullName, params.podUID, params.containerName, *streamOpts)
 	if err != nil {
-		response.WriteError(streaming.HTTPStatus(err), err)
+		streaming.WriteError(err, response.ResponseWriter)
 		return
 	}
 	if redirect != nil {
@@ -634,7 +634,7 @@ func (s *Server) getExec(request *restful.Request, response *restful.Response) {
 	podFullName := kubecontainer.GetPodFullName(pod)
 	redirect, err := s.host.GetExec(podFullName, params.podUID, params.containerName, params.cmd, *streamOpts)
 	if err != nil {
-		response.WriteError(streaming.HTTPStatus(err), err)
+		streaming.WriteError(err, response.ResponseWriter)
 		return
 	}
 	if redirect != nil {
@@ -704,7 +704,7 @@ func (s *Server) getPortForward(request *restful.Request, response *restful.Resp
 
 	redirect, err := s.host.GetPortForward(pod.Name, pod.Namespace, pod.UID)
 	if err != nil {
-		response.WriteError(streaming.HTTPStatus(err), err)
+		streaming.WriteError(err, response.ResponseWriter)
 		return
 	}
 	if redirect != nil {
