@@ -45,6 +45,10 @@ func TestMerge(t *testing.T) {
 	grace := int64(30)
 	podSpec := apitesting.DeepEqualSafePodSpec()
 
+	// After merge, expect an empty map
+	podSpec2 := apitesting.DeepEqualSafePodSpec()
+	podSpec2.SchedulingMismatchedPredicateResults = make(map[string]int32)
+
 	tests := []struct {
 		obj       runtime.Object
 		fragment  string
@@ -65,7 +69,38 @@ func TestMerge(t *testing.T) {
 				ObjectMeta: api.ObjectMeta{
 					Name: "foo",
 				},
-				Spec: podSpec,
+				Spec: podSpec2,
+			},
+		},
+		{
+			kind: "Pod",
+			obj: &api.Pod{
+				ObjectMeta: api.ObjectMeta{
+					Name: "foo",
+				},
+			},
+			fragment: fmt.Sprintf(`{ "apiVersion": "%s", "spec": { "volumes": [ {"name": "v1"}, {"name": "v2"} ] } }`, registered.GroupOrDie(api.GroupName).GroupVersion.String()),
+			expected: &api.Pod{
+				ObjectMeta: api.ObjectMeta{
+					Name: "foo",
+				},
+				Spec: api.PodSpec{
+					Volumes: []api.Volume{
+						{
+							Name:         "v1",
+							VolumeSource: api.VolumeSource{EmptyDir: &api.EmptyDirVolumeSource{}},
+						},
+						{
+							Name:         "v2",
+							VolumeSource: api.VolumeSource{EmptyDir: &api.EmptyDirVolumeSource{}},
+						},
+					},
+					RestartPolicy:                        api.RestartPolicyAlways,
+					DNSPolicy:                            api.DNSClusterFirst,
+					TerminationGracePeriodSeconds:        &grace,
+					SecurityContext:                      podSpec.SecurityContext,
+					SchedulingMismatchedPredicateResults: make(map[string]int32),
+				},
 			},
 		},
 		/* TODO: uncomment this test once Merge is updated to use
@@ -108,38 +143,6 @@ func TestMerge(t *testing.T) {
 				},
 			},
 		}, */
-		{
-			kind: "Pod",
-			obj: &api.Pod{
-				ObjectMeta: api.ObjectMeta{
-					Name: "foo",
-				},
-				Spec: podSpec,
-			},
-			fragment: fmt.Sprintf(`{ "apiVersion": "%s", "spec": { "volumes": [ {"name": "v1"}, {"name": "v2"} ] } }`, registered.GroupOrDie(api.GroupName).GroupVersion.String()),
-			expected: &api.Pod{
-				ObjectMeta: api.ObjectMeta{
-					Name: "foo",
-				},
-				Spec: api.PodSpec{
-					Volumes: []api.Volume{
-						{
-							Name:         "v1",
-							VolumeSource: api.VolumeSource{EmptyDir: &api.EmptyDirVolumeSource{}},
-						},
-						{
-							Name:         "v2",
-							VolumeSource: api.VolumeSource{EmptyDir: &api.EmptyDirVolumeSource{}},
-						},
-					},
-					RestartPolicy:                        api.RestartPolicyAlways,
-					DNSPolicy:                            api.DNSClusterFirst,
-					TerminationGracePeriodSeconds:        &grace,
-					SecurityContext:                      podSpec.SecurityContext,
-					SchedulingMismatchedPredicateResults: podSpec.SchedulingMismatchedPredicateResults,
-				},
-			},
-		},
 		{
 			kind:      "Pod",
 			obj:       &api.Pod{},
@@ -193,7 +196,6 @@ func TestMerge(t *testing.T) {
 			},
 		},
 	}
-
 	for i, test := range tests {
 		out, err := Merge(testapi.Default.Codec(), test.obj, test.fragment, test.kind)
 		if !test.expectErr {
