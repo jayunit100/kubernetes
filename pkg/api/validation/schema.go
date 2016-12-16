@@ -287,12 +287,12 @@ func (s *SwaggerSchema) ValidateObject(obj interface{}, fieldName, typeName stri
 	for key, value := range fields {
 		details, okProperty := properties.At(key)
 		if !okProperty {
-			msg := "***********"
+			msg := "["
 			for _, p := range properties.List {
-				msg = msg + "," + p.Name
+				msg = msg + p.Name + ","
 			}
-
-			allErrs = append(allErrs, fmt.Errorf("found invalid field %s for %s --- props=(%v)", key, typeName, msg))
+			msg = msg + "]"
+			allErrs = append(allErrs, fmt.Errorf("found invalid field %s for %s --- valid fields are %v", key, typeName, msg))
 			continue
 		}
 
