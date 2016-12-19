@@ -5379,6 +5379,20 @@ var OpenAPIDefinitions *common.OpenAPIDefinitions = &common.OpenAPIDefinitions{
 							Ref:         spec.MustCreateRef("#/definitions/v1.Affinity"),
 						},
 					},
+					"schedulingMismatchedPredicateResults": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SchedulingMismatchedPredicateResults Summary of false podFitsOnNode predicates for investigating unscheduled pods.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"integer"},
+										Format: "int32",
+									},
+								},
+							},
+						},
+					},
 				},
 				Required: []string{"containers"},
 			},

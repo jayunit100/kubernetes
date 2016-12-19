@@ -2521,6 +2521,9 @@ message PodSpec {
   // If specified, the pod's scheduling constraints
   // +optional
   optional Affinity affinity = 18;
+
+  // SchedulingMismatchedPredicateResults Summary of false podFitsOnNode predicates for investigating unscheduled pods.
+  map<string, int32> schedulingMismatchedPredicateResults = 19;
 }
 
 // PodStatus represents information about the status of a pod. Status may trail the actual

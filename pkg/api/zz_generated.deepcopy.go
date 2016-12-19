@@ -2708,6 +2708,15 @@ func DeepCopy_api_PodSpec(in interface{}, out interface{}, c *conversion.Cloner)
 		} else {
 			out.Affinity = nil
 		}
+		if in.SchedulingMismatchedPredicateResults != nil {
+			in, out := &in.SchedulingMismatchedPredicateResults, &out.SchedulingMismatchedPredicateResults
+			*out = make(map[string]int32)
+			for key, val := range *in {
+				(*out)[key] = val
+			}
+		} else {
+			out.SchedulingMismatchedPredicateResults = nil
+		}
 		return nil
 	}
 }
