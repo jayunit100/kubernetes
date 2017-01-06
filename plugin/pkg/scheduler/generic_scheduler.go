@@ -61,7 +61,7 @@ func (f *FitError) Error() string {
 		sort.Strings(reasonStrings)
 		return reasonStrings
 	}
-	reasonMsg := fmt.Sprintf("No nodes are available that match ALL of the following predicates of pod %v: %v.", f.Pod.Name, strings.Join(sortReasonsHistogram(), ", "))
+	reasonMsg := fmt.Sprintf("No nodes are available that match all of the following predicates: %v.", f.Pod.Name, strings.Join(sortReasonsHistogram(), ", "))
 	return reasonMsg
 }
 
