@@ -381,6 +381,27 @@ func TestFindFitSomeError(t *testing.T) {
 	}
 }
 
+func TestNoNodesMatchingError(t *testing.T) {
+	nodes := []string{"3", "2", "1"}
+	predicates := map[string]algorithm.FitPredicate{"alwaysFalsePredicate": falsePredicate}
+	pod := &v1.Pod{ObjectMeta: v1.ObjectMeta{Name: "1"}}
+	nodeNameToInfo := map[string]*schedulercache.NodeInfo{
+		"3": schedulercache.NewNodeInfo(),
+		"2": schedulercache.NewNodeInfo(),
+		"1": schedulercache.NewNodeInfo(pod),
+	}
+	for name := range nodeNameToInfo {
+		nodeNameToInfo[name].SetNode(&v1.Node{ObjectMeta: v1.ObjectMeta{Name: name}})
+	}
+
+	expected := "No nodes are available that match ALL of the following predicates of pod " + pod.Name + ": alwaysFalsePredicate (3)."
+	_, _, err := findNodesThatFit(pod, nodeNameToInfo, makeNodeList(nodes), predicates, nil, algorithm.EmptyMetadataProducer)
+
+	if err.Error() != expected {
+		t.Errorf(err.Error())
+	}
+}
+
 func makeNode(node string, milliCPU, memory int64) *v1.Node {
 	return &v1.Node{
 		ObjectMeta: v1.ObjectMeta{Name: node},
