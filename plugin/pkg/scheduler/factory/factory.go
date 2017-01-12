@@ -134,7 +134,7 @@ type SchedulerConfiguration interface {
 	// Needs to be exposed for things like integration tests where we want to make fake nodes.
 	GetNodeStore() *cache.Store
 	GetClient() clientset.Interface
-	GetScheduledPodListerIndexer() *cache.Indexer
+	GetScheduledPodListerIndexer() cache.Indexer
 	Run()
 }
 
