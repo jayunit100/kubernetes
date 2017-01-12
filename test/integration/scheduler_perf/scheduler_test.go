@@ -73,7 +73,7 @@ func TestSchedule100Node3KNodeAffinityPods(t *testing.T) {
 		})
 	}
 	config.nodePreparer = framework.NewIntegrationTestNodePreparer(
-		config.schedulerConfigFactory.Client,
+		config.schedulerConfigFactory.GetClient(),
 		nodeStrategies,
 		"scheduler-perf-",
 	)
@@ -105,7 +105,7 @@ func TestSchedule100Node3KNodeAffinityPods(t *testing.T) {
 			}),
 		)
 	}
-	config.podCreator = testutils.NewTestPodCreator(config.schedulerConfigFactory.Client, podCreatorConfig)
+	config.podCreator = testutils.NewTestPodCreator(config.schedulerConfigFactory.GetClient(), podCreatorConfig)
 
 	if min := schedulePods(config); min < threshold30K {
 		t.Errorf("Too small pod scheduling throughput for 30k pods. Expected %v got %v", threshold30K, min)
@@ -163,14 +163,14 @@ func defaultSchedulerBenchmarkConfig(numNodes, numPods int) *testConfig {
 	baseConfig := baseConfig()
 
 	nodePreparer := framework.NewIntegrationTestNodePreparer(
-		baseConfig.schedulerConfigFactory.Client,
+		baseConfig.schedulerConfigFactory.GetClient(),
 		[]testutils.CountToStrategy{{Count: numNodes, Strategy: &testutils.TrivialNodePrepareStrategy{}}},
 		"scheduler-perf-",
 	)
 
 	config := testutils.NewTestPodCreatorConfig()
 	config.AddStrategy("sched-test", numPods, testutils.NewSimpleWithControllerCreatePodStrategy("rc1"))
-	podCreator := testutils.NewTestPodCreator(baseConfig.schedulerConfigFactory.Client, config)
+	podCreator := testutils.NewTestPodCreator(baseConfig.schedulerConfigFactory.GetClient(), config)
 
 	baseConfig.nodePreparer = nodePreparer
 	baseConfig.podCreator = podCreator
@@ -202,7 +202,7 @@ func schedulePods(config *testConfig) int32 {
 	// Bake in time for the first pod scheduling event.
 	for {
 		time.Sleep(50 * time.Millisecond)
-		scheduled := config.schedulerConfigFactory.ScheduledPodLister.Indexer.List()
+		scheduled := config.schedulerConfigFactory.GetScheduledPodListerIndexer().List()
 		// 30,000 pods -> wait till @ least 300 are scheduled to start measuring.
 		// TODO Find out why sometimes there may be scheduling blips in the beggining.
 		if len(scheduled) > config.numPods/100 {
@@ -217,7 +217,7 @@ func schedulePods(config *testConfig) int32 {
 		// This can potentially affect performance of scheduler, since List() is done under mutex.
 		// Listing 10000 pods is an expensive operation, so running it frequently may impact scheduler.
 		// TODO: Setup watch on apiserver and wait until all pods scheduled.
-		scheduled := config.schedulerConfigFactory.ScheduledPodLister.Indexer.List()
+		scheduled := config.schedulerConfigFactory.GetScheduledPodListerIndexer().List()
 
 		// We will be completed when all pods are done being scheduled.
 		// return the worst-case-scenario interval that was seen during this time.
