@@ -241,11 +241,11 @@ func TestSchedulerExtender(t *testing.T) {
 	schedulerConfigFactory := factory.NewConfigFactory(clientSet, v1.DefaultSchedulerName, v1.DefaultHardPodAffinitySymmetricWeight, v1.DefaultFailureDomains)
 
 	eventBroadcaster := record.NewBroadcaster()
-	schedulerConfig.Recorder = eventBroadcaster.NewRecorder(v1.EventSource{Component: v1.DefaultSchedulerName})
+	schedulerConfigFactory.Recorder = eventBroadcaster.NewRecorder(v1.EventSource{Component: v1.DefaultSchedulerName})
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: clientSet.Core().Events("")})
 	scheduler.New(schedulerConfigFactory).Run()
 
-	defer close(schedulerConfig.StopEverything)
+	defer close(schedulerConfigFactory.StopEverything)
 
 	DoTestPodScheduling(ns, t, clientSet)
 }
