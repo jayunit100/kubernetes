@@ -115,9 +115,6 @@ type SchedulerConfiguration interface {
 	updateNodeInCache(oldObj, newObj interface{})
 	deleteNodeFromCache(obj interface{})
 
-	CreateFromProvider(providerName string) (*scheduler.Config, error)
-	CreateFromConfig(policy schedulerapi.Policy) (*scheduler.Config, error)
-	CreateFromKeys(predicateKeys, priorityKeys sets.String, extenders []algorithm.SchedulerExtender) (*scheduler.Config, error)
 	GetPriorityFunctionConfigs(priorityKeys sets.String) ([]algorithm.PriorityConfig, error)
 	GetPriorityMetadataProducer() (algorithm.MetadataProducer, error)
 	GetPredicateMetadataProducer() (algorithm.MetadataProducer, error)
