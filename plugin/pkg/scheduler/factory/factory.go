@@ -249,7 +249,7 @@ func (f *ConfigFactory) GetClient() clientset.Interface {
 }
 
 // GetScheduledPodListerIndexer is another (self-explanatory) function only used in rare external circumstances (i.e. testing)
-func (c *ConfigFactory) GetScheduledPodListerIndexer() *cache.Indexer {
+func (c *ConfigFactory) GetScheduledPodListerIndexer() cache.Indexer {
 	return c.scheduledPodLister
 }
 
