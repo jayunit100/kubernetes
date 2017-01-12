@@ -114,7 +114,6 @@ type SchedulerConfiguration interface {
 	addNodeToCache(obj interface{})
 	updateNodeInCache(oldObj, newObj interface{})
 	deleteNodeFromCache(obj interface{})
-	Create() (SchedulerConfiguration, error)
 
 	CreateFromProvider(providerName string) (*scheduler.Config, error)
 	CreateFromConfig(policy schedulerapi.Policy) (*scheduler.Config, error)
