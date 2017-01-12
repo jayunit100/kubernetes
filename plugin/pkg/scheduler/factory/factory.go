@@ -360,7 +360,7 @@ func (f *ConfigFactory) Create() (SchedulerConfiguration, error) {
 }
 
 // Creates a scheduler from the name of a registered algorithm provider.
-func (f *ConfigFactory) CreateFromProvider(providerName string) (SchedulerConfiguration, error) {
+func (f *ConfigFactory) CreateFromProvider(providerName string) (*scheduler.Config, error) {
 	glog.V(2).Infof("Creating scheduler from algorithm provider '%v'", providerName)
 	provider, err := GetAlgorithmProvider(providerName)
 	if err != nil {
@@ -371,7 +371,7 @@ func (f *ConfigFactory) CreateFromProvider(providerName string) (SchedulerConfig
 }
 
 // Creates a scheduler from the configuration file
-func (f *ConfigFactory) CreateFromConfig(policy schedulerapi.Policy) (SchedulerConfiguration, error) {
+func (f *ConfigFactory) CreateFromConfig(policy schedulerapi.Policy) (*scheduler.Config, error) {
 	glog.V(2).Infof("Creating scheduler from configuration: %v", policy)
 
 	// validate the policy configuration
@@ -406,7 +406,7 @@ func (f *ConfigFactory) CreateFromConfig(policy schedulerapi.Policy) (SchedulerC
 }
 
 // Creates a scheduler from a set of registered fit predicate keys and priority keys.
-func (f *ConfigFactory) CreateFromKeys(predicateKeys, priorityKeys sets.String, extenders []algorithm.SchedulerExtender) (SchedulerConfiguration, error) {
+func (f *ConfigFactory) CreateFromKeys(predicateKeys, priorityKeys sets.String, extenders []algorithm.SchedulerExtender) (*scheduler.Config, error) {
 	glog.V(2).Infof("creating scheduler with fit predicates '%v' and priority functions '%v", predicateKeys, priorityKeys)
 
 	if !(0 < f.GetHardPodAffinitySymmetricWeight() && f.GetHardPodAffinitySymmetricWeight() < 100) {
@@ -443,7 +443,7 @@ func (f *ConfigFactory) CreateFromKeys(predicateKeys, priorityKeys sets.String, 
 		maxDuration:     60 * time.Second,
 	}
 
-	cfg := scheduler.Config{
+	cfg := &scheduler.Config{
 		SchedulerCache: f.schedulerCache,
 		// The scheduler only needs to consider schedulable nodes.
 		NodeLister:          f.NodeLister.NodeCondition(getNodeConditionPredicate()),
@@ -456,6 +456,7 @@ func (f *ConfigFactory) CreateFromKeys(predicateKeys, priorityKeys sets.String, 
 		Error:          f.makeDefaultErrorFunc(&podBackoff, f.PodQueue),
 		StopEverything: f.StopEverything,
 	}
+
 	return cfg, nil
 }
 
