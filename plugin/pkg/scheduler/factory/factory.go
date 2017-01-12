@@ -447,7 +447,7 @@ func (f *ConfigFactory) CreateFromKeys(predicateKeys, priorityKeys sets.String, 
 		maxDuration:     60 * time.Second,
 	}
 
-	return &scheduler.Config{
+	return scheduler.Config{
 		SchedulerCache: f.schedulerCache,
 		// The scheduler only needs to consider schedulable nodes.
 		NodeLister:          f.NodeLister.NodeCondition(getNodeConditionPredicate()),
