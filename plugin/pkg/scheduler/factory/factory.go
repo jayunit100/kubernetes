@@ -114,7 +114,7 @@ type SchedulerConfiguration interface {
 	addNodeToCache(obj interface{})
 	updateNodeInCache(oldObj, newObj interface{})
 	deleteNodeFromCache(obj interface{})
-	Create() (*scheduler.Config, error)
+	Create() (SchedulerConfiguration, error)
 
 	CreateFromProvider(providerName string) (*scheduler.Config, error)
 	CreateFromConfig(policy schedulerapi.Policy) (*scheduler.Config, error)
@@ -355,12 +355,12 @@ func (c *ConfigFactory) deleteNodeFromCache(obj interface{}) {
 }
 
 // Create creates a scheduler with the default algorithm provider.
-func (f *ConfigFactory) Create() (*scheduler.Config, error) {
+func (f *ConfigFactory) Create() (SchedulerConfiguration, error) {
 	return f.CreateFromProvider(DefaultProvider)
 }
 
 // Creates a scheduler from the name of a registered algorithm provider.
-func (f *ConfigFactory) CreateFromProvider(providerName string) (*scheduler.Config, error) {
+func (f *ConfigFactory) CreateFromProvider(providerName string) (SchedulerConfiguration, error) {
 	glog.V(2).Infof("Creating scheduler from algorithm provider '%v'", providerName)
 	provider, err := GetAlgorithmProvider(providerName)
 	if err != nil {
@@ -406,7 +406,7 @@ func (f *ConfigFactory) CreateFromConfig(policy schedulerapi.Policy) (*scheduler
 }
 
 // Creates a scheduler from a set of registered fit predicate keys and priority keys.
-func (f *ConfigFactory) CreateFromKeys(predicateKeys, priorityKeys sets.String, extenders []algorithm.SchedulerExtender) (*scheduler.Config, error) {
+func (f *ConfigFactory) CreateFromKeys(predicateKeys, priorityKeys sets.String, extenders []algorithm.SchedulerExtender) (SchedulerConfiguration, error) {
 	glog.V(2).Infof("creating scheduler with fit predicates '%v' and priority functions '%v", predicateKeys, priorityKeys)
 
 	if !(0 < f.GetHardPodAffinitySymmetricWeight() && f.GetHardPodAffinitySymmetricWeight() < 100) {
