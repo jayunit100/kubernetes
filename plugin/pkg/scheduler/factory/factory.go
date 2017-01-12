@@ -447,7 +447,7 @@ func (f *ConfigFactory) CreateFromKeys(predicateKeys, priorityKeys sets.String, 
 		maxDuration:     60 * time.Second,
 	}
 
-	return scheduler.Config{
+	cfg := scheduler.Config{
 		SchedulerCache: f.schedulerCache,
 		// The scheduler only needs to consider schedulable nodes.
 		NodeLister:          f.NodeLister.NodeCondition(getNodeConditionPredicate()),
@@ -459,7 +459,8 @@ func (f *ConfigFactory) CreateFromKeys(predicateKeys, priorityKeys sets.String, 
 		},
 		Error:          f.makeDefaultErrorFunc(&podBackoff, f.PodQueue),
 		StopEverything: f.StopEverything,
-	}, nil
+	}
+	return cfg, nil
 }
 
 func (f *ConfigFactory) GetPriorityFunctionConfigs(priorityKeys sets.String) ([]algorithm.PriorityConfig, error) {
