@@ -135,7 +135,7 @@ type SchedulerConfiguration interface {
 }
 
 // Initializes the factory.
-func NewConfigFactory(client clientset.Interface, schedulerName string, hardPodAffinitySymmetricWeight int, failureDomainsCommaString string) SchedulerConfiguration {
+func NewConfigFactory(client clientset.Interface, schedulerName string, hardPodAffinitySymmetricWeight int, failureDomainsCommaString string) *scheduler.Config {
 	stopEverything := make(chan struct{})
 	schedulerCache := schedulercache.New(30*time.Second, stopEverything)
 
