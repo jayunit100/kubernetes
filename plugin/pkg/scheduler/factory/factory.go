@@ -355,7 +355,7 @@ func (c *ConfigFactory) deleteNodeFromCache(obj interface{}) {
 }
 
 // Create creates a scheduler with the default algorithm provider.
-func (f *ConfigFactory) Create() (SchedulerConfiguration, error) {
+func (f *ConfigFactory) Create() (*scheduler.Config, error) {
 	return f.CreateFromProvider(DefaultProvider)
 }
 
