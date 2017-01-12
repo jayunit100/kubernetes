@@ -221,7 +221,7 @@ func NewConfigFactory(client clientset.Interface, schedulerName string, hardPodA
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
 
-	return c
+	return c.Create()
 }
 
 // GetNodeStore provides the cache to the nodes.  This won't be used often outside the scheduler, except in mock tests
