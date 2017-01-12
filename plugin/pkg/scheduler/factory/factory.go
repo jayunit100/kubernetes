@@ -221,7 +221,11 @@ func NewConfigFactory(client clientset.Interface, schedulerName string, hardPodA
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
 
-	return c.Create()
+	iface, err := c.Create()
+	if err != nil {
+		glog.Fatal("Failed creating %v", err)
+	}
+	return iface
 }
 
 // GetNodeStore provides the cache to the nodes.  This won't be used often outside the scheduler, except in mock tests
@@ -371,7 +375,7 @@ func (f *ConfigFactory) CreateFromProvider(providerName string) (SchedulerConfig
 }
 
 // Creates a scheduler from the configuration file
-func (f *ConfigFactory) CreateFromConfig(policy schedulerapi.Policy) (*scheduler.Config, error) {
+func (f *ConfigFactory) CreateFromConfig(policy schedulerapi.Policy) (SchedulerConfiguration, error) {
 	glog.V(2).Infof("Creating scheduler from configuration: %v", policy)
 
 	// validate the policy configuration
