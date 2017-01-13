@@ -25,9 +25,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/sets"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/kubernetes/pkg/api/errors"
 	"k8s.io/kubernetes/pkg/api/v1"
@@ -36,6 +34,9 @@ import (
 	"k8s.io/kubernetes/pkg/controller/informers"
 	"k8s.io/kubernetes/pkg/fields"
 	genericapirequest "k8s.io/kubernetes/pkg/genericapiserver/api/request"
+	"k8s.io/kubernetes/pkg/types"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/plugin/pkg/scheduler"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/predicates"
@@ -193,9 +194,10 @@ func NewConfigFactory(client clientset.Interface, schedulerName string, hardPodA
 // GetNodeStore provides the cache to the nodes.  This won't be used often outside the scheduler, except in mock tests
 // which make fake nodes.  Otherwise, the nodes will be maintained internally by the cache itself.
 // Mostly this is an internal function only used in rare external circumstances (i.e. testing)
-func (c *ConfigFactory) GetNodeStore() *cache.Store {
-	return &c.nodeLister.Store
+func (c *ConfigFactory) GetNodeStore() cache.Store {
+	return c.nodeLister.Store
 }
+
 func (c *ConfigFactory) GetHardPodAffinitySymmetricWeight() int {
 	return c.hardPodAffinitySymmetricWeight
 }

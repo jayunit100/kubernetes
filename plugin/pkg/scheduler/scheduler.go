@@ -30,8 +30,8 @@ import (
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/client/cache"
-	"k8s.io/kubernetes/pkg/util/sets"
 )
 
 // Binder knows how to write a binding.
@@ -72,7 +72,7 @@ type SchedulerSupportFunctions interface {
 	ResponsibleForPod(pod *v1.Pod) bool
 
 	// Needs to be exposed for things like integration tests where we want to make fake nodes.
-	GetNodeStore() *cache.Store
+	GetNodeStore() cache.Store
 	GetClient() clientset.Interface
 	GetScheduledPodListerIndexer() cache.Indexer
 	Run()

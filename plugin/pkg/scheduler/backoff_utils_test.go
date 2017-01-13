@@ -16,8 +16,7 @@ func (f *fakeClock) Now() time.Time {
 
 func TestBackoff(t *testing.T) {
 	clock := fakeClock{}
-	backoff := CreatePodBackoff(1*time.Second, 60*time.Second)
-
+	backoff := CreatePodBackoffWithClock(1*time.Second, 60*time.Second, &clock)
 	tests := []struct {
 		podID            types.NamespacedName
 		expectedDuration time.Duration

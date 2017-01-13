@@ -82,11 +82,14 @@ func CreateDefaultPodBackoff() *PodBackoff {
 	return CreatePodBackoff(1*time.Second, 60*time.Second)
 }
 
-func CreatePodBackoff(defaultDuration, maxDuration time.Second) *PodBackoff {
-	return &PodBackoff{
-		perPodBackoff: map[types.NamespacedName]*backoffEntry{},
-		clock:         realClock{},
+func CreatePodBackoff(defaultDuration, maxDuration time.Duration) *PodBackoff {
+	return CreatePodBackoffWithClock(defaultDuration, maxDuration, realClock{})
+}
 
+func CreatePodBackoffWithClock(defaultDuration, maxDuration time.Duration, clock clock) *PodBackoff {
+	return &PodBackoff{
+		perPodBackoff:   map[types.NamespacedName]*backoffEntry{},
+		clock:           clock,
 		defaultDuration: defaultDuration,
 		maxDuration:     maxDuration,
 	}
