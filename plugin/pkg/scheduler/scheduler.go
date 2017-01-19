@@ -32,6 +32,7 @@ import (
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 
 	"github.com/golang/glog"
+	"go/doc/testdata"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/client/cache"
 )
@@ -49,6 +50,10 @@ type PodConditionUpdater interface {
 // nodes that they fit on and writes bindings back to the api server.
 type Scheduler struct {
 	config *Config
+}
+
+func (sched *Scheduler) StopEverything() {
+	close(sched.config.StopEverything)
 }
 
 // These are the functions which need to be provided in order to build a Scheduler configuration.
@@ -78,6 +83,7 @@ type Configurator interface {
 	CreateFromKeys(predicateKeys, priorityKeys sets.String, extenders []algorithm.SchedulerExtender) (*Config, error)
 }
 
+// TODO over time we should make this struct a hidden implementation detail of the scheduler.
 type Config struct {
 	// It is expected that changes made via SchedulerCache will be observed
 	// by NodeLister and Algorithm.
@@ -100,20 +106,39 @@ type Config struct {
 	// question, and the error
 	Error func(*v1.Pod, error)
 
-	// Recorder is the EventRecorder to use
+	// recorder is the EventRecorder to use
 	Recorder record.EventRecorder
 
 	// Close this to shut down the scheduler.
 	StopEverything chan struct{}
 }
 
-// New returns a new scheduler.
+// New returns a new scheduler.  TODO replace this with NewFromConfigurator.
 func New(c *Config) *Scheduler {
 	s := &Scheduler{
 		config: c,
 	}
 	metrics.Register()
 	return s
+}
+
+// NewFromConfigurator returns a new scheduler that is created entirely by the Configurator.  Assumes Create() is implemented.
+// Supports intermediate Config mutation for now if you provide modifier functions which will run after Config is created.
+func NewFromConfigurator(c Configurator, modifiers ...func(c *Config)) (*Scheduler, error) {
+	cfg, err := c.Create()
+	if err != nil {
+		return nil, err
+	}
+	// Mutate it if any functions were provided, changes might be required for certain types of tests (i.e. change the recorder).
+	for _, modifier := range modifiers {
+		modifier(cfg)
+	}
+	// From this point on the config is immutable to the outside.
+	s := &Scheduler{
+		config: cfg,
+	}
+	metrics.Register()
+	return s, nil
 }
 
 // Run begins watching and scheduling. It starts a goroutine and returns immediately.
