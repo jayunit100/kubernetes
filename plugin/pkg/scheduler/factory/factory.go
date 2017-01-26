@@ -465,9 +465,9 @@ func (f *ConfigFactory) getPluginArgs() (*PluginFactoryArgs, error) {
 		ReplicaSetLister: f.replicaSetLister,
 		// All fit predicates only need to consider schedulable nodes.
 		NodeLister: f.nodeLister.NodeCondition(getNodeConditionPredicate()),
-		NodeInfo:   &predicates.CachedNodeInfo{StoreToNodeLister: f.nodeLister},
+		NodeInfo:   &predicates.CachedNodeInfo{PredicateIndexer: f.nodeLister},
 		PVInfo:     f.pVLister,
-		PVCInfo:    &predicates.CachedPersistentVolumeClaimInfo{StoreToPersistentVolumeClaimLister: f.pVCLister},
+		PVCInfo:    predicates.CachedPersistentVolumeClaimInfo{PersistentVolumeClaimsGetter: f.pVCLister},
 		HardPodAffinitySymmetricWeight: f.hardPodAffinitySymmetricWeight,
 		FailureDomains:                 sets.NewString(f.failureDomains...).List(),
 	}, nil

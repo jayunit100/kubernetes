@@ -21,9 +21,63 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
 	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 )
+
+// PredicateStore is an interface taken from the kubernetes client, for the sake of decoupling.
+type PredicateStore interface {
+	Add(obj interface{}) error
+	Update(obj interface{}) error
+	Delete(obj interface{}) error
+	List() []interface{}
+	ListKeys() []string
+	Get(obj interface{}) (item interface{}, exists bool, err error)
+	GetByKey(key string) (item interface{}, exists bool, err error)
+
+	// Replace will delete the contents of the store, using instead the
+	// given list. Store takes ownership of the list, you should not reference
+	// it after calling this function.
+	Replace([]interface{}, string) error
+	Resync() error
+}
+
+// PredicateIndexer is an interface taken from the kubernetes client.
+type PredicateIndexer interface {
+	PredicateStore
+	// Retrieve list of objects that match on the named indexing function
+	Index(indexName string, obj interface{}) ([]interface{}, error)
+	// ListIndexFuncValues returns the list of generated values of an Index func
+	ListIndexFuncValues(indexName string) []string
+	// ByIndex lists object that match on the named indexing function with the exact key
+	ByIndex(indexName, indexKey string) ([]interface{}, error)
+	// GetIndexer return the indexers
+	GetIndexers() map[string]func(obj interface{}) ([]string, error)
+
+	// AddIndexers adds more indexers to this store.  If you call this after you already have data
+	// in the store, the results are undefined.
+	AddIndexers(newIndexers Indexers) error
+}
+
+// PredicatePersistentVolumeClaimInfo has methods to work with PersistentVolumeClaim resources.
+type PredicatePersistentVolumeClaimInfo interface {
+	Create(*api.PersistentVolumeClaim) (*api.PersistentVolumeClaim, error)
+	Update(*api.PersistentVolumeClaim) (*api.PersistentVolumeClaim, error)
+	UpdateStatus(*api.PersistentVolumeClaim) (*api.PersistentVolumeClaim, error)
+	Delete(name string, options *v1.DeleteOptions) error
+	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
+	//	Get(name string, options v1.GetOptions) (*api.PersistentVolumeClaim, error)
+	List(opts v1.ListOptions) (*api.PersistentVolumeClaimList, error)
+	Watch(opts v1.ListOptions) (watch.Interface, error)
+	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *api.PersistentVolumeClaim, err error)
+	// PersistentVolumeClaimExpansion
+}
+
+type PersistentVolumeClaimsGetter interface {
+	PersistentVolumeClaims(namespace string) PredicatePersistentVolumeClaimInfo
+}
 
 // NodeLister interface represents anything that can list nodes for a scheduler.
 type NodeLister interface {

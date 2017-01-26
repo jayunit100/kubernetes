@@ -64,21 +64,21 @@ type PersistentVolumeClaimInfo interface {
 
 // CachedPersistentVolumeClaimInfo implements PersistentVolumeClaimInfo
 type CachedPersistentVolumeClaimInfo struct {
-	*listers.StoreToPersistentVolumeClaimLister
+	algorithm.PersistentVolumeClaimsGetter
 }
 
 // GetPersistentVolumeClaimInfo fetches the claim in specified namespace with specified name
-func (c *CachedPersistentVolumeClaimInfo) GetPersistentVolumeClaimInfo(namespace string, name string) (*v1.PersistentVolumeClaim, error) {
-	return c.PersistentVolumeClaims(namespace).Get(name)
+func (c CachedPersistentVolumeClaimInfo) GetPersistentVolumeClaimInfo(namespace string, name string) (*v1.PersistentVolumeClaim, error) {
+	return c.PersistentVolumeClaimsGetter.PersistentVolumeClaims(namespace).Get(name)
 }
 
 type CachedNodeInfo struct {
-	*listers.StoreToNodeLister
+	algorithm.PredicateIndexer
 }
 
 // GetNodeInfo returns cached data for the node 'id'.
-func (c *CachedNodeInfo) GetNodeInfo(id string) (*v1.Node, error) {
-	node, exists, err := c.Get(&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: id}})
+func (c CachedNodeInfo) GetNodeInfo(id string) (*v1.Node, error) {
+	node, exists, err := c.PredicateIndexer.Get(&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: id}})
 
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving node '%v' from cache: %v", id, err)
