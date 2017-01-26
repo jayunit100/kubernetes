@@ -21,10 +21,10 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
 	extensions "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
+	"k8s.io/kubernetes/staging/src/k8s.io/apimachinery/pkg/watch"
 )
 
 // PredicateStore is an interface taken from the kubernetes client, for the sake of decoupling.
@@ -69,7 +69,7 @@ type PredicatePersistentVolumeClaimInfo interface {
 	Delete(name string, options *v1.DeleteOptions) error
 	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
 	//	Get(name string, options v1.GetOptions) (*api.PersistentVolumeClaim, error)
-	List(opts v1.ListOptions) (*api.PersistentVolumeClaimList, error)
+	List(opts v1.ListOptions) (*v1.PersistentVolumeClaimList, error)
 	Watch(opts v1.ListOptions) (watch.Interface, error)
 	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *api.PersistentVolumeClaim, err error)
 	// PersistentVolumeClaimExpansion
