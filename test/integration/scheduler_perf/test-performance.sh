@@ -40,13 +40,12 @@ kube::etcd::start
 # theoretically it has less variance.
 if ${RUN_BENCHMARK:-false}; then
   kube::log::status "performance test (benchmark) compiling"
-  go test -c -o "perf.test"
-
+  go test -c -o "perf.test" -v=10
   kube::log::status "performance test (benchmark) start"
-  "./perf.test" -test.bench=. -test.run=xxxx -test.cpuprofile=prof.out -test.short=false
+  "./perf.test" -test.bench=. -test.run=xxxx -test.cpuprofile=prof.out -test.short=false -v=10
   kube::log::status "...benchmark tests finished"
 fi
 # Running density tests. It might take a long time.
 kube::log::status "performance test (density) start"
-go test -test.run=. -test.timeout=60m -test.short=false
+go test -test.run=. -test.timeout=60m -test.short=false -v -args -v 3
 kube::log::status "...density tests finished"

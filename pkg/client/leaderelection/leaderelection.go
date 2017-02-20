@@ -182,7 +182,7 @@ func (le *LeaderElector) acquire() {
 		le.maybeReportTransition()
 		desc := le.config.Lock.Describe()
 		if !succeeded {
-			glog.V(4).Infof("failed to acquire lease %v", desc)
+			glog.V(3).Infof("failed to acquire lease %v", desc)
 			return
 		}
 		le.config.Lock.RecordEvent("became leader")
@@ -214,6 +214,7 @@ func (le *LeaderElector) renew() {
 // else it tries to renew the lease if it has already been acquired. Returns true
 // on success else returns false.
 func (le *LeaderElector) tryAcquireOrRenew() bool {
+	glog.V(3).Info("Trying to acquire or renew ... ")
 	now := metav1.Now()
 	leaderElectionRecord := rl.LeaderElectionRecord{
 		HolderIdentity:       le.config.Lock.Identity(),

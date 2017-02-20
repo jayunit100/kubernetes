@@ -19,10 +19,9 @@ package benchmark
 import (
 	"net/http"
 	"net/http/httptest"
-
+"fmt"
 	"github.com/golang/glog"
 	clientv1core "k8s.io/client-go/kubernetes/typed/core/v1"
-	clientv1 "k8s.io/client-go/pkg/api/v1"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/api"
@@ -31,6 +30,10 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler"
 	_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/factory"
+
+	"k8s.io/kubernetes/plugin/cmd/kube-scheduler/app"
+	"k8s.io/kubernetes/plugin/cmd/kube-scheduler/app/options"
+
 	"k8s.io/kubernetes/test/integration/framework"
 )
 
@@ -63,18 +66,18 @@ func mustSetupScheduler() (schedulerConfigurator scheduler.Configurator, destroy
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartRecordingToSink(&clientv1core.EventSinkImpl{Interface: clientv1core.New(clientSet.Core().RESTClient()).Events("")})
 
-	sched, err := scheduler.NewFromConfigurator(schedulerConfigurator, func(conf *scheduler.Config) {
-		conf.Recorder = eventBroadcaster.NewRecorder(api.Scheme, clientv1.EventSource{Component: "scheduler"})
-	})
+	server := options.NewSchedulerServer()
+	server.Master = s.URL
+
+	err, _ := app.CreateAndRun(server, schedulerConfigurator)
+
 	if err != nil {
-		glog.Fatalf("Error creating scheduler: %v", err)
+		panic(fmt.Sprintf("couldnt create scheduler !!!!!!!!!!!! %v ",err))
 	}
-
-	sched.Run()
-
+	fmt.Println("done setting up.")
 	destroyFunc = func() {
 		glog.Infof("destroying")
-		sched.StopEverything()
+//		stopFunc() // Stop the scheduler
 		s.Close()
 		glog.Infof("destroyed")
 	}

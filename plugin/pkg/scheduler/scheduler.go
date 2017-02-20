@@ -141,10 +141,42 @@ func NewFromConfigurator(c Configurator, modifiers ...func(c *Config)) (*Schedul
 
 // Run begins watching and scheduling. It starts a goroutine and returns immediately.
 func (s *Scheduler) Run() {
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+	glog.V(3).Infof("scheduler ---- RUN")
+
 	go wait.Until(s.scheduleOne, 0, s.config.StopEverything)
+	glog.V(3).Info("DYINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
+	glog.V(3).Info("DYINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
+	glog.V(3).Info("DYINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
+	glog.V(3).Info("DYINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
+	glog.V(3).Info("DYINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
+	glog.V(3).Info("DYINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
+	glog.V(3).Info("DYINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
 }
 
 func (s *Scheduler) scheduleOne() {
+	glog.V(3).Infof("schedule one")
+	glog.V(3).Infof("schedule one")
+	glog.V(3).Infof("schedule one")
+	glog.V(3).Infof("schedule one")
+	glog.V(3).Infof("schedule one")
+	glog.V(3).Infof("schedule one")
+
 	pod := s.config.NextPod()
 	if pod.DeletionTimestamp != nil {
 		s.config.Recorder.Eventf(pod, v1.EventTypeWarning, "FailedScheduling", "skip schedule deleting pod: %v/%v", pod.Namespace, pod.Name)

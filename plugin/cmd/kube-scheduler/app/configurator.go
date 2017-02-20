@@ -38,7 +38,6 @@ import (
 	_ "k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
 	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
 	latestschedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api/latest"
-	"k8s.io/kubernetes/plugin/pkg/scheduler/factory"
 
 	"github.com/golang/glog"
 )
@@ -69,9 +68,11 @@ func createClient(s *options.SchedulerServer) (*clientset.Clientset, error) {
 }
 
 // createScheduler encapsulates the entire creation of a runnable scheduler.
-func createScheduler(s *options.SchedulerServer, kubecli *clientset.Clientset, recorder record.EventRecorder) (*scheduler.Scheduler, error) {
-	configurator := factory.NewConfigFactory(kubecli, s.SchedulerName, s.HardPodAffinitySymmetricWeight)
+func createScheduler(s *options.SchedulerServer, kubecli *clientset.Clientset, recorder record.EventRecorder, configurator scheduler.Configurator) (*scheduler.Scheduler, error) {
 
+	if configurator == nil {
+		return nil, fmt.Errorf("nil configurator!")
+	}
 	// Rebuild the configurator with a default Create(...) method.
 	configurator = &schedulerConfigurator{
 		configurator,

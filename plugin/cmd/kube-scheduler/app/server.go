@@ -18,7 +18,7 @@ limitations under the License.
 package app
 
 import (
-	"fmt"
+	//"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -39,6 +39,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/kubernetes/plugin/pkg/scheduler"
+	"k8s.io/kubernetes/plugin/pkg/scheduler/factory"
 )
 
 // NewSchedulerCommand creates a *cobra.Command object with default parameters
@@ -62,15 +64,21 @@ through the API as necessary.`,
 }
 
 // Run runs the specified SchedulerServer.  This should never exit.
-func Run(s *options.SchedulerServer) error {
+// returns a stop function.
+func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurator) (err error, stopFunction func()) {
 	kubecli, err := createClient(s)
 	if err != nil {
-		return fmt.Errorf("unable to create kube client: %v", err)
+		return
 	}
 	recorder := createRecorder(kubecli, s)
-	sched, err := createScheduler(s, kubecli, recorder)
+
+	if configurator == nil {
+		configurator = factory.NewConfigFactory(kubecli, s.SchedulerName, s.HardPodAffinitySymmetricWeight)
+	}
+	sched, err := createScheduler(s, kubecli, recorder, configurator)
+
 	if err != nil {
-		return fmt.Errorf("error creating scheduler: %v", err)
+		return
 	}
 	go startHTTP(s)
 	run := func(_ <-chan struct{}) {
@@ -83,7 +91,7 @@ func Run(s *options.SchedulerServer) error {
 	}
 	id, err := os.Hostname()
 	if err != nil {
-		return fmt.Errorf("unable to get hostname: %v", err)
+		return
 	}
 	// TODO: enable other lock types
 	rl := &resourcelock.EndpointsLock{

@@ -37,7 +37,8 @@ func main() {
 
 	verflag.PrintAndExitIfRequested()
 
-	if err := app.Run(s); err != nil {
+	// Create the scheduler and run it based on the server SchedulerServer struct information.
+	if err, _ := app.CreateAndRun(s); err != nil {
 		glog.Fatalf("scheduler app failed to run: %v", err)
 	}
 }
