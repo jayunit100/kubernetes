@@ -69,24 +69,26 @@ var calls = 0
 // returns a stop function.
 func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurator) (err error, stopFunction func()) {
 	calls += 1
-	glog.V(2).Info("WHAT THE F %", calls)
+	glog.V(2).Info("WHAT THE F %d", calls)
 	kubecli, err := createClient(s)
 	if err != nil {
 		return
 	}
+	glog.V(2).Info("WHAT THE F %d", calls)
+
 	recorder := createRecorder(kubecli, s)
 
 	if configurator == nil {
 		configurator = factory.NewConfigFactory(kubecli, s.SchedulerName, s.HardPodAffinitySymmetricWeight)
 	}
 	sched, err := createScheduler(s, kubecli, recorder, configurator)
+	glog.V(2).Info("WHAT THE F %d", calls)
 
 	if err != nil {
 		return
 	}
 	go startHTTP(s)
 	run := func(_ <-chan struct{}) {
-		// do we get here ???????????????????????????????????
 		glog.V(3).Info("IM STARTING G G G G G G G 000000000")
 		sched.Run()
 		select {}
@@ -99,6 +101,8 @@ func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurato
 	if err != nil {
 		return
 	}
+	glog.V(2).Info("WHAT THE F %d", calls)
+
 	// TODO: enable other lock types
 	rl := &resourcelock.EndpointsLock{
 		EndpointsMeta: metav1.ObjectMeta{
@@ -111,6 +115,8 @@ func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurato
 			EventRecorder: recorder,
 		},
 	}
+	glog.V(2).Info("WHAT THE F %d", calls)
+
 	glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G G 1111111")
 
 	leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
