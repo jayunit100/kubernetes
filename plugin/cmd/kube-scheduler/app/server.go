@@ -63,9 +63,13 @@ through the API as necessary.`,
 	return cmd
 }
 
+var calls = 0
+
 // Run runs the specified SchedulerServer.  This should never exit.
 // returns a stop function.
 func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurator) (err error, stopFunction func()) {
+	calls += 1
+	glog.V(2).Info("WHAT THE F %", calls)
 	kubecli, err := createClient(s)
 	if err != nil {
 		return
@@ -82,6 +86,7 @@ func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurato
 	}
 	go startHTTP(s)
 	run := func(_ <-chan struct{}) {
+		// do we get here ???????????????????????????????????
 		glog.V(3).Info("IM STARTING G G G G G G G 000000000")
 		sched.Run()
 		select {}
