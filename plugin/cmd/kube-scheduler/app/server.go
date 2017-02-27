@@ -105,6 +105,8 @@ func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurato
 			EventRecorder: recorder,
 		},
 	}
+	glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G G 0000000")
+
 	leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
 		Lock:          rl,
 		LeaseDuration: s.LeaderElection.LeaseDuration.Duration,
@@ -113,11 +115,13 @@ func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurato
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: run,
 			OnStoppedLeading: func() {
-				glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G G")
+				glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G G  11111")
 				glog.Fatalf("lost master")
 			},
 		},
 	})
+	glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G 22222")
+
 	panic("unreachable")
 }
 
