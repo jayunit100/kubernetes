@@ -113,6 +113,7 @@ func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurato
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: run,
 			OnStoppedLeading: func() {
+				glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G G")
 				glog.Fatalf("lost master")
 			},
 		},
