@@ -82,6 +82,7 @@ func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurato
 	}
 	go startHTTP(s)
 	run := func(_ <-chan struct{}) {
+		glog.V(3).Info("IM STARTING G G G G G G G 000000000")
 		sched.Run()
 		select {}
 	}
@@ -105,7 +106,7 @@ func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurato
 			EventRecorder: recorder,
 		},
 	}
-	glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G G 0000000")
+	glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G G 1111111")
 
 	leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
 		Lock:          rl,
@@ -115,12 +116,12 @@ func CreateAndRun(s *options.SchedulerServer, configurator scheduler.Configurato
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: run,
 			OnStoppedLeading: func() {
-				glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G G  11111")
+				glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G G  22222222")
 				glog.Fatalf("lost master")
 			},
 		},
 	})
-	glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G 22222")
+	glog.V(3).Info("IM DYINGGGG G G G G G G G G G G G G G G 333333")
 
 	panic("unreachable")
 }
