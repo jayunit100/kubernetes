@@ -28,6 +28,7 @@ import (
 	"k8s.io/kubernetes/test/integration/framework"
 	testutils "k8s.io/kubernetes/test/utils"
 
+	"flag"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/plugin/pkg/scheduler"
 )
@@ -39,22 +40,8 @@ const (
 	threshold60K = 30
 )
 
-// TestSchedule100Node3KPods schedules 3k pods on 100 nodes.
-func TestSchedule100Node3KPods(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping because we want to run short tests")
-	}
-
-	config := defaultSchedulerBenchmarkConfig(100, 3000)
-	min := schedulePods(config)
-	if min < threshold3K {
-		t.Errorf("Failing: Scheduling rate was too low for an interval, we saw rate of %v, which is the allowed minimum of %v ! ", min, threshold3K)
-	} else if min < warning3K {
-		fmt.Printf("Warning: pod scheduling throughput for 3k pods was slow for an interval... Saw a interval with very low (%v) scheduling rate!", min)
-	} else {
-		fmt.Printf("Minimal observed throughput for 3k pod test: %v\n", min)
-	}
-}
+// TODO: Need a way to eliminate these.
+var nodes, pods int
 
 // TestSchedule100Node3KNodeAffinityPods schedules 3k pods using Node affinity on 100 nodes.
 func TestSchedule100Node3KNodeAffinityPods(t *testing.T) {
@@ -252,4 +239,148 @@ func schedulePods(config *testConfig) int32 {
 		prev = len(scheduled)
 		time.Sleep(1 * time.Second)
 	}
+}
+
+
+func (nodeAffinity *NodeAffinity) mutateNode(numNodes int) []testutils.CountToStrategy{
+	numGroups := nodeAffinity.numGroups
+	nodeAffinityKey := nodeAffinity.nodeAffinityKey
+	nodeStrategies := make([]testutils.CountToStrategy, 0, 10)
+	for i := 0; i < numGroups; i++ {
+		nodeStrategies = append(nodeStrategies, testutils.CountToStrategy{
+			Count:    numNodes / numGroups,
+			Strategy: testutils.NewLabelNodePrepareStrategy(nodeAffinityKey, fmt.Sprintf("%v", i)),
+		})
+	}
+	return nodeStrategies
+}
+
+
+func (nodeAffinity *NodeAffinity) mutatePod(numPods int, podList []*v1.Pod){
+	numGroups := nodeAffinity.numGroups
+	nodeAffinityKey := nodeAffinity.nodeAffinityKey
+	for i := 0; i < numGroups; i++ {
+		pod := &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: "sched-perf-node-affinity-pod-",
+			},
+			Spec: testutils.MakePodSpec(),
+		}
+		pod.Spec.Affinity = &v1.Affinity{
+			NodeAffinity: &v1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+					NodeSelectorTerms: []v1.NodeSelectorTerm{
+						{
+							MatchExpressions: []v1.NodeSelectorRequirement{
+								{
+									Key:      nodeAffinityKey,
+									Operator: nodeAffinity.Operator,
+									Values:   []string{fmt.Sprintf("%v", i)},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		podList = append(podList, pod)
+	}
+	return
+}
+
+
+// Interface that every predicate or priority structure should implement.
+type UpdateNodePodConfig interface {
+	// mutateNode mutates the node strategies
+	mutateNode()
+	// mutatePod mutates the pod configs
+	mutatePod()
+}
+
+// High Level Configuration that every node should implement.
+type PriorityConfiguration struct {
+	nodeAffinity NodeAffinity
+	interpodAffinity InterpodAffinity
+}
+
+type InterpodAffinity struct {
+	Enabled		bool
+	Operator 	metav1.LabelSelectorOperator
+	affinityKey	string
+	Labels 		map[string]string
+	TopologyKey	string
+}
+
+type NodeAffinity struct {
+	Enabled         bool   //If not enabled, node affinity is disabled.
+	numGroups       int  // the % of nodes and pods that should match. Higher # -> smaller performance deficit at scale.
+	nodeAffinityKey string // the number of labels needed to match.  Higher # -> larger performance deficit at scale.
+	Operator        v1.NodeSelectorOperator
+}
+
+
+// TODO: As of now, returning configs hardcoded, need to read from yaml or some other file. A lot to validate as well.
+func readInPriorityConfiguration() *PriorityConfiguration {
+	return &PriorityConfiguration{
+		nodeAffinity: NodeAffinity {
+			Enabled : true,
+			numGroups: 10,
+			nodeAffinityKey:"kubernetes.io/sched-perf-node-affinity",
+			Operator: v1.NodeSelectorOpIn,
+		},
+
+		interpodAffinity: InterpodAffinity{
+			Enabled	: false,
+			Operator : metav1.LabelSelectorOpIn,
+			affinityKey : "security",
+			Labels : map[string]string{"security": "S1"},
+			TopologyKey: "region",
+		},
+	}
+}
+
+func (pc *PriorityConfiguration) mutate(config *testConfig) {
+	nodeAffinity := pc.nodeAffinity
+	podCreatorConfig := testutils.NewTestPodCreatorConfig()
+	var nodeStrategies []testutils.CountToStrategy
+	var podList []*v1.Pod
+	// It seems this should be the last one to run as this
+	if nodeAffinity.Enabled {
+		// Mutate Node
+		nodeStrategies = nodeAffinity.mutateNode(config.numNodes)
+		// Mutate Pod
+		nodeAffinity.mutatePod(config.numPods, podList)
+		for _, pod := range podList {
+			podCreatorConfig.AddStrategy("sched-perf-node-affinity", config.numPods / nodeAffinity.numGroups,
+			testutils.NewCustomCreatePodStrategy(pod),
+		)
+		}
+		config.nodePreparer = framework.NewIntegrationTestNodePreparer(
+			config.schedulerSupportFunctions.GetClient(),
+			nodeStrategies, "scheduler-perf-", )
+		config.podCreator = testutils.NewTestPodCreator(config.schedulerSupportFunctions.GetClient(), podCreatorConfig)
+	}
+	return
+}
+
+func TestMain(m *testing.M) {
+	// TODO: Read yaml file which has information on nodes, pods etc.
+	// TODO: Validate the yaml file and convert it into datastructure that we have.
+	/*flag.String("test.predicate", "", "Use -test.predicate")
+	flag.String("test.priorities", "", "use -test.priorities")
+	predicatesWithComma := flag.CommandLine.Lookup("test.predicate")
+	prioritiesWithComma := flag.CommandLine.Lookup("test.priorities")
+	predicates := strings.Split(predicatesWithComma.Value.String(), ",")
+	priorities := strings.Split(prioritiesWithComma.Value.String(), ",")
+	*/
+	flag.IntVar(&nodes, "test.nodes", 0, "use -test.nodes")
+	flag.IntVar(&pods, "test.pods", 0, "use -test.pods")
+	flag.Parse()
+	config := baseConfig()
+	config.numNodes = nodes
+	config.numPods = pods
+	// Fill in priority Configuration
+	priorityConfig := readInPriorityConfiguration()
+	priorityConfig.mutate(config)
+	schedulePods(config)
 }
