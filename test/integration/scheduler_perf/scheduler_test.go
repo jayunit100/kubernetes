@@ -184,25 +184,29 @@ func schedulePods(config *testConfig) int32 {
 	i := 0
 	fmt.Print("schedule pods~")
 	defer config.destroyFunc()
-	fmt.Print("schedule pods~ 2",i++)
+	i++
+	fmt.Print("schedule pods~ 2", i)
 
 	if err := config.nodePreparer.PrepareNodes(); err != nil {
 		glog.Fatalf("%v", err)
 	}
+	i++
 	defer config.nodePreparer.CleanupNodes()
 	config.podCreator.CreatePods()
-	fmt.Print("schedule pods~ 2",i++)
+	fmt.Print("schedule pods~ 2", i)
 
 	prev := 0
 	// On startup there may be a latent period where NO scheduling occurs (qps = 0).
 	// We are interested in low scheduling rates (i.e. qps=2),
 	minQps := int32(math.MaxInt32)
 	start := time.Now()
-	fmt.Print("schedule pods~  _______ ",i++)
+	i++
+	fmt.Print("schedule pods~  _______ ", i)
 
 	// Bake in time for the first pod scheduling event.
 	for {
-		fmt.Print("schedule pods~  _______ BAKING ",i++)
+		i++
+		fmt.Print("schedule pods~  _______ BAKING ", i)
 
 		time.Sleep(50 * time.Millisecond)
 		scheduled, err := config.schedulerSupportFunctions.GetScheduledPodLister().List(labels.Everything())
@@ -215,7 +219,8 @@ func schedulePods(config *testConfig) int32 {
 			break
 		}
 	}
-	fmt.Print("schedule pods~  _______ ",i++)
+	i++
+	fmt.Print("schedule pods~  _______ ", i)
 
 	// map minimum QPS entries in a counter, useful for debugging tests.
 	qpsStats := map[int]int{}
