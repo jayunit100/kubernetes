@@ -241,8 +241,7 @@ func schedulePods(config *testConfig) int32 {
 	}
 }
 
-
-func (nodeAffinity *NodeAffinity) mutateNode(numNodes int) []testutils.CountToStrategy{
+func (nodeAffinity *NodeAffinity) mutateNode(numNodes int) []testutils.CountToStrategy {
 	numGroups := nodeAffinity.numGroups
 	nodeAffinityKey := nodeAffinity.nodeAffinityKey
 	nodeStrategies := make([]testutils.CountToStrategy, 0, 10)
@@ -255,8 +254,7 @@ func (nodeAffinity *NodeAffinity) mutateNode(numNodes int) []testutils.CountToSt
 	return nodeStrategies
 }
 
-
-func (nodeAffinity *NodeAffinity) mutatePod(numPods int, podList []*v1.Pod){
+func (nodeAffinity *NodeAffinity) mutatePod(numPods int, podList []*v1.Pod) {
 	numGroups := nodeAffinity.numGroups
 	nodeAffinityKey := nodeAffinity.nodeAffinityKey
 	for i := 0; i < numGroups; i++ {
@@ -288,7 +286,6 @@ func (nodeAffinity *NodeAffinity) mutatePod(numPods int, podList []*v1.Pod){
 	return
 }
 
-
 // Interface that every predicate or priority structure should implement.
 type UpdateNodePodConfig interface {
 	// mutateNode mutates the node strategies
@@ -299,41 +296,40 @@ type UpdateNodePodConfig interface {
 
 // High Level Configuration that every node should implement.
 type PriorityConfiguration struct {
-	nodeAffinity NodeAffinity
+	nodeAffinity     NodeAffinity
 	interpodAffinity InterpodAffinity
 }
 
 type InterpodAffinity struct {
-	Enabled		bool
-	Operator 	metav1.LabelSelectorOperator
-	affinityKey	string
-	Labels 		map[string]string
-	TopologyKey	string
+	Enabled     bool
+	Operator    metav1.LabelSelectorOperator
+	affinityKey string
+	Labels      map[string]string
+	TopologyKey string
 }
 
 type NodeAffinity struct {
 	Enabled         bool   //If not enabled, node affinity is disabled.
-	numGroups       int  // the % of nodes and pods that should match. Higher # -> smaller performance deficit at scale.
+	numGroups       int    // the % of nodes and pods that should match. Higher # -> smaller performance deficit at scale.
 	nodeAffinityKey string // the number of labels needed to match.  Higher # -> larger performance deficit at scale.
 	Operator        v1.NodeSelectorOperator
 }
 
-
 // TODO: As of now, returning configs hardcoded, need to read from yaml or some other file. A lot to validate as well.
 func readInPriorityConfiguration() *PriorityConfiguration {
 	return &PriorityConfiguration{
-		nodeAffinity: NodeAffinity {
-			Enabled : true,
-			numGroups: 10,
-			nodeAffinityKey:"kubernetes.io/sched-perf-node-affinity",
-			Operator: v1.NodeSelectorOpIn,
+		nodeAffinity: NodeAffinity{
+			Enabled:         true,
+			numGroups:       10,
+			nodeAffinityKey: "kubernetes.io/sched-perf-node-affinity",
+			Operator:        v1.NodeSelectorOpIn,
 		},
 
 		interpodAffinity: InterpodAffinity{
-			Enabled	: false,
-			Operator : metav1.LabelSelectorOpIn,
-			affinityKey : "security",
-			Labels : map[string]string{"security": "S1"},
+			Enabled:     false,
+			Operator:    metav1.LabelSelectorOpIn,
+			affinityKey: "security",
+			Labels:      map[string]string{"security": "S1"},
 			TopologyKey: "region",
 		},
 	}
@@ -351,13 +347,13 @@ func (pc *PriorityConfiguration) mutate(config *testConfig) {
 		// Mutate Pod
 		nodeAffinity.mutatePod(config.numPods, podList)
 		for _, pod := range podList {
-			podCreatorConfig.AddStrategy("sched-perf-node-affinity", config.numPods / nodeAffinity.numGroups,
-			testutils.NewCustomCreatePodStrategy(pod),
-		)
+			podCreatorConfig.AddStrategy("sched-perf-node-affinity", config.numPods/nodeAffinity.numGroups,
+				testutils.NewCustomCreatePodStrategy(pod),
+			)
 		}
 		config.nodePreparer = framework.NewIntegrationTestNodePreparer(
 			config.schedulerSupportFunctions.GetClient(),
-			nodeStrategies, "scheduler-perf-", )
+			nodeStrategies, "scheduler-perf-")
 		config.podCreator = testutils.NewTestPodCreator(config.schedulerSupportFunctions.GetClient(), podCreatorConfig)
 	}
 	return
@@ -373,14 +369,31 @@ func TestMain(m *testing.M) {
 	predicates := strings.Split(predicatesWithComma.Value.String(), ",")
 	priorities := strings.Split(prioritiesWithComma.Value.String(), ",")
 	*/
+	fmt.Println("a")
 	flag.IntVar(&nodes, "test.nodes", 0, "use -test.nodes")
+	fmt.Println("a a")
+
 	flag.IntVar(&pods, "test.pods", 0, "use -test.pods")
+	fmt.Println("sss a a")
+
 	flag.Parse()
+	fmt.Println("aa a a a")
+
 	config := baseConfig()
+	fmt.Println("a aa a a a")
+
 	config.numNodes = nodes
+	fmt.Println("a a aa a a a")
+
 	config.numPods = pods
+	fmt.Println("a a a a aa a a")
+
 	// Fill in priority Configuration
 	priorityConfig := readInPriorityConfiguration()
+	fmt.Println("a a a a a a aaaa a")
+
 	priorityConfig.mutate(config)
+
+	fmt.Println("a a a a a a a a aaaaa")
 	schedulePods(config)
 }
