@@ -37,10 +37,14 @@ const (
 // fsGroup, and sets SetGid so that newly created files are owned by
 // fsGroup. If fsGroup is nil nothing is done.
 func SetVolumeOwnership(mounter Mounter, fsGroup *int64) error {
+	path := mounter.GetPath()
+	klog.Infof("Setting volume ownership for %v to %v", path, fsGroup)
 
 	if fsGroup == nil {
+		klog.Infof("No fsGroup specified: no ownership change will occur.  This may mean some files for this volume will be unreadable depending on your storage implementation.")
 		return nil
 	}
+	klog.Infof("Walking directory for %v ", path)
 
 	return filepath.Walk(mounter.GetPath(), func(path string, info os.FileInfo, err error) error {
 		if err != nil {
