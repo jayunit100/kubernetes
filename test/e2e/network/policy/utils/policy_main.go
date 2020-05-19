@@ -12,6 +12,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// provide enough time for policies to be enforced & deleted by the CNI plugin.
+const networkPolicyDelay = 2 * time.Second
+
+
 // common for all tests.  these get hardcoded into the Expect() clauses,
 // so, we cant easily parameterize them (well, we could, but that would
 // make the code harder to interpret).
@@ -19,11 +23,8 @@ var pods []string
 var namespaces []string
 var p80 int
 var p81 int
-var allPods []Pod
+var allPods []PodString
 var podIPs map[string]string
-
-// provide enough time for policies to be enforced & deleted by the CNI plugin.
-const networkPolicyDelay = 2 * time.Second
 
 func init() {
 	p80 = 80
@@ -31,7 +32,6 @@ func init() {
 	pods = []string{"a", "b", "c"}
 	namespaces = []string{"x", "y", "z"}
 	podIPs = make(map[string]string, len(pods)*len(namespaces))
-
 	for _, podName := range pods {
 		for _, ns := range namespaces {
 			allPods = append(allPods, NewPod(ns, podName))
@@ -129,15 +129,15 @@ func bootstrap(k8s *Kubernetes) error {
 
 func validate(k8s *Kubernetes, reachability *Reachability, port int) {
 	type probeResult struct {
-		podFrom   Pod
-		podTo     Pod
+		podFrom   PodString
+		podTo     PodString
 		connected bool
 		err       error
 	}
 	numProbes := len(allPods) * len(allPods)
 	resultsCh := make(chan *probeResult, numProbes)
 	// TODO: find better metrics, this is only for POC.
-	oneProbe := func(podFrom, podTo Pod) {
+	oneProbe := func(podFrom, podTo PodString) {
 		log.Tracef("Probing: %s -> %s", podFrom, podTo)
 		connected, err := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), port)
 		resultsCh <- &probeResult{podFrom, podTo, connected, err}
@@ -366,9 +366,9 @@ func testEgressAndIngressIntegration() []*TestStep {
 	builder1.AddIngress(v1.ProtocolTCP, &p80, nil, nil, nil, map[string]string{"pod": "b"}, nil, nil, nil)
 	policy1 := builder1.Get()
 	reachability1 := NewReachability(allPods, true)
-	reachability1.ExpectAllIngress(Pod("x/a"), false)
-	reachability1.Expect(Pod("x/b"), Pod("x/a"), true)
-	reachability1.Expect(Pod("x/a"), Pod("x/a"), true)
+	reachability1.ExpectAllIngress(PodString("x/a"), false)
+	reachability1.Expect(PodString("x/b"), PodString("x/a"), true)
+	reachability1.Expect(PodString("x/a"), PodString("x/a"), true)
 
 	// egress policies stack w pod selector and ns selector
 	builder2 := &NetworkPolicySpecBuilder{}
@@ -376,14 +376,14 @@ func testEgressAndIngressIntegration() []*TestStep {
 	builder2.SetTypeEgress().AddEgress(v1.ProtocolTCP, &p80, nil, nil, nil, map[string]string{"pod": "b"}, map[string]string{"ns": "y"}, nil, nil)
 	policy2 := builder2.Get()
 	reachability2 := NewReachability(allPods, true)
-	reachability2.ExpectAllEgress(Pod("x/a"), false)
-	reachability2.Expect(Pod("x/b"), Pod("x/a"), true)
-	reachability2.Expect(Pod("x/a"), Pod("x/a"), true)
-	reachability2.ExpectAllIngress(Pod("x/a"), false)
-	reachability2.Expect(Pod("x/b"), Pod("x/a"), true)
-	reachability2.Expect(Pod("x/a"), Pod("x/a"), true)
+	reachability2.ExpectAllEgress(PodString("x/a"), false)
+	reachability2.Expect(PodString("x/b"), PodString("x/a"), true)
+	reachability2.Expect(PodString("x/a"), PodString("x/a"), true)
+	reachability2.ExpectAllIngress(PodString("x/a"), false)
+	reachability2.Expect(PodString("x/b"), PodString("x/a"), true)
+	reachability2.Expect(PodString("x/a"), PodString("x/a"), true)
 	// new egress rule.
-	reachability2.Expect(Pod("x/a"), Pod("y/b"), true)
+	reachability2.Expect(PodString("x/a"), PodString("y/b"), true)
 
 	builder3 := &NetworkPolicySpecBuilder{}
 	// by preserving the same name, this policy will also serve to test the 'updated policy' scenario.
@@ -428,8 +428,8 @@ func testAllowAllPrecedenceIngress() []*TestStep {
 
 	policy1 := builder.Get()
 	reachability1 := NewReachability(allPods, true)
-	reachability1.ExpectAllIngress(Pod("x/a"), false)
-	reachability1.Expect(Pod("x/a"), Pod("x/a"), true)
+	reachability1.ExpectAllIngress(PodString("x/a"), false)
+	reachability1.Expect(PodString("x/a"), PodString("x/a"), true)
 
 	builder2 := &NetworkPolicySpecBuilder{}
 	// by preserving the same name, this policy will also serve to test the 'updated policy' scenario.
@@ -476,12 +476,12 @@ func testEgressOnNamedPort() []*TestStep {
 		//reachability.ExpectAllEgress(Pod("x/a"), false)
 		//reachability.Expect(Pod("x/a"), Pod("x/a"), true)
 		reachability.ExpectConn(&Connectivity{
-			From:        Pod("x/a"),
+			From:        PodString("x/a"),
 			IsConnected: false,
 		})
 		reachability.ExpectConn(&Connectivity{
-			From:        Pod("x/a"),
-			To:          Pod("x/a"),
+			From:        PodString("x/a"),
+			To:          PodString("x/a"),
 			IsConnected: true,
 		})
 		return reachability
@@ -520,22 +520,22 @@ func testNamedPortWNamespace() []*TestStep {
 		//reachability.Expect(Pod("x/b"), Pod("x/a"), true)
 		//reachability.Expect(Pod("x/c"), Pod("x/a"), true)
 		reachability.ExpectConn(&Connectivity{
-			To:          Pod("x/a"),
+			To:          PodString("x/a"),
 			IsConnected: false,
 		})
 		reachability.ExpectConn(&Connectivity{
-			From:        Pod("x/a"),
-			To:          Pod("x/a"),
+			From:        PodString("x/a"),
+			To:          PodString("x/a"),
 			IsConnected: true,
 		})
 		reachability.ExpectConn(&Connectivity{
-			From:        Pod("x/b"),
-			To:          Pod("x/a"),
+			From:        PodString("x/b"),
+			To:          PodString("x/a"),
 			IsConnected: true,
 		})
 		reachability.ExpectConn(&Connectivity{
-			From:        Pod("x/c"),
-			To:          Pod("x/a"),
+			From:        PodString("x/c"),
+			To:          PodString("x/a"),
 			IsConnected: true,
 		})
 		return reachability
@@ -547,12 +547,12 @@ func testNamedPortWNamespace() []*TestStep {
 		//reachability.ExpectAllIngress(Pod("x/a"), false)
 		//reachability.Expect(Pod("x/a"), Pod("x/a"), true)
 		reachability.ExpectConn(&Connectivity{
-			To:          Pod("x/a"),
+			To:          PodString("x/a"),
 			IsConnected: false,
 		})
 		reachability.ExpectConn(&Connectivity{
-			From:        Pod("x/a"),
-			To:          Pod("x/a"),
+			From:        PodString("x/a"),
+			To:          PodString("x/a"),
 			IsConnected: true,
 		})
 		return reachability
@@ -589,8 +589,8 @@ func testNamedPort() []*TestStep {
 	// disallow port 81
 	reachability81 := func() *Reachability {
 		reachability := NewReachability(allPods, true)
-		reachability.ExpectAllIngress(Pod("x/a"), false)
-		reachability.Expect(Pod("x/a"), Pod("x/a"), true)
+		reachability.ExpectAllIngress(PodString("x/a"), false)
+		reachability.Expect(PodString("x/a"), PodString("x/a"), true)
 		return reachability
 	}
 
@@ -636,8 +636,8 @@ func testAllowAll() []*TestStep {
 func testPortsPoliciesStackedOrUpdated() []*TestStep {
 	blocked := func() *Reachability {
 		r := NewReachability(allPods, true)
-		r.ExpectAllIngress(Pod("x/a"), false)
-		r.Expect(Pod("x/a"), Pod("x/a"), true)
+		r.ExpectAllIngress(PodString("x/a"), false)
+		r.Expect(PodString("x/a"), PodString("x/a"), true)
 		return r
 	}
 
@@ -702,15 +702,15 @@ func testPortsPolicies() []*TestStep {
 	// disallow port 80
 	reachability1 := func() *Reachability {
 		reachability := NewReachability(allPods, true)
-		reachability.ExpectAllIngress(Pod("x/a"), false)
-		reachability.Expect(Pod("x/a"), Pod("x/a"), true)
+		reachability.ExpectAllIngress(PodString("x/a"), false)
+		reachability.Expect(PodString("x/a"), PodString("x/a"), true)
 		return reachability
 	}
 
 	// allow port 81
 	reachability2 := func() *Reachability {
 		reachability := NewReachability(allPods, true)
-		reachability.ExpectAllIngress(Pod("x/a"), true)
+		reachability.ExpectAllIngress(PodString("x/a"), true)
 		return reachability
 	}
 
@@ -743,9 +743,9 @@ func testEnforcePodAndNSSelector() []*TestStep {
 
 	reachability := func() *Reachability {
 		reachability := NewReachability(allPods, true)
-		reachability.ExpectAllIngress(Pod("x/a"), false)
-		reachability.Expect(Pod("y/b"), Pod("x/a"), true)
-		reachability.Expect(Pod("x/a"), Pod("x/a"), true)
+		reachability.ExpectAllIngress(PodString("x/a"), false)
+		reachability.Expect(PodString("y/b"), PodString("x/a"), true)
+		reachability.Expect(PodString("x/a"), PodString("x/a"), true)
 		return reachability
 	}
 
@@ -770,12 +770,12 @@ func testEnforcePodOrNSSelector() []*TestStep {
 
 	reachability := func() *Reachability {
 		reachability := NewReachability(allPods, true)
-		reachability.ExpectAllIngress(Pod("x/a"), false)
-		reachability.Expect(Pod("y/a"), Pod("x/a"), true)
-		reachability.Expect(Pod("y/b"), Pod("x/a"), true)
-		reachability.Expect(Pod("y/c"), Pod("x/a"), true)
-		reachability.Expect(Pod("x/b"), Pod("x/a"), true)
-		reachability.Expect(Pod("x/a"), Pod("x/a"), true)
+		reachability.ExpectAllIngress(PodString("x/a"), false)
+		reachability.Expect(PodString("y/a"), PodString("x/a"), true)
+		reachability.Expect(PodString("y/b"), PodString("x/a"), true)
+		reachability.Expect(PodString("y/c"), PodString("x/a"), true)
+		reachability.Expect(PodString("x/b"), PodString("x/a"), true)
+		reachability.Expect(PodString("x/a"), PodString("x/a"), true)
 		return reachability
 	}
 
@@ -889,9 +889,9 @@ func testInnerNamespaceTraffic() []*TestStep {
 
 	reachability := func() *Reachability {
 		reachability := NewReachability(allPods, true)
-		reachability.ExpectAllIngress(Pod("x/a"), false)
-		reachability.Expect(Pod("x/a"), Pod("x/a"), true)
-		reachability.Expect(Pod("x/b"), Pod("x/a"), true)
+		reachability.ExpectAllIngress(PodString("x/a"), false)
+		reachability.Expect(PodString("x/a"), PodString("x/a"), true)
+		reachability.Expect(PodString("x/b"), PodString("x/a"), true)
 		return reachability
 	}
 
@@ -915,12 +915,12 @@ func testDefaultDeny() []*TestStep {
 	// No egress rules because we're deny all !
 	reachability := func() *Reachability {
 		reachability := NewReachability(allPods, true)
-		reachability.ExpectAllIngress(Pod("x/a"), false)
-		reachability.ExpectAllIngress(Pod("x/b"), false)
-		reachability.ExpectAllIngress(Pod("x/c"), false)
-		reachability.Expect(Pod("x/a"), Pod("x/a"), true)
-		reachability.Expect(Pod("x/b"), Pod("x/b"), true)
-		reachability.Expect(Pod("x/c"), Pod("x/c"), true)
+		reachability.ExpectAllIngress(PodString("x/a"), false)
+		reachability.ExpectAllIngress(PodString("x/b"), false)
+		reachability.ExpectAllIngress(PodString("x/c"), false)
+		reachability.Expect(PodString("x/a"), PodString("x/a"), true)
+		reachability.Expect(PodString("x/b"), PodString("x/b"), true)
+		reachability.Expect(PodString("x/c"), PodString("x/c"), true)
 		return reachability
 	}
 	return []*TestStep{
@@ -945,11 +945,11 @@ func testPodLabelWhitelistingFromBToA() []*TestStep {
 
 	reachability := func() *Reachability {
 		reachability := NewReachability(allPods, true)
-		reachability.ExpectAllIngress(Pod("x/a"), false)
-		reachability.Expect(Pod("x/b"), Pod("x/a"), true)
-		reachability.Expect(Pod("y/b"), Pod("x/a"), true)
-		reachability.Expect(Pod("z/b"), Pod("x/a"), true)
-		reachability.Expect(Pod("x/a"), Pod("x/a"), true)
+		reachability.ExpectAllIngress(PodString("x/a"), false)
+		reachability.Expect(PodString("x/b"), PodString("x/a"), true)
+		reachability.Expect(PodString("y/b"), PodString("x/a"), true)
+		reachability.Expect(PodString("z/b"), PodString("x/a"), true)
+		reachability.Expect(PodString("x/a"), PodString("x/a"), true)
 		return reachability
 	}
 	return []*TestStep{
@@ -994,40 +994,40 @@ func testIngressOverlapCIDRBlocks() []*TestStep {
 
 	allowWithExcept := func() *Reachability {
 		r := NewReachability(allPods, true)
-		r.ExpectAllIngress(Pod("x/a"), false)
-		r.Expect(Pod("x/a"), Pod("x/a"), true)
+		r.ExpectAllIngress(PodString("x/a"), false)
+		r.Expect(PodString("x/a"), PodString("x/a"), true)
 		// Adding connectivity for all the pods in allowCIDR - exceptCIDR
 		for eachPod := range podIPs {
 			if allowCIDR.Contains(net.ParseIP(podIPs[eachPod])) && !exceptCIDR.Contains(net.ParseIP(podIPs[eachPod])) {
-				r.Expect(Pod(eachPod), Pod("x/a"), true)
+				r.Expect(PodString(eachPod), PodString("x/a"), true)
 			}
 		}
 		return r
 	}
 	overlapAllow := func() *Reachability {
 		r := NewReachability(allPods, true)
-		r.ExpectAllIngress(Pod("x/a"), false)
-		r.Expect(Pod("x/a"), Pod("x/a"), true)
+		r.ExpectAllIngress(PodString("x/a"), false)
+		r.Expect(PodString("x/a"), PodString("x/a"), true)
 		// Adding connectivity for all the pods in the created allowCIDR
 		for eachPod := range podIPs {
 			if allowCIDR.Contains(net.ParseIP(podIPs[eachPod])) {
-				r.Expect(Pod(eachPod), Pod("x/a"), true)
+				r.Expect(PodString(eachPod), PodString("x/a"), true)
 			}
 		}
 		return r
 	}
 	overlapAllowAndExcept := func() *Reachability {
 		r := NewReachability(allPods, true)
-		r.ExpectAllIngress(Pod("x/a"), false)
-		r.Expect(Pod("x/a"), Pod("x/a"), true)
+		r.ExpectAllIngress(PodString("x/a"), false)
+		r.Expect(PodString("x/a"), PodString("x/a"), true)
 		// Adding connectivity for all pods in created allowCIDR except pod "y/a"
 		for eachPod := range podIPs {
 			if allowCIDR.Contains(net.ParseIP(podIPs[eachPod])) {
-				r.Expect(Pod(eachPod), Pod("x/a"), true)
+				r.Expect(PodString(eachPod), PodString("x/a"), true)
 			}
 		}
 		//Override the connectivity to pod "y/a"
-		r.Expect(Pod("y/a"), Pod("x/a"), false)
+		r.Expect(PodString("y/a"), PodString("x/a"), false)
 		return r
 	}
 

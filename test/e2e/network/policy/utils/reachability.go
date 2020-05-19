@@ -7,17 +7,17 @@ import (
 	"strings"
 )
 
-type Pod string
+type PodString string
 
-func NewPod(namespace string, podName string) Pod {
-	return Pod(fmt.Sprintf("%s/%s", namespace, podName))
+func NewPod(namespace string, podName string) PodString {
+	return PodString(fmt.Sprintf("%s/%s", namespace, podName))
 }
 
-func (pod Pod) String() string {
+func (pod PodString) String() string {
 	return string(pod)
 }
 
-func (pod Pod) split() (string, string) {
+func (pod PodString) split() (string, string) {
 	pieces := strings.Split(string(pod), "/")
 	if len(pieces) != 2 {
 		panic(errors.New(fmt.Sprintf("expected ns/pod, found %+v", pieces)))
@@ -25,19 +25,19 @@ func (pod Pod) split() (string, string) {
 	return pieces[0], pieces[1]
 }
 
-func (pod Pod) Namespace() string {
+func (pod PodString) Namespace() string {
 	ns, _ := pod.split()
 	return ns
 }
 
-func (pod Pod) PodName() string {
+func (pod PodString) PodName() string {
 	_, podName := pod.split()
 	return podName
 }
 
 type Connectivity struct {
-	From        Pod
-	To          Pod
+	From        PodString
+	To          PodString
 	IsConnected bool
 }
 

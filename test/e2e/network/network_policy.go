@@ -18,17 +18,17 @@ package network
 
 import (
 	"context"
-	"encoding/json"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
 	imageutils "k8s.io/kubernetes/test/utils/image"
+	netpol "k8s.io/kubernetes/test/e2e/network/policy/utils"
+
 
 	"fmt"
 
@@ -44,10 +44,32 @@ connections from one of the clients. The test then asserts that the clients
 failed or successfully connected as expected.
 */
 
+type Scenario struct {
+	pods []string
+	namespaces []string
+	p80 int
+	p81 int
+	allPods []string
+	podIPs map[string]string
+}
+
+func (s *Scenario) Setup() {
+	s.p80 = 80
+	s.p81 = 81
+	s.pods = []string{"a", "b", "c"}
+	s.namespaces = []string{"x", "y", "z"}
+	s.podIPs = make(map[string]string, len(s.pods)*len(s.namespaces))
+	for _, podName := range s.pods {
+		for _, ns := range s.namespaces {
+			s.allPods = append(s.allPods, string(netpol.NewPod(ns, podName)))
+		}
+	}
+}
 var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	var service *v1.Service
 	var podServer *v1.Pod
 	var podServerLabelSelector string
+
 	f := framework.NewDefaultFramework("network-policy")
 
 	ginkgo.BeforeEach(func() {
@@ -56,7 +78,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	})
 
 	ginkgo.Context("NetworkPolicy between server and client", func() {
-		ginkgo.BeforeEach(func() {
+		ginkgo.BeforeSuite(func() {
 			ginkgo.By("Creating a simple server that serves on port 80 and 81.")
 			podServer, service = createServerPodAndService(f, f.Namespace, "server", []int{80, 81})
 
