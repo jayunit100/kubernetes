@@ -30,6 +30,7 @@ import (
 	imageutils "k8s.io/kubernetes/test/utils/image"
 	netpol "k8s.io/kubernetes/test/e2e/network/policy/utils"
 
+	"encoding/json"
 
 	"fmt"
 
