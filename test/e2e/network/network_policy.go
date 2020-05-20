@@ -99,14 +99,22 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// delete all network policies in namespaces x, y, z
 		})
 
-		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:NetworkPolicy]", func() {
-			// TODO, should we have a positive control before this test runs in GinkoEach?
+		validateOrFailFunc := func(policy *networkingv1.NetworkPolicy, reachability *netpol.Reachability){
+			// TODO: DELETE ALL NETWORK POLICIES BEFORE RUNNING THIS TEST...
 
-			policy := netpol.GetDefaultDenyIngressPolicy("deny-ingress")
 			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
 			if err != nil {
 				ginkgo.Fail("failed creating policy")
 			}
+
+			ginkgo.By("Validating reachability matrix")
+			netpol.Validate(k8s, reachability, 80)
+			if _, wrong, _ := reachability.Summary(); wrong != 0 {
+				ginkgo.Fail("Had more then one wrong result in the reachability matrix.")
+			}
+		}
+		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:NetworkPolicy]", func() {
+			policy := netpol.GetDefaultDenyIngressPolicy("deny-ingress")
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
@@ -117,23 +125,22 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
 			reachability.Expect(netpol.PodString("x/c"), netpol.PodString("x/c"), true)
 
-			ginkgo.By("Validating reachability matrix")
-			netpol.Validate(k8s, reachability, 80)
-			if _, wrong, _ := reachability.Summary(); wrong != 0 {
-				ginkgo.Fail("Had more then one wrong result in the reachability matrix.")
-			}
+			validateOrFailFunc(policy, reachability)
 		})
 
 		ginkgo.It("should support a 'default-deny-all' policy [Feature:NetworkPolicy]", func() {
 			// TODO, should we have a positive control before this test runs in GinkoEach?
 			policy := netpol.GetDefaultALLDenyPolicy("deny-all")
-			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			if err != nil {
-				ginkgo.Fail("failed creating policy")
-			}
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
+			reachability.ExpectAllIngress(netpol.PodString("x/b"), false)
+			reachability.ExpectAllIngress(netpol.PodString("x/c"), false)
+			// allow loopback
+			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
+			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
+			reachability.Expect(netpol.PodString("x/c"), netpol.PodString("x/c"), true)
 
-			framework.ExpectNoError(err)
-			defer cleanupNetworkPolicy(f, policy)
+			validateOrFailFunc(policy, reachability)
 
 			// TODO, should we have a positive control before this test runs in GinkoEach?
 		})
