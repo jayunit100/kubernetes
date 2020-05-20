@@ -190,12 +190,12 @@ func (r *Reachability) ExpectConn(spec *Connectivity) {
 	}
 }
 
-func (r *Reachability) Expect(pod1 Pod, pod2 Pod, isConnected bool) {
+func (r *Reachability) Expect(pod1 PodString, pod2 PodString, isConnected bool) {
 	r.Expected.Set(string(pod1), string(pod2), isConnected)
 }
 
 // ExpectAllIngress defines that any traffic going into the pod will be allowed/denied (true/false)
-func (r *Reachability) ExpectAllIngress(pod Pod, connected bool) {
+func (r *Reachability) ExpectAllIngress(pod PodString, connected bool) {
 	r.Expected.SetAllTo(string(pod), connected)
 	if !connected {
 		log.Infof("Blacklisting all traffic *to* %s", pod)
@@ -203,14 +203,14 @@ func (r *Reachability) ExpectAllIngress(pod Pod, connected bool) {
 }
 
 // ExpectAllEgress defines that any traffic going out of the pod will be allowed/denied (true/false)
-func (r *Reachability) ExpectAllEgress(pod Pod, connected bool) {
+func (r *Reachability) ExpectAllEgress(pod PodString, connected bool) {
 	r.Expected.SetAllFrom(string(pod), connected)
 	if !connected {
 		log.Infof("Blacklisting all traffic *from* %s", pod)
 	}
 }
 
-func (r *Reachability) Observe(pod1 Pod, pod2 Pod, isConnected bool) {
+func (r *Reachability) Observe(pod1 PodString, pod2 PodString, isConnected bool) {
 	r.Observed.Set(string(pod1), string(pod2), isConnected)
 }
 

@@ -251,7 +251,7 @@ func executeTests(k8s *Kubernetes, testList []*TestCase) []*TestCase {
 				time.Sleep(networkPolicyDelay)
 			}
 			start := time.Now()
-			validate(k8s, reachability, step.Port)
+			Validate(k8s, reachability, step.Port)
 			step.Duration = time.Now().Sub(start)
 			reachability.PrintSummary(true, true, true)
 		}
