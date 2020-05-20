@@ -83,8 +83,8 @@ func waitForHTTPServers(k8s *Kubernetes) error {
 	var wrong int
 	for i := 0; i < maxTries; i++ {
 		reachability := NewReachability(allPods, true)
-		validate(k8s, reachability, 80)
-		validate(k8s, reachability, 81)
+		Validate(k8s, reachability, 80)
+		Validate(k8s, reachability, 81)
 		_, wrong, _ = reachability.Summary()
 		if wrong == 0 {
 			log.Infof("all HTTP servers are ready")
@@ -127,7 +127,7 @@ func bootstrap(k8s *Kubernetes) error {
 	return nil
 }
 
-func validate(k8s *Kubernetes, reachability *Reachability, port int) {
+func Validate(k8s *Kubernetes, reachability *Reachability, port int) {
 	type probeResult struct {
 		podFrom   PodString
 		podTo     PodString

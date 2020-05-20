@@ -22,6 +22,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
@@ -49,11 +50,13 @@ type Scenario struct {
 	namespaces []string
 	p80 int
 	p81 int
-	allPods []string
+	allPods []netpol.PodString
 	podIPs map[string]string
 }
 
-func (s *Scenario) Setup() {
+// NewScenario creates a new test scenario.
+func NewScenario() *Scenario{
+	s := &Scenario{}
 	s.p80 = 80
 	s.p81 = 81
 	s.pods = []string{"a", "b", "c"}
@@ -61,10 +64,12 @@ func (s *Scenario) Setup() {
 	s.podIPs = make(map[string]string, len(s.pods)*len(s.namespaces))
 	for _, podName := range s.pods {
 		for _, ns := range s.namespaces {
-			s.allPods = append(s.allPods, string(netpol.NewPod(ns, podName)))
+			s.allPods = append(s.allPods, netpol.NewPod(ns, podName))
 		}
 	}
+	return s
 }
+
 var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	var service *v1.Service
 	var podServer *v1.Pod
@@ -72,52 +77,48 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 	f := framework.NewDefaultFramework("network-policy")
 
+	var scenario *Scenario
+	var k8s *netpol.Kubernetes
+
+	ginkgo.BeforeSuite(func() {
+		scenario = NewScenario()
+		var err error
+		k8s, err = netpol.NewKubernetes()
+		if err != nil {
+			ginkgo.Fail(fmt.Sprintf("error initializing k8s client %v", err))
+		}
+	})
 	ginkgo.BeforeEach(func() {
 		// Windows does not support network policies.
 		e2eskipper.SkipIfNodeOSDistroIs("windows")
 	})
 
 	ginkgo.Context("NetworkPolicy between server and client", func() {
-		ginkgo.BeforeSuite(func() {
-			ginkgo.By("Creating a simple server that serves on port 80 and 81.")
-			podServer, service = createServerPodAndService(f, f.Namespace, "server", []int{80, 81})
-
-			ginkgo.By("Waiting for pod ready", func() {
-				err := e2epod.WaitTimeoutForPodReadyInNamespace(f.ClientSet, podServer.Name, f.Namespace.Name, framework.PodStartTimeout)
-				framework.ExpectNoError(err)
-			})
-
-			// podServerLabelSelector holds the value for the podServer's label "pod-name".
-			podServerLabelSelector = podServer.ObjectMeta.Labels["pod-name"]
-
-			// Create pods, which should be able to communicate with the server on port 80 and 81.
-			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
-			testCanConnect(f, f.Namespace, "client-can-connect-80", service, 80)
-			testCanConnect(f, f.Namespace, "client-can-connect-81", service, 81)
-		})
-
 		ginkgo.AfterEach(func() {
-			cleanupServerPodAndService(f, podServer, service)
+			// delete all network policies in namespaces x, y, z
 		})
 
 		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:NetworkPolicy]", func() {
-			policy := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "deny-ingress",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					PodSelector: metav1.LabelSelector{},
-					Ingress:     []networkingv1.NetworkPolicyIngressRule{},
-				},
-			}
+			policy := netpol.GetDefaultDenyPolicy("deny-ingress")
+
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
+			reachability.ExpectAllIngress(netpol.PodString("x/b"), false)
+			reachability.ExpectAllIngress(netpol.PodString("x/c"), false)
+			// allow loopback
+			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
+			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
+			reachability.Expect(netpol.PodString("x/c"), netpol.PodString("x/c"), true)
 
 			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			framework.ExpectNoError(err)
-			defer cleanupNetworkPolicy(f, policy)
-
-			// Create a pod with name 'client-cannot-connect', which will attempt to communicate with the server,
-			// but should not be able to now that isolation is on.
-			testCannotConnect(f, f.Namespace, "client-cannot-connect", service, 80)
+			if err != nil {
+				ginkgo.Fail("failed creating policy")
+			}
+			ginkgo.By("Validating reachability matrix")
+			netpol.Validate(k8s, reachability, 80)
+			if _, wrong, _ := reachability.Summary(); wrong != 0 {
+				ginkgo.Fail("Had more then one wrong result in the reachability matrix.")
+			}
 		})
 
 		ginkgo.It("should support a 'default-deny-all' policy [Feature:NetworkPolicy]", func() {
@@ -239,6 +240,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			// Create Policy for that service that allows traffic only via namespace B
 			ginkgo.By("Creating a network policy for the server which allows traffic from namespace-b.")
+
 			policy := &networkingv1.NetworkPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "allow-ns-b-via-namespace-selector",
@@ -262,6 +264,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					}},
 				},
 			}
+
 			policy, err = f.ClientSet.NetworkingV1().NetworkPolicies(nsA.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
 			framework.ExpectNoError(err)
 			defer cleanupNetworkPolicy(f, policy)

@@ -160,10 +160,10 @@ func (tt *TruthTable) PrettyPrint(indent string) string {
 type Reachability struct {
 	Expected *TruthTable
 	Observed *TruthTable
-	Pods     []Pod
+	Pods     []PodString
 }
 
-func NewReachability(pods []Pod, defaultExpectation bool) *Reachability {
+func NewReachability(pods []PodString, defaultExpectation bool) *Reachability {
 	items := []string{}
 	for _, pod := range pods {
 		items = append(items, string(pod))
