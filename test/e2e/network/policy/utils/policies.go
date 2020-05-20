@@ -6,14 +6,18 @@ import (
 )
 
 // GetDefaultDenyPolicy returns a default deny policy named 'name'.
+// 	 Note we have several defaults that are empty/nil here.
+//   - Empty podSelector:  this means that *all* pods in the namespace are selected.
+//   - No Selector type: this means we default to Ingress.
+//
+// Equivalent YAML:
+//
 // kind: NetworkPolicy
 //  apiVersion: networking.k8s.io/v1
 //  metadata:
 //    name: name
 //  spec:
 //    podSelector:
-//      matchLabels:
-//        app: web
 //    ingress: []
 func GetDefaultDenyIngressPolicy(name string) *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
@@ -37,3 +41,48 @@ func GetDefaultALLDenyPolicy(name string) *networkingv1.NetworkPolicy {
 	return policy
 }
 
+func GetAllowBasedOnPodSelector(name string, podSelectorLabels map[string]string, ingressLabels map[string]string)  *networkingv1.NetworkPolicy {
+	policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			// Apply this policy to the Server
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: podSelectorLabels,
+			},
+			// Allow traffic only from client-a
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				From: []networkingv1.NetworkPolicyPeer{{
+					PodSelector: &metav1.LabelSelector{
+						MatchLabels: ingressLabels,
+					},
+				}},
+			}},
+		},
+	}
+	return policy
+}
+
+func GetAllowBasedOnNamespaceSelector(name string, podSelectorLabels map[string]string, ingressLabels map[string]string)  *networkingv1.NetworkPolicy {
+	policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			// Apply this policy to the Server
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: podSelectorLabels,
+			},
+			// Allow traffic only from client-a
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				From: []networkingv1.NetworkPolicyPeer{{
+					NamespaceSelector: &metav1.LabelSelector{
+						MatchLabels: ingressLabels,
+					},
+				}},
+			}},
+		},
+	}
+	return policy
+}
