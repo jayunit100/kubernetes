@@ -31,6 +31,21 @@ func GetDefaultDenyIngressPolicy(name string) *networkingv1.NetworkPolicy {
 	}
 }
 
+func GetAllowAll(name string) *networkingv1.NetworkPolicy {
+	policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "allow-all",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			// Allow all traffic
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{},
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{}},
+		},
+	}
+	return policy
+}
 // GetDefaultALLDenyPolicy denies ingress traffic, AS WELL as egress traffic.
 // - BOTH policy types must be specified
 // - The Egress rule must (like the ingress default rule) be a array with 0 values.

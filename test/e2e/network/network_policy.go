@@ -71,6 +71,7 @@ func NewScenario() *Scenario{
 	return s
 }
 
+
 var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	var service *v1.Service
 	var podServer *v1.Pod
@@ -80,6 +81,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 	var scenario *Scenario
 	var k8s *netpol.Kubernetes
+
 
 	ginkgo.BeforeSuite(func() {
 		scenario = NewScenario()
@@ -99,14 +101,21 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// delete all network policies in namespaces x, y, z
 		})
 
-		validateOrFailFunc := func(ns string, port int, policy *networkingv1.NetworkPolicy, reachability *netpol.Reachability){
-			// TODO: DELETE ALL NETWORK POLICIES BEFORE RUNNING THIS TEST...
+		cleanup := func() {
+			// delete all namespaces
+		}
 
-			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Create(context.TODO(), policy, metav1.CreateOptions{})
-			if err != nil {
-				ginkgo.Fail("failed creating policy")
+		validateOrFailFunc := func(ns string, port int, policy *networkingv1.NetworkPolicy, reachability *netpol.Reachability, cleanPreviousPolicies bool){
+			if cleanPreviousPolicies == true {
+				cleanup()
 			}
-
+			// TODO: DELETE ALL NETWORK POLICIES BEFORE RUNNING THIS TEST...
+			if policy != nil {
+				_, err := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Create(context.TODO(), policy, metav1.CreateOptions{})
+				if err != nil {
+					ginkgo.Fail("failed creating policy")
+				}
+			}
 			ginkgo.By("Validating reachability matrix")
 			netpol.Validate(k8s, reachability, port)
 			if _, wrong, _ := reachability.Summary(); wrong != 0 {
@@ -125,7 +134,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
 			reachability.Expect(netpol.PodString("x/c"), netpol.PodString("x/c"), true)
 
-			validateOrFailFunc("x", 80, policy, reachability)
+			validateOrFailFunc("x", 80, policy, reachability, true)
 		})
 
 		ginkgo.It("should support a 'default-deny-all' policy [Feature:NetworkPolicy]", func() {
@@ -138,7 +147,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
 			reachability.Expect(netpol.PodString("x/c"), netpol.PodString("x/c"), true)
 
-			validateOrFailFunc("x", 80, policy, reachability)
+			validateOrFailFunc("x", 80, policy, reachability,true)
 
 			// TODO, should we have a positive control before this test runs in GinkoEach?
 		})
@@ -155,7 +164,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
 			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
 			reachability.Expect(netpol.PodString("x/c"), netpol.PodString("x/c"), true)
-			validateOrFailFunc("x", 80, policy, reachability)
+			validateOrFailFunc("x", 80, policy, reachability,true)
 		})
 
 		ginkgo.It("should enforce policy to allow traffic only from a different namespace, based on NamespaceSelector [Feature:NetworkPolicy]", func() {
@@ -175,7 +184,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}
 			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
 
-			validateOrFailFunc("x", 80, policy, reachability)
+			validateOrFailFunc("x", 80, policy, reachability,true)
 		})
 
 		ginkgo.It("should enforce policy based on PodSelector with MatchExpressions[Feature:NetworkPolicy]", func() {
@@ -197,7 +206,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}
 			// loopback
 			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
-			validateOrFailFunc("x", 80, policy, reachability)
+			validateOrFailFunc("x", 80, policy, reachability,true)
 		})
 
 		ginkgo.It("should enforce policy based on NamespaceSelector with MatchExpressions[Feature:NetworkPolicy]", func() {
@@ -216,7 +225,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), false)
 				}
 			}
-			validateOrFailFunc("x", 80,  policy, reachability)
+			validateOrFailFunc("x", 80,  policy, reachability,true)
 		})
 
 		ginkgo.It("should enforce policy based on PodSelector or NamespaceSelector [Feature:NetworkPolicy]", func() {
@@ -232,15 +241,16 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// Now we add a second ingress rule to the policy, which means there are two ways to be whitelisted.
 			// 1) via ns:y (Above)
 			// 2) via pod:b (defined here)
-			policy.Spec.Ingress = append(policy.Spec.Ingress, networkingv1.NetworkPolicyIngressRule{From: []networkingv1.NetworkPolicyPeer{
-				{
-					PodSelector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod": "b",
-						},
+			podBWhitelisting := networkingv1.NetworkPolicyPeer{
+				PodSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"pod": "b",
 					},
 				},
-			}} )
+			}
+			policy.Spec.Ingress = append(policy.Spec.Ingress, networkingv1.NetworkPolicyIngressRule{From: []networkingv1.NetworkPolicyPeer{
+				podBWhitelisting,
+			}})
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			// disallow all traffic from the x or z namespaces.. but allow 'pod:b' and 'ns:y'
@@ -249,7 +259,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), false)
 				}
 			}
-			validateOrFailFunc("x", 80, policy, reachability)
+			validateOrFailFunc("x", 80, policy, reachability,true)
 		})
 
 		// TODO We probably should have a test for multiple ns and pod filters.
@@ -278,7 +288,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), pp=="b" && nn=="y")
 				}
 			}
-			validateOrFailFunc("x", 80, policy, reachability)
+			validateOrFailFunc("x", 80, policy, reachability,true)
 		})
 
 		ginkgo.It("should enforce policy based on Ports [Feature:NetworkPolicy]", func() {
@@ -286,7 +296,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			allowedLabels := &metav1.LabelSelector{
 				MatchLabels: map[string]string{"ns": "y"},
 			}
-			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-client-a-via-ns-selector",  map[string]string{"pod": "a"}, allowedLabels)
+			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-client-a-via-ns-selector-81",  map[string]string{"pod": "a"}, allowedLabels)
 
 			// allow all traffic from the x,y,z namespaces
 			reachability := netpol.NewReachability(scenario.allPods, true)
@@ -303,128 +313,57 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				Port: &intstr.IntOrString{IntVal: 81},
 			}}
 
-			// make sure now that port 81 works ok for the y namespace...
-			validateOrFailFunc("x", 81, policy, reachability)
+			// 1) Make sure now that port 81 works ok for the y namespace...
+			validateOrFailFunc("x", 81, policy, reachability,false)
 
-			// make sure now that port 80 is NOT allowed - since we targetted x/a with a port,
-			// we only want 81 to work properly....
 
+			// 2) Verify that port 80 doesnt work for any namespace (other then loopback)
 			ginkgo.By("Verifying that all traffic to another port, 80, is blocked.")
-
 			reachability = netpol.NewReachability(scenario.allPods, false)
-			// loopback
 			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
-			validateOrFailFunc("x", 80, policy, reachability)
-		})
+			validateOrFailFunc("x", 80, policy, reachability,false)
 
-		ginkgo.It("should enforce multiple, stacked policies with overlapping podSelectors [Feature:NetworkPolicy]", func() {
-			ginkgo.By("Creating a network policy for the Service which allows traffic only to one port.")
-			policy := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "allow-ingress-on-port-80",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					// Apply to server
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": podServerLabelSelector,
-						},
-					},
-					// Allow traffic only to one port.
-					Ingress: []networkingv1.NetworkPolicyIngressRule{{
-						Ports: []networkingv1.NetworkPolicyPort{{
-							Port: &intstr.IntOrString{IntVal: 80},
-						}},
-					}},
-				},
-			}
-			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			framework.ExpectNoError(err)
-			defer cleanupNetworkPolicy(f, policy)
 
-			ginkgo.By("Creating a network policy for the Service which allows traffic only to another port.")
-			policy2 := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "allow-ingress-on-port-81",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					// Apply to server
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": podServerLabelSelector,
-						},
-					},
-					// Allow traffic only to one port.
-					Ingress: []networkingv1.NetworkPolicyIngressRule{{
-						Ports: []networkingv1.NetworkPolicyPort{{
-							Port: &intstr.IntOrString{IntVal: 81},
-						}},
-					}},
-				},
-			}
-			policy2, err = f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy2, metav1.CreateOptions{})
-			framework.ExpectNoError(err)
-			defer cleanupNetworkPolicy(f, policy2)
+			// 3) Verify that we can stack a policy to unblock port 80
 
-			ginkgo.By("Testing pods can connect to both ports when both policies are present.")
-			testCanConnect(f, f.Namespace, "client-a", service, 80)
-			testCanConnect(f, f.Namespace, "client-b", service, 81)
+			// Note that this final stacking test implements the
+			// "should enforce multiple, stacked policies with overlapping podSelectors [Feature:NetworkPolicy]"
+			// test specification, as it has already setup a set of policies which allowed some, but not all traffic.
+			// Now we will add another policy for port 80, and verify that it is unblocked...
+			ginkgo.By("Verifying that we can stack a policy to unblock port 80")
+			policy2 := netpol.GetAllowBasedOnNamespaceSelector("allow-client-a-via-ns-selector-80",  map[string]string{"pod": "a"}, allowedLabels)
+			policy2.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
+				Port: &intstr.IntOrString{IntVal: 80},
+			}}
+			validateOrFailFunc("x", 80, policy, reachability,false)
 		})
 
 		ginkgo.It("should support allow-all policy [Feature:NetworkPolicy]", func() {
 			ginkgo.By("Creating a network policy which allows all traffic.")
-			policy := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "allow-all",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					// Allow all traffic
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{},
-					},
-					Ingress: []networkingv1.NetworkPolicyIngressRule{{}},
-				},
-			}
-			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			framework.ExpectNoError(err)
-			defer cleanupNetworkPolicy(f, policy)
-
+			policy := netpol.GetAllowAll("allow-all")
 			ginkgo.By("Testing pods can connect to both ports when an 'allow-all' policy is present.")
-			testCanConnect(f, f.Namespace, "client-a", service, 80)
-			testCanConnect(f, f.Namespace, "client-b", service, 81)
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			validateOrFailFunc("x", 80, policy, reachability, true)
+			validateOrFailFunc("x", 81, policy, reachability, false )
 		})
 
 		ginkgo.It("should allow ingress access on one named port [Feature:NetworkPolicy]", func() {
-			policy := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "allow-client-a-via-named-port-ingress-rule",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					// Apply this policy to the Server
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": podServerLabelSelector,
-						},
-					},
-					// Allow traffic to only one named port: "serve-80".
-					Ingress: []networkingv1.NetworkPolicyIngressRule{{
-						Ports: []networkingv1.NetworkPolicyPort{{
-							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
-						}},
-					}},
-				},
-			}
+			policy := netpol.GetAllowAll("allow-all-on-81")
 
-			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			framework.ExpectNoError(err)
-			defer cleanupNetworkPolicy(f, policy)
+			// Add a 'port' rule to the AllowAll ingress type, so now only 81 is valid.
+			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
+				Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81"},
+			}}
 
-			ginkgo.By("Creating client-a which should be able to contact the server.", func() {
-				testCanConnect(f, f.Namespace, "client-a", service, 80)
-			})
-			ginkgo.By("Creating client-b which should not be able to contact the server on port 81.", func() {
-				testCannotConnect(f, f.Namespace, "client-b", service, 81)
-			})
+			// disallow all traffic from the x or z namespaces
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			validateOrFailFunc("x", 81, policy, reachability,true)
+
+			// disallow all traffic from the x or z namespaces
+			reachability80 := netpol.NewReachability(scenario.allPods, false)
+			reachability80.Expect("x/a","x/a",true)
+			validateOrFailFunc("x", 80, nil, reachability,false)
+
 		})
 
 		ginkgo.It("should allow ingress access from namespace on one named port [Feature:NetworkPolicy]", func() {
