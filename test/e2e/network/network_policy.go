@@ -100,7 +100,13 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		})
 
 		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:NetworkPolicy]", func() {
-			policy := netpol.GetDefaultDenyPolicy("deny-ingress")
+			// TODO, should we have a positive control before this test runs in GinkoEach?
+
+			policy := netpol.GetDefaultDenyIngressPolicy("deny-ingress")
+			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
+			if err != nil {
+				ginkgo.Fail("failed creating policy")
+			}
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
@@ -111,10 +117,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
 			reachability.Expect(netpol.PodString("x/c"), netpol.PodString("x/c"), true)
 
-			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			if err != nil {
-				ginkgo.Fail("failed creating policy")
-			}
 			ginkgo.By("Validating reachability matrix")
 			netpol.Validate(k8s, reachability, 80)
 			if _, wrong, _ := reachability.Summary(); wrong != 0 {
@@ -123,48 +125,17 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		})
 
 		ginkgo.It("should support a 'default-deny-all' policy [Feature:NetworkPolicy]", func() {
-			nsA := f.Namespace
-			nsBName := f.BaseName + "-b"
-			nsB, err := f.CreateNamespace(nsBName, map[string]string{
-				"ns-name": nsBName,
-			})
-			framework.ExpectNoError(err, "Error occurred while creating namespace-b.")
-
-			ginkgo.By("Creating a simple server in another namespace that serves on port 80 and 81.")
-			podB, serviceB := createServerPodAndService(f, nsB, "pod-b", []int{80, 81})
-
-			ginkgo.By("Waiting for pod ready", func() {
-				err := e2epod.WaitTimeoutForPodReadyInNamespace(f.ClientSet, podB.Name, nsB.Name, framework.PodStartTimeout)
-				framework.ExpectNoError(err)
-			})
-
-			ginkgo.By("Creating client-a, which should be able to contact the server in another namespace.", func() {
-				testCanConnect(f, nsA, "client-a", serviceB, 80)
-			})
-
-			policy := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "default-deny-all",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					PodSelector: metav1.LabelSelector{},
-					PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress, networkingv1.PolicyTypeIngress},
-					Ingress:     []networkingv1.NetworkPolicyIngressRule{},
-					Egress:      []networkingv1.NetworkPolicyEgressRule{},
-				},
+			// TODO, should we have a positive control before this test runs in GinkoEach?
+			policy := netpol.GetDefaultALLDenyPolicy("deny-all")
+			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
+			if err != nil {
+				ginkgo.Fail("failed creating policy")
 			}
 
-			policy, err = f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
 			framework.ExpectNoError(err)
 			defer cleanupNetworkPolicy(f, policy)
 
-			ginkgo.By("Creating client-to-a, which should not be able to contact the server in the same namespace, Ingress check.", func() {
-				testCannotConnect(f, nsA, "client-to-a", service, 80)
-			})
-
-			ginkgo.By("Creating client-to-b, which should not be able to contact the server in another namespace, Egress check.", func() {
-				testCannotConnect(f, nsA, "client-to-b", serviceB, 80)
-			})
+			// TODO, should we have a positive control before this test runs in GinkoEach?
 		})
 
 		ginkgo.It("should enforce policy to allow traffic from pods within server namespace based on PodSelector [Feature:NetworkPolicy]", func() {
