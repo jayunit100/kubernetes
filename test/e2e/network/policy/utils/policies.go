@@ -41,7 +41,7 @@ func GetDefaultALLDenyPolicy(name string) *networkingv1.NetworkPolicy {
 	return policy
 }
 
-func GetAllowBasedOnPodSelector(name string, podSelectorLabels map[string]string, ingressLabels map[string]string)  *networkingv1.NetworkPolicy {
+func GetAllowBasedOnPodSelector(name string, podSelectorLabels map[string]string, ps *metav1.LabelSelector)  *networkingv1.NetworkPolicy {
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -54,9 +54,7 @@ func GetAllowBasedOnPodSelector(name string, podSelectorLabels map[string]string
 			// Allow traffic only from client-a
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				From: []networkingv1.NetworkPolicyPeer{{
-					PodSelector: &metav1.LabelSelector{
-						MatchLabels: ingressLabels,
-					},
+					PodSelector: ps,
 				}},
 			}},
 		},
@@ -64,7 +62,7 @@ func GetAllowBasedOnPodSelector(name string, podSelectorLabels map[string]string
 	return policy
 }
 
-func GetAllowBasedOnNamespaceSelector(name string, podSelectorLabels map[string]string, ingressLabels map[string]string)  *networkingv1.NetworkPolicy {
+func GetAllowBasedOnNamespaceSelector(name string, podSelectorLabels map[string]string, s *metav1.LabelSelector)  *networkingv1.NetworkPolicy {
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -77,12 +75,11 @@ func GetAllowBasedOnNamespaceSelector(name string, podSelectorLabels map[string]
 			// Allow traffic only from client-a
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				From: []networkingv1.NetworkPolicyPeer{{
-					NamespaceSelector: &metav1.LabelSelector{
-						MatchLabels: ingressLabels,
-					},
+					NamespaceSelector: s,
 				}},
 			}},
 		},
 	}
 	return policy
 }
+
