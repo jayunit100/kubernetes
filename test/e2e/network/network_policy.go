@@ -111,9 +111,14 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}
 			// TODO: DELETE ALL NETWORK POLICIES BEFORE RUNNING THIS TEST...
 			if policy != nil {
+				fmt.Println("NETPOL creating ", policy.Name)
 				_, err := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Create(context.TODO(), policy, metav1.CreateOptions{})
 				if err != nil {
-					ginkgo.Fail("failed creating policy")
+					fmt.Println("NETPOL failed create, trying to update... ", policy.Name)
+					_, err := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Update(context.TODO(), policy, metav1.UpdateOptions{})
+					if err != nil {
+						ginkgo.Fail("NETPOL failed creating policy")
+					}
 				}
 			}
 			ginkgo.By("Validating reachability matrix")
@@ -393,186 +398,92 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 		})
 
+		// TODO In this test we remove the DNS check.  Write a higher level DNS checking test
+		// which can be used to fulfill that requirement.
 		ginkgo.It("should allow egress access on one named port [Feature:NetworkPolicy]", func() {
-			clientPodName := "client-a"
-			protocolUDP := v1.ProtocolUDP
-			policy := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "allow-client-a-via-named-port-egress-rule",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					// Apply this policy to client-a
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": clientPodName,
+			policy := netpol.GetAllowAll("egress-on-port")
+			// By adding a port rule to the egress class we now restrict regress to only work on
+			// port 80.  We add DNS support as well so that this can be done over a service.
+			policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
 						},
 					},
-					// Allow traffic to only one named port: "serve-80".
-					Egress: []networkingv1.NetworkPolicyEgressRule{{
-						Ports: []networkingv1.NetworkPolicyPort{
-							{
-								Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
-							},
-							// Allow DNS look-ups
-							{
-								Protocol: &protocolUDP,
-								Port:     &intstr.IntOrString{Type: intstr.Int, IntVal: 53},
-							},
-						},
-					}},
 				},
 			}
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			validateOrFailFunc("x", 80, policy, reachability,false)
 
-			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			framework.ExpectNoError(err)
-			defer cleanupNetworkPolicy(f, policy)
-
-			ginkgo.By("Creating client-a which should be able to contact the server.", func() {
-				testCanConnect(f, f.Namespace, clientPodName, service, 80)
-			})
-			ginkgo.By("Creating client-a which should not be able to contact the server on port 81.", func() {
-				testCannotConnect(f, f.Namespace, clientPodName, service, 81)
-			})
+			// meanwhile no traffic over 81 should work, since our egress policy is on 80
+			reachability81 := netpol.NewReachability(scenario.allPods, false)
+			for _,nn := range []string{"x","y","z"} {
+				for _, pp := range []string{"a", "b", "c"} {
+					reachability81.Expect("x/a",netpol.NewPod(nn,pp), false)
+				}
+			}
+			// no input policy, dont erase the last one...
+			validateOrFailFunc("x", 81, nil, reachability81,false)
 		})
 
+		// The simplest possible mutation for this test - which is denyall->allow all.
 		ginkgo.It("should enforce updated policy [Feature:NetworkPolicy]", func() {
-			const (
-				clientAAllowedPort    = 80
-				clientANotAllowedPort = 81
-			)
-			ginkgo.By("Creating a network policy for the Service which allows traffic from pod at a port")
-			policy := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "allow-ingress",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					// Apply to server
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": podServerLabelSelector,
-						},
-					},
-					// Allow traffic only to one port.
-					Ingress: []networkingv1.NetworkPolicyIngressRule{{
-						From: []networkingv1.NetworkPolicyPeer{{
-							PodSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"pod-name": "client-a",
-								},
-							},
-						}},
-						Ports: []networkingv1.NetworkPolicyPort{{
-							Port: &intstr.IntOrString{IntVal: clientAAllowedPort},
-						}},
-					}},
-				},
-			}
-			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			framework.ExpectNoError(err, "Error creating Network Policy %v: %v", policy.ObjectMeta.Name, err)
+			// part 1) allow all
+			policy := netpol.GetAllowAll("allow-all-mutate-to-deny-all")
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			validateOrFailFunc("x", 81, policy, reachability,false)
 
-			testCanConnect(f, f.Namespace, "client-a", service, clientAAllowedPort)
-			e2epod.WaitForPodNotFoundInNamespace(f.ClientSet, "client-a", f.Namespace.Name, framework.PodDeleteTimeout)
-			framework.ExpectNoError(err, "Expected pod to be not found.")
+			// part 2) update the policy and confirm deny all
+			policy = netpol.GetDefaultALLDenyPolicy("allow-all-mutate-to-deny-all")
+			reachability = netpol.NewReachability(scenario.allPods, false)
+			reachability.Expect("x/a","x/a", true)
+			reachability.Expect("x/b","x/b", true)
+			reachability.Expect("x/b","x/b", true)
 
-			testCannotConnect(f, f.Namespace, "client-b", service, clientAAllowedPort)
-			e2epod.WaitForPodNotFoundInNamespace(f.ClientSet, "client-b", f.Namespace.Name, framework.PodDeleteTimeout)
-			framework.ExpectNoError(err, "Expected pod to be not found.")
+			validateOrFailFunc("x", 81, policy, reachability,false)
 
-			testCannotConnect(f, f.Namespace, "client-a", service, clientANotAllowedPort)
-			e2epod.WaitForPodNotFoundInNamespace(f.ClientSet, "client-a", f.Namespace.Name, framework.PodDeleteTimeout)
-			framework.ExpectNoError(err, "Expected pod to be not found.")
-
-			const (
-				clientBAllowedPort    = 81
-				clientBNotAllowedPort = 80
-			)
-			ginkgo.By("Updating a network policy for the Service which allows traffic from another pod at another port.")
-			policy = &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "allow-ingress",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					// Apply to server
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": podServerLabelSelector,
-						},
-					},
-					// Allow traffic only to one port.
-					Ingress: []networkingv1.NetworkPolicyIngressRule{{
-						From: []networkingv1.NetworkPolicyPeer{{
-							PodSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"pod-name": "client-b",
-								},
-							},
-						}},
-						Ports: []networkingv1.NetworkPolicyPort{{
-							Port: &intstr.IntOrString{IntVal: clientBAllowedPort},
-						}},
-					}},
-				},
-			}
-			policy, err = f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Update(context.TODO(), policy, metav1.UpdateOptions{})
-			framework.ExpectNoError(err, "Error updating Network Policy %v: %v", policy.ObjectMeta.Name, err)
-			defer cleanupNetworkPolicy(f, policy)
-
-			testCannotConnect(f, f.Namespace, "client-b", service, clientBNotAllowedPort)
-			e2epod.WaitForPodNotFoundInNamespace(f.ClientSet, "client-b", f.Namespace.Name, framework.PodDeleteTimeout)
-			framework.ExpectNoError(err, "Expected pod to be not found.")
-
-			testCannotConnect(f, f.Namespace, "client-a", service, clientBNotAllowedPort)
-			testCanConnect(f, f.Namespace, "client-b", service, clientBAllowedPort)
 		})
 
 		ginkgo.It("should allow ingress access from updated namespace [Feature:NetworkPolicy]", func() {
-			nsA := f.Namespace
-			nsBName := f.BaseName + "-b"
-			newNsBName := nsBName + "-updated"
-			nsB, err := f.CreateNamespace(nsBName, map[string]string{
-				"ns-name": nsBName,
-			})
-			framework.ExpectNoError(err, "Error creating namespace %v: %v", nsBName, err)
+			// add a new label, we'll remove it after this test is
+			allowedLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"ns2": "updated"}}
 
-			const allowedPort = 80
-			// Create Policy for that service that allows traffic only via namespace B
-			ginkgo.By("Creating a network policy for the server which allows traffic from namespace-b.")
-			policy := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "allow-ns-b-via-namespace-selector",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": podServerLabelSelector,
-						},
-					},
-					Ingress: []networkingv1.NetworkPolicyIngressRule{{
-						From: []networkingv1.NetworkPolicyPeer{{
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"ns-name": newNsBName,
-								},
-							},
-						}},
-					}},
-				},
+			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-client-a-via-ns-selector",  map[string]string{"pod": "a"}, allowedLabels)
+
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			// disallow all traffic from the x or z namespaces
+			for _,nn := range []string{"x","y","z"} {
+				for _, pp := range []string{"a", "b", "c"} {
+					// nobody can talk to a bc nothing has this ns2:updated label...
+					reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), false)
+				}
 			}
+			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
+			validateOrFailFunc("x", 80, policy, reachability,true)
 
-			policy, err = f.ClientSet.NetworkingV1().NetworkPolicies(nsA.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			framework.ExpectNoError(err, "Error creating Network Policy %v: %v", policy.ObjectMeta.Name, err)
-			defer cleanupNetworkPolicy(f, policy)
+			// now mutate ns y to have this special new label.
+			nsY, err := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), "y", metav1.GetOptions{})
+			if err != nil {
+				ginkgo.Fail("couldnt get ns")
+			}
+			nsY.ObjectMeta.Labels["ns2"] = "updated"
+			_, err = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), nsY, metav1.UpdateOptions{})
+			// clean this out when done, remember we preserve pods/ns throughout
+			cleanNewLabel := func() {
+				delete(nsY.ObjectMeta.Labels, "ns2")
+				_, err = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), nsY, metav1.UpdateOptions{})
+			}
+			defer cleanNewLabel()
+			if err != nil {
+				ginkgo.Fail("couldnt update ns")
+			}
+			// now update our matrix - we want anything 'y' to be able to get to x/a...
+			reachability.Expect(netpol.PodString("y/a"), netpol.PodString("x/a"), true)
+			reachability.Expect(netpol.PodString("y/b"), netpol.PodString("x/a"), true)
+			reachability.Expect(netpol.PodString("y/c"), netpol.PodString("x/a"), true)
+			validateOrFailFunc("x", 80, policy, reachability,false)
 
-			testCannotConnect(f, nsB, "client-a", service, allowedPort)
-
-			nsB, err = f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), nsB.Name, metav1.GetOptions{})
-			framework.ExpectNoError(err, "Error getting Namespace %v: %v", nsB.ObjectMeta.Name, err)
-
-			nsB.ObjectMeta.Labels["ns-name"] = newNsBName
-			nsB, err = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), nsB, metav1.UpdateOptions{})
-			framework.ExpectNoError(err, "Error updating Namespace %v: %v", nsB.ObjectMeta.Name, err)
-
-			testCanConnect(f, nsB, "client-b", service, allowedPort)
 		})
 
 		ginkgo.It("should allow ingress access from updated pod [Feature:NetworkPolicy]", func() {
