@@ -367,46 +367,30 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		})
 
 		ginkgo.It("should allow ingress access from namespace on one named port [Feature:NetworkPolicy]", func() {
-			nsBName := f.BaseName + "-b"
-			nsB, err := f.CreateNamespace(nsBName, map[string]string{
-				"ns-name": nsBName,
-			})
-			framework.ExpectNoError(err, "Error creating namespace %v: %v", nsBName, err)
+			allowedLabels := &metav1.LabelSelector{
+				MatchLabels: map[string]string{"ns":"y"},
+			}
+			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-client-a-via-ns-selector-80",  map[string]string{"pod": "a"}, allowedLabels)
+			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
+				Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+			}}
 
-			const allowedPort = 80
-			policy := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "allow-client-in-ns-b-via-named-port-ingress-rule",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					// Apply this policy to the Server
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": podServerLabelSelector,
-						},
-					},
-					// Allow traffic to only one named port: "serve-80" from namespace-b.
-					Ingress: []networkingv1.NetworkPolicyIngressRule{{
-						From: []networkingv1.NetworkPolicyPeer{{
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"ns-name": nsBName,
-								},
-							},
-						}},
-						Ports: []networkingv1.NetworkPolicyPort{{
-							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
-						}},
-					}},
-				},
+			reachability := netpol.NewReachability(scenario.allPods, true)
+
+			// disallow all traffic from the x or z namespaces
+			for _,nn := range []string{"x","z"} {
+				for _, pp := range []string{"a", "b", "c"} {
+					reachability.Expect(netpol.NewPod(nn,pp), "x/a",false)
+				}
 			}
 
-			policy, err = f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			framework.ExpectNoError(err, "Error creating Network Policy %v: %v", policy.ObjectMeta.Name, err)
-			defer cleanupNetworkPolicy(f, policy)
+			validateOrFailFunc("x", 80, policy, reachability,false)
 
-			testCannotConnect(f, f.Namespace, "client-a", service, allowedPort)
-			testCanConnect(f, nsB, "client-b", service, allowedPort)
+			// now validate 81 doesnt work, AT ALL, even for ns y... this validation might be overkill,
+			// but still should be pretty fast.
+			reachability = netpol.NewReachability(scenario.allPods, false)
+			validateOrFailFunc("x", 81, policy, reachability,false)
+
 		})
 
 		ginkgo.It("should allow egress access on one named port [Feature:NetworkPolicy]", func() {
