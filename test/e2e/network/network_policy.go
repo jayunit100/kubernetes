@@ -722,82 +722,29 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 		
 		ginkgo.It("should allow egress access to server in CIDR block [Feature:NetworkPolicy]", func() {
-			var serviceB *v1.Service
-			var podServerB *v1.Pod
-
-			protocolUDP := v1.ProtocolUDP
 
 			// Getting podServer's status to get podServer's IP, to create the CIDR
-			podServerStatus, err := f.ClientSet.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), podServer.Name, metav1.GetOptions{})
+			podServerStatus, err := f.ClientSet.CoreV1().Pods("x").Get(context.TODO(), "a", metav1.GetOptions{})
 			if err != nil {
 				framework.ExpectNoError(err, "Error occurred while getting pod status.")
 			}
 
 			podServerCIDR := fmt.Sprintf("%s/32", podServerStatus.Status.PodIP)
 
-			// Creating pod-b and service-b
-			podServerB, serviceB = createServerPodAndService(f, f.Namespace, "pod-b", []int{80})
-			ginkgo.By("Waiting for pod-b to be ready", func() {
-				err := e2epod.WaitTimeoutForPodReadyInNamespace(f.ClientSet, podServerB.Name, f.Namespace.Name, framework.PodStartTimeout)
-				framework.ExpectNoError(err, "Error occurred while waiting for pod type: Ready.")
-			})
-			defer cleanupServerPodAndService(f, podServerB, serviceB)
+			policyAllowCIDR := PolicyAllowCIDR("x", "a", podServerCIDR)
 
-			// Wait for podServerB with serviceB to be ready
-			err = e2epod.WaitForPodRunningInNamespace(f.ClientSet, podServerB)
-			framework.ExpectNoError(err, "Error occurred while waiting for pod status in namespace: Running.")
-
-			ginkgo.By("Creating client-a which should be able to contact the server-b.", func() {
-				testCanConnect(f, f.Namespace, "client-a", serviceB, 80)
-			})
-
-			policyAllowCIDR := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: f.Namespace.Name,
-					Name:      "allow-client-a-via-cidr-egress-rule",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					// Apply this policy to the Server
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": "client-a",
-						},
-					},
-					PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
-					// Allow traffic to only one CIDR block.
-					Egress: []networkingv1.NetworkPolicyEgressRule{
-						{
-							Ports: []networkingv1.NetworkPolicyPort{
-								// Allow DNS look-ups
-								{
-									Protocol: &protocolUDP,
-									Port:     &intstr.IntOrString{Type: intstr.Int, IntVal: 53},
-								},
-							},
-						},
-						{
-							To: []networkingv1.NetworkPolicyPeer{
-								{
-									IPBlock: &networkingv1.IPBlock{
-										CIDR: podServerCIDR,
-									},
-								},
-							},
-						},
-					},
-				},
+			// since only podServerCIDR is allowed, I am assuming pods in other namespaces are in other ipblocks.
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			for _,nn := range []string{"x","y","z"} {
+				for _, pp := range []string{"a", "b", "c"} {
+					reachability.Expect("x/a",netpol.NewPod(nn,pp), false)
+				}
 			}
+			reachability.Expect("x/a","x/a", true)
+			reachability.Expect("x/a","x/b", true)
+			reachability.Expect("x/a","x/c", true)
 
-			policyAllowCIDR, err = f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policyAllowCIDR, metav1.CreateOptions{})
-			framework.ExpectNoError(err, "Error occurred while creating policy: policyAllowCIDR.")
-			defer cleanupNetworkPolicy(f, policyAllowCIDR)
-
-			ginkgo.By("Creating client-a which should not be able to contact the server-b.", func() {
-				testCannotConnect(f, f.Namespace, "client-a", serviceB, 80)
-			})
-			ginkgo.By("Creating client-a which should be able to contact the server.", func() {
-				testCanConnect(f, f.Namespace, "client-a", service, 80)
-			})
+			validateOrFailFunc("x", 80, policy, reachability,true)
 		})
 
 		ginkgo.It("should enforce except clause while egress access to server in CIDR block [Feature:NetworkPolicy]", func() {
