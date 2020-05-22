@@ -159,10 +159,13 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				fmt.Println("NETPOL creating ", policy.Name)
 				_, err := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Create(context.TODO(), policy, metav1.CreateOptions{})
 				if err != nil {
+					fmt.Sprintf("NETPOL failed CREATING policy %v", err)
+				}
+				if err != nil {
 					fmt.Println("NETPOL failed create, trying to update... ", policy.Name)
 					_, err := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Update(context.TODO(), policy, metav1.UpdateOptions{})
 					if err != nil {
-						ginkgo.Fail(fmt.Sprintf("NETPOL failed creating policy %v", err))
+						ginkgo.Fail(fmt.Sprintf("NETPOL failed UPDATING policy %v", err))
 					}
 				}
 			}
