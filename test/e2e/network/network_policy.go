@@ -127,16 +127,14 @@ install_calico
 var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	f := framework.NewDefaultFramework("network-policy")
 
-	var scenario *Scenario
 	var k8s *netpol.Kubernetes
-
+	var scenario *Scenario
 	ginkgo.BeforeEach(func() {
 		func() {
 			scenario = NewScenario()
-			var err error
-			k8s, err = netpol.NewKubernetes()
-			if err != nil {
-				ginkgo.Fail(fmt.Sprintf("error initializing k8s client %v", err))
+			if k8s == nil {
+				k8s, _ = netpol.NewKubernetes()
+				k8s.Bootstrap()
 			}
 		}()
 	})
@@ -180,6 +178,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
 			reachability.ExpectAllIngress(netpol.PodString("x/b"), false)
 			reachability.ExpectAllIngress(netpol.PodString("x/c"), false)
+
 			// allow loopback
 			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
 			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
@@ -450,7 +449,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				// port 80.  We add DNS support as well so that this can be done over a service.
 				policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{
 					{
-
 						Ports: []networkingv1.NetworkPolicyPort{
 							{
 								Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},

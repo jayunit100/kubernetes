@@ -294,3 +294,35 @@ func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *v1net.Networ
 	}
 	return np, err
 }
+
+
+func (k8s *Kubernetes) Bootstrap() error {
+	for _, ns := range namespaces {
+		_, err := k8s.CreateOrUpdateNamespace(ns, map[string]string{"ns": ns})
+		if err != nil {
+			return errors.WithMessagef(err, "unable to create/update ns %s", ns)
+		}
+		for _, pod := range pods {
+			log.Infof("creating/updating pod %s/%s", ns, pod)
+			_, err := k8s.CreateOrUpdateDeployment(ns, ns+pod, 1, map[string]string{"pod": pod})
+			if err != nil {
+				return errors.WithMessagef(err, "unable to create/update deployment %s/%s", ns, pod)
+			}
+		}
+	}
+
+	for _, pod := range allPods {
+		err := waitForPodInNamespace(k8s, pod.Namespace(), pod.PodName())
+		if err != nil {
+			return errors.WithMessagef(err, "unable to wait for pod %s/%s", pod.Namespace(), pod.PodName())
+		}
+	}
+
+	// Ensure that all the HTTP servers have time to start properly.
+	// See https://github.com/vmware-tanzu/antrea/issues/472.
+	if err := waitForHTTPServers(k8s); err != nil {
+		return err
+	}
+
+	return nil
+}
