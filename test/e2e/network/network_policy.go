@@ -22,9 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/kubernetes/test/e2e/framework"
-	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
 	netpol "k8s.io/kubernetes/test/e2e/network/policy/utils"
-
 
 	"fmt"
 
