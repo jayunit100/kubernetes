@@ -71,6 +71,16 @@ func NewScenario() *Scenario{
 	return s
 }
 
+/**
+
+KUBERNETES_SERVICE_HOST=127.0.0.1
+KUBERNETES_SERVICE_PORT=32768
+./_output/local/bin/linux/amd64/e2e.test \
+--provider=local \
+--ginkgo.focus="NetworkPolicy" \
+--kubeconfig=/home/ubuntu/.kube/config
+
+ */
 
 var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	var service *v1.Service
