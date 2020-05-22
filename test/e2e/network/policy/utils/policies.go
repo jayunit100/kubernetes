@@ -134,3 +134,19 @@ func GetPolicyWithEgressRule(ns string, name string, toNs string, toPod string )
 		},
 	}
 }
+
+func GetDefaultAllAllowEggress(name string) *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "allow-all",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			// Apply this policy to all pods
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{},
+			},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+			Egress:      []networkingv1.NetworkPolicyEgressRule{{}},
+		},
+	}
+}
