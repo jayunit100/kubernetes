@@ -154,18 +154,16 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			if cleanPreviousPolicies == true {
 				cleanup()
 			}
+
 			// TODO: DELETE ALL NETWORK POLICIES BEFORE RUNNING THIS TEST...
 			if policy != nil {
 				fmt.Println("NETPOL creating ", policy.Name)
-				_, err := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Create(context.TODO(), policy, metav1.CreateOptions{})
-				if err != nil {
-					fmt.Sprintf("NETPOL failed CREATING policy %v", err)
-				}
-				if err != nil {
+				_, err1 := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Create(context.TODO(), policy, metav1.CreateOptions{})
+				if err1 != nil {
 					fmt.Println("NETPOL failed create, trying to update... ", policy.Name)
-					_, err := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Update(context.TODO(), policy, metav1.UpdateOptions{})
-					if err != nil {
-						ginkgo.Fail(fmt.Sprintf("NETPOL failed UPDATING policy %v", err))
+					_, err2 := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Update(context.TODO(), policy, metav1.UpdateOptions{})
+					if err2 != nil {
+						ginkgo.Fail(fmt.Sprintf("NETPOL failed CREATING AND UPDATING policy .... %v .... %v", err1, err2))
 					}
 				}
 			}
