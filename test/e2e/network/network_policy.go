@@ -756,7 +756,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policyEgressAllowAll, err = f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policyEgressAllowAll, metav1.CreateOptions{})
 			ginkgo.By("Creating a network policy for the server which allows traffic from all clients.")
 			reachability = netpol.NewReachability(scenario.allPods, true)
-			validateOrFailFunc("x", 80, policyAllowAllIngress, reachability,false)
+			validateOrFailFunc("x", 80, policyEgressAllowAll, reachability,false)
 		})
 
 		//ginkgo.It("should enforce multiple egress policies with egress allow-all policy taking precedence [Feature:NetworkPolicy]", func() {
