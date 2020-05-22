@@ -733,7 +733,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			policyAllowCIDR := PolicyAllowCIDR("x", "a", podServerCIDR)
 
-			// since only podServerCIDR is allowed, I am assuming pods in other namespaces are in other ipblocks.
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			for _,nn := range []string{"x","y","z"} {
 				for _, pp := range []string{"a", "b", "c"} {
@@ -741,14 +740,14 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			}
 			reachability.Expect("x/a","x/a", true)
-			reachability.Expect("x/a","x/b", true)
-			reachability.Expect("x/a","x/c", true)
+			//reachability.Expect("x/a","x/b", true)
+			//reachability.Expect("x/a","x/c", true)
 
-			validateOrFailFunc("x", 80, policy, reachability,true)
+			validateOrFailFunc("x", 80, policyAllowCIDR, reachability,true)
 		})
 
 		ginkgo.It("should enforce except clause while egress access to server in CIDR block [Feature:NetworkPolicy]", func() {
-			protocolUDP := v1.ProtocolUDP
+
 
 			// Getting podServer's status to get podServer's IP, to create the CIDR with except clause
 			podServerStatus, err := f.ClientSet.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), podServer.Name, metav1.GetOptions{})
@@ -757,59 +756,23 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}
 
 			podServerAllowCIDR := fmt.Sprintf("%s/24", podServerStatus.Status.PodIP)
+			policyAllowCIDR := PolicyAllowCIDR("x", "a", podServerAllowCIDR)
 			// Exclude podServer's IP with an Except clause
 			podServerExceptList := []string{fmt.Sprintf("%s/32", podServerStatus.Status.PodIP)}
+			policyAllowCIDR.Spec.Eggress[0].Except = podServerExceptList
 
-			// client-a can connect to server prior to applying the NetworkPolicy
-			ginkgo.By("Creating client-a which should be able to contact the server.", func() {
-				testCanConnect(f, f.Namespace, "client-a", service, 80)
-			})
-
-			policyAllowCIDRWithExcept := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: f.Namespace.Name,
-					Name:      "deny-client-a-via-except-cidr-egress-rule",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					// Apply this policy to the client.
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": "client-a",
-						},
-					},
-					PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
-					// Allow traffic to only one CIDR block except subnet which includes Server.
-					Egress: []networkingv1.NetworkPolicyEgressRule{
-						{
-							Ports: []networkingv1.NetworkPolicyPort{
-								// Allow DNS look-ups
-								{
-									Protocol: &protocolUDP,
-									Port:     &intstr.IntOrString{Type: intstr.Int, IntVal: 53},
-								},
-							},
-						},
-						{
-							To: []networkingv1.NetworkPolicyPeer{
-								{
-									IPBlock: &networkingv1.IPBlock{
-										CIDR:   podServerAllowCIDR,
-										Except: podServerExceptList,
-									},
-								},
-							},
-						},
-					},
-				},
+			// since only podServerCIDR is allowed, I am assuming pods in other namespaces are in other ipblocks.
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			for _,nn := range []string{"x","y","z"} {
+				for _, pp := range []string{"a", "b", "c"} {
+					reachability.Expect("x/a",netpol.NewPod(nn,pp), false)
+				}
 			}
 
-			policyAllowCIDRWithExcept, err = f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policyAllowCIDRWithExcept, metav1.CreateOptions{})
-			framework.ExpectNoError(err, "Error occurred while creating policy: policyAllowCIDRWithExcept.")
-			defer cleanupNetworkPolicy(f, policyAllowCIDRWithExcept)
+			reachability.Expect("x/a","x/b", true)
+			reachability.Expect("x/a","x/c", true)
 
-			ginkgo.By("Creating client-a which should no longer be able to contact the server.", func() {
-				testCannotConnect(f, f.Namespace, "client-a", service, 80)
-			})
+			validateOrFailFunc("x", 80, policyAllowCIDR, reachability,true)
 		})
 
 		ginkgo.It("should ensure an IP overlapping both IPBlock.CIDR and IPBlock.Except is allowed [Feature:NetworkPolicy]", func() {
