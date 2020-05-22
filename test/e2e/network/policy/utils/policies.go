@@ -98,3 +98,39 @@ func GetAllowBasedOnNamespaceSelector(name string, podSelectorLabels map[string]
 	return policy
 }
 
+func GetPolicyWithEgressRule(ns string, name string, toNs string, toPod string ) *networkingv1.NetworkPolicy{
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns,
+			Name:     name,
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			// Apply this policy to the client
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"pod": name,
+				},
+			},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+			// Allow traffic only to server-a in namespace-b
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"ns": toNs ,
+								},
+							},
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"pod": toPod,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
