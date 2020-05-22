@@ -486,88 +486,59 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 		})
 
-		ginkgo.It("should allow ingress access from updated pod [Feature:NetworkPolicy]", func() {
-			const allowedPort = 80
-			ginkgo.By("Creating a network policy for the server which allows traffic from client-a-updated.")
-			policy := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "allow-pod-b-via-pod-selector",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": podServerLabelSelector,
-						},
-					},
-					Ingress: []networkingv1.NetworkPolicyIngressRule{{
-						From: []networkingv1.NetworkPolicyPeer{{
-							PodSelector: &metav1.LabelSelector{
-								MatchExpressions: []metav1.LabelSelectorRequirement{{
-									Key:      "pod-name",
-									Operator: metav1.LabelSelectorOpDoesNotExist,
-								}},
-							},
-						}},
-					}},
-				},
-			}
+		//  This function enables, and then denies, access to an updated pod. combining two previous test cases into
+		//  one so as to reuse the same test harness.
+		// 	so this implements ginkgo.It("should deny ingress access to updated pod [Feature:NetworkPolicy]", func() {
+		//  as well.
+		ginkgo.It("should allow ingress access from updated pod , and deny access to the updated pod as well [Feature:NetworkPolicy]", func() {
+			// add a new label, we'll remove it after this test is
+			allowedLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"pod2": "updated"}}
 
-			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			framework.ExpectNoError(err, "Error creating Network Policy %v: %v", policy.ObjectMeta.Name, err)
-			defer cleanupNetworkPolicy(f, policy)
+			policy := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-ns-selector",  map[string]string{"pod": "a"}, allowedLabels)
 
-			ginkgo.By(fmt.Sprintf("Creating client pod %s that should not be able to connect to %s.", "client-a", service.Name))
-			// Specify RestartPolicy to OnFailure so we can check the client pod fails in the beginning and succeeds
-			// after updating its label, otherwise it would not restart after the first failure.
-			podClient := createNetworkClientPodWithRestartPolicy(f, f.Namespace, "client-a", service, allowedPort, v1.RestartPolicyOnFailure)
-			defer func() {
-				ginkgo.By(fmt.Sprintf("Cleaning up the pod %s", podClient.Name))
-				if err := f.ClientSet.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), podClient.Name, metav1.DeleteOptions{}); err != nil {
-					framework.Failf("unable to cleanup pod %v: %v", podClient.Name, err)
+			// 1) Confirm that traffic is denied because the pod2:updated hasn't been applied to podB yet.
+			// We'll apply that in step (2).
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			// disallow all traffic from the x or z namespaces
+			for _,nn := range []string{"x","y","z"} {
+				for _, pp := range []string{"a", "b", "c"} {
+					// nobody can talk to a bc nothing has this ns2:updated label...
+					reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), false)
 				}
-			}()
-			// Check Container exit code as restartable Pod's Phase will be Running even when container fails.
-			checkNoConnectivityByExitCode(f, f.Namespace, podClient, service)
-
-			ginkgo.By(fmt.Sprintf("Updating client pod %s that should successfully connect to %s.", podClient.Name, service.Name))
-			podClient = updatePodLabel(f, f.Namespace, podClient.Name, "replace", "/metadata/labels", map[string]string{})
-			checkConnectivity(f, f.Namespace, podClient, service)
-		})
-
-		ginkgo.It("should deny ingress access to updated pod [Feature:NetworkPolicy]", func() {
-			const allowedPort = 80
-			ginkgo.By("Creating a network policy for the server which denies all traffic.")
-			policy := &networkingv1.NetworkPolicy{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "deny-ingress-via-isolated-label-selector",
-				},
-				Spec: networkingv1.NetworkPolicySpec{
-					PodSelector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"pod-name": podServerLabelSelector,
-						},
-						MatchExpressions: []metav1.LabelSelectorRequirement{{
-							Key:      "isolated",
-							Operator: metav1.LabelSelectorOpExists,
-						}},
-					},
-					PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
-					Ingress:     []networkingv1.NetworkPolicyIngressRule{},
-				},
 			}
+			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
+			validateOrFailFunc("x", 80, policy, reachability,true)
 
-			policy, err := f.ClientSet.NetworkingV1().NetworkPolicies(f.Namespace.Name).Create(context.TODO(), policy, metav1.CreateOptions{})
-			framework.ExpectNoError(err, "Error creating Network Policy %v: %v", policy.ObjectMeta.Name, err)
-			defer cleanupNetworkPolicy(f, policy)
+			// (2) Now confirm that traffic from this pod is enabled by adding the label
+			// now mutate pod to to have this special new label.
+			podB, err := f.ClientSet.CoreV1().Pods("x").Get(context.TODO(), "x", metav1.GetOptions{})
+			if err != nil {
+				ginkgo.Fail("couldnt get pod")
+			}
+			podB.ObjectMeta.Labels["pod2"] = "updated"
+			cleanNewLabel := func() {
+				delete(podB.ObjectMeta.Labels, "pod2")
+				_, err = f.ClientSet.CoreV1().Pods("x").Update(context.TODO(), podB, metav1.UpdateOptions{})
+			}
+			_, err = f.ClientSet.CoreV1().Pods("x").Update(context.TODO(), podB, metav1.UpdateOptions{})
 
-			// Client can connect to service when the network policy doesn't apply to the server pod.
-			testCanConnect(f, f.Namespace, "client-a", service, allowedPort)
+			// clean this out when done, remember we preserve pods/ns throughout
+			if err != nil {
+				ginkgo.Fail("couldnt update pod")
+			}
+			// now update our matrix - we want this 'b' pod to access x/a.
+			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/a"), true)
+			validateOrFailFunc("x", 80, nil, reachability,false)
 
-			// Client cannot connect to service after updating the server pod's labels to match the network policy's selector.
-			ginkgo.By(fmt.Sprintf("Updating server pod %s to be selected by network policy %s.", podServer.Name, policy.Name))
-			updatePodLabel(f, f.Namespace, podServer.Name, "add", "/metadata/labels/isolated", nil)
-			testCannotConnect(f, f.Namespace, "client-a", service, allowedPort)
+			// (3) Now validate that denial is recovered from removing the label...
+			// delete this label, so we can confirm that removing it DENIES access to the pod,
+			// i.e. this is the 'should deny ingress access to updated pod' case.
+			cleanNewLabel()
+
+			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/a"), false)
+			validateOrFailFunc("x", 80, nil, reachability,false)
 		})
+
 
 		ginkgo.It("should work with Ingress,Egress specified together [Feature:NetworkPolicy]", func() {
 			const allowedPort = 80
