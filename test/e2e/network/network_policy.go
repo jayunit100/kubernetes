@@ -130,17 +130,15 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	var scenario *Scenario
 	var k8s *netpol.Kubernetes
 
-	ginkgo.BeforeSuite(func() {
-		scenario = NewScenario()
-		var err error
-		k8s, err = netpol.NewKubernetes()
-		if err != nil {
-			ginkgo.Fail(fmt.Sprintf("error initializing k8s client %v", err))
-		}
-	})
 	ginkgo.BeforeEach(func() {
-		// Windows does not support network policies.
-		e2eskipper.SkipIfNodeOSDistroIs("windows")
+		func() {
+			scenario = NewScenario()
+			var err error
+			k8s, err = netpol.NewKubernetes()
+			if err != nil {
+				ginkgo.Fail(fmt.Sprintf("error initializing k8s client %v", err))
+			}
+		}()
 	})
 
 	ginkgo.Context("NetworkPolicy between server and client", func() {
