@@ -138,7 +138,7 @@ func Validate(k8s *Kubernetes, reachability *Reachability, port int) {
 	resultsCh := make(chan *probeResult, numProbes)
 	// TODO: find better metrics, this is only for POC.
 	oneProbe := func(podFrom, podTo PodString) {
-		log.Tracef("Probing: %s -> %s", podFrom, podTo)
+		log.Infof("Probing: %s -> %s", podFrom, podTo)
 		connected, err := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), port)
 		resultsCh <- &probeResult{podFrom, podTo, connected, err}
 	}
@@ -157,6 +157,7 @@ func Validate(k8s *Kubernetes, reachability *Reachability, port int) {
 			log.Warnf("FAILED CONNECTION FOR WHITELISTED PODS %s -> %s !!!! ", r.podFrom, r.podTo)
 		}
 	}
+
 }
 
 func failOnError(err error) {
