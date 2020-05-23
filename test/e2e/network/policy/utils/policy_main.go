@@ -150,12 +150,13 @@ func Validate(k8s *Kubernetes, reachability *Reachability, port int) {
 	}
 	for i := 0; i < numProbes; i++ {
 		r := <-resultsCh
+		log.Infof("Received result %v!", r.podFrom, r.podTo, r.connected, r.err)
 		if r.err != nil {
-			log.Errorf("unable to perform probe %s -> %s: %v", r.podFrom, r.podTo, r.err)
+			log.Infof("unable to perform probe %s -> %s: %v", r.podFrom, r.podTo, r.err)
 		}
 		reachability.Observe(r.podFrom, r.podTo, r.connected)
 		if !r.connected && reachability.Expected.Get(r.podFrom.String(), r.podTo.String()) {
-			log.Warnf("FAILED CONNECTION FOR WHITELISTED PODS %s -> %s !!!! ", r.podFrom, r.podTo)
+			log.Infof("FAILED CONNECTION FOR WHITELISTED PODS %s -> %s !!!! ", r.podFrom, r.podTo)
 		}
 	}
 
