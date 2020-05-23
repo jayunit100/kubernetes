@@ -134,6 +134,37 @@ func GetPolicyWithEgressRule(ns string, name string, toNs string, toPod string )
 	}
 }
 
+func GetPolicyWithEgressRuleOnlyPodSelector(ns string, name string, toPod string ) *networkingv1.NetworkPolicy{
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns,
+			Name:     name,
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			// Apply this policy to the client
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"pod": name,
+				},
+			},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+,							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"pod": toPod,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func GetDefaultAllAllowEggress(name string) *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
