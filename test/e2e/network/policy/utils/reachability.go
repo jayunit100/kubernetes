@@ -108,6 +108,15 @@ func (tt *TruthTable) SetAllTo(to string, value bool) {
 	}
 }
 
+func (tt *TruthTable) AllowLoopback() {
+
+	for _, from := range tt.Items {
+		tt.Values[from][from] = true
+	}
+}
+
+
+
 func (tt *TruthTable) Get(from string, to string) bool {
 	dict, ok := tt.Values[from]
 	if !ok {
@@ -173,6 +182,7 @@ func NewReachability(pods []PodString, defaultExpectation bool) *Reachability {
 		Observed: NewTruthTable(items, nil),
 		Pods:     pods,
 	}
+	r.Expected.AllowLoopback()
 	return r
 }
 
@@ -190,6 +200,14 @@ func (r *Reachability) ExpectConn(spec *Connectivity) {
 	}
 }
 
+// AllowLoopback is a convenience func to access Expected and re-enabl
+// all loopback to true.  in general call it after doing other logical 
+// stuff in loops since loopback logic follows no policy.
+func (r *Reachability) AllowLoopback() {
+	r.Expected.AllowLoopback()
+}
+
+
 func (r *Reachability) Expect(pod1 PodString, pod2 PodString, isConnected bool) {
 	r.Expected.Set(string(pod1), string(pod2), isConnected)
 }
@@ -201,6 +219,7 @@ func (r *Reachability) ExpectAllIngress(pod PodString, connected bool) {
 		log.Infof("Blacklisting all traffic *to* %s", pod)
 	}
 }
+
 
 // ExpectAllEgress defines that any traffic going out of the pod will be allowed/denied (true/false)
 func (r *Reachability) ExpectAllEgress(pod PodString, connected bool) {

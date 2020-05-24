@@ -168,6 +168,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			ginkgo.By("Validating reachability matrix")
 			netpol.Validate(k8s, reachability, port)
 			if _, wrong, _ := reachability.Summary(); wrong != 0 {
+				reachability.PrintSummary(true,true,true)
 				ginkgo.Fail("Had more then one wrong result in the reachability matrix.")
 			}
 		}
@@ -175,15 +176,11 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policy := netpol.GetDefaultDenyIngressPolicy("deny-ingress")
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
+			
 			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
 			reachability.ExpectAllIngress(netpol.PodString("x/b"), false)
 			reachability.ExpectAllIngress(netpol.PodString("x/c"), false)
-
-			// allow loopback
-			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
-			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
-			reachability.Expect(netpol.PodString("x/c"), netpol.PodString("x/c"), true)
-
+			reachability.AllowLoopback()
 			validateOrFailFunc("x", 80, policy, reachability, true)
 		})
 
