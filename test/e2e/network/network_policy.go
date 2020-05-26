@@ -317,6 +317,11 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					},
 				},
 			}
+			/**
+			 * Here we add a second Ingress rule, such that our overall ingress will look like this...
+			 * - From:
+			 * - From:
+			 */
 			policy.Spec.Ingress = append(policy.Spec.Ingress, networkingv1.NetworkPolicyIngressRule{From: []networkingv1.NetworkPolicyPeer{
 				podBWhitelisting,
 			}})
@@ -340,18 +345,17 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					Values:   []string{"x"},
 				}},
 			}
-			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-ns-y-matchselector", map[string]string{"pod": "a"}, allowedNamespaces)
+			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-ns-y-matchselector2", map[string]string{"pod": "a"}, allowedNamespaces)
 
-			podBWhitelisting := networkingv1.NetworkPolicyPeer{
-				PodSelector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"pod": "b",
-					},
+			/**
+			 * Here we add a PodSelector to the SAME rule that we made above.
+			 * Making this much more selective then the previous 'or' test.
+			 */
+			policy.Spec.Ingress[0].From[0].PodSelector = &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"pod": "b",
 				},
 			}
-
-			// Append the rule DIRECTLY to the From clause, which makes it much more restrictive then the previous policy.
-			policy.Spec.Ingress[0].From = append(policy.Spec.Ingress[0].From,podBWhitelisting)
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			scenario.forEach(func(from, to netpol.PodString) {
