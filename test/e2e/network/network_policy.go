@@ -135,6 +135,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			if k8s == nil {
 				k8s, _ = netpol.NewKubernetes()
 				k8s.Bootstrap()
+				k8s.CleanNetworkPolicies([]string{"x","y","z"})
 			}
 		}()
 	})
@@ -189,6 +190,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policy := netpol.GetDefaultALLDenyPolicy("deny-all")
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			reachability.ExpectAllIngress(netpol.PodString("x/a"),false)
+			reachability.ExpectAllEgress(netpol.PodString("x/a"),false)
+
 			reachability.AllowLoopback()
 
 			validateOrFailFunc("x", 80, policy, reachability, true)
