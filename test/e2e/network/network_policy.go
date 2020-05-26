@@ -282,7 +282,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		})
 
 
-
 		ginkgo.It("should enforce policy based on NamespaceSelector with MatchExpressions[Feature:NetworkPolicy]", func() {
 			allowedNamespaces := &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{
@@ -310,7 +309,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					Values:   []string{"y"},
 				}},
 			}
-			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-ns-y-matchselector", map[string]string{"pod": "x"}, allowedNamespaces)
+			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-ns-y-matchselector", map[string]string{"pod": "a"}, allowedNamespaces)
 			// Appending to an ingress rule is an *OR* operation, which broadens the policy to allow more traffic.
 			// Now we add a second ingress rule to the policy, which means there are two ways to be whitelisted.
 			// 1) via ns:y (Above)
@@ -333,6 +332,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), false)
 				}
 			}
+			reachability.AllowLoopback()
 			validateOrFailFunc("x", 80, policy, reachability, true)
 		})
 
