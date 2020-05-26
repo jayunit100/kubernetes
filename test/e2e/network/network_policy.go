@@ -228,9 +228,11 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 		// The next two tests test an identical condition.
 		// should enforce policy to allow traffic from pods within server namespace based on PodSelector
+		// should enforce policy based on PodSelector with MatchExpressions[Feature:NetworkPolicy]
 		ginkgo.It("should enforce policy that allows only a specific pod in the same namespace (based on PodSelector) [Feature:NetworkPolicy]", func() {
 
 			// We will reuse this scenario in both validations...
+
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			scenario.forEach(func(from, to netpol.PodString ){
 				if to == "x/a" && from != "x/b" {
@@ -241,27 +243,22 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			ginkgo.By("Using a LABEL SELECTOR")
 
-			allowedPodLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"pod": "b"}}
-			policy := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-pod-selector-1", map[string]string{"pod": "a"}, allowedPodLabels)
+			policy := netpol.GetAllowBasedOnPodSelector("x-a-allows-x-b", map[string]string{"pod": "a"}, &metav1.LabelSelector{
+				MatchLabels: map[string]string{"pod": "b"},
+			})
 			validateOrFailFunc("x", 80, policy, reachability, true)
 
 			ginkgo.By("Using a MATCH EXPRESSION")
 
-			k8s.CleanNetworkPolicies([]string{"x","y","z"})
-			allowedPodLabels = &metav1.LabelSelector{
+			policy2 := netpol.GetAllowBasedOnPodSelector("x-a-allows-x-b", map[string]string{"pod": "a"}, &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values:   []string{"b"},
 				}},
-			}
-			policy2 := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-pod-match-selector-2", map[string]string{"pod": "a"}, allowedPodLabels)
+			})
 
 			validateOrFailFunc("x", 80, policy2, reachability, true)
-		})
-
-		ginkgo.It("should enforce policy based on PodSelector with MatchExpressions[Feature:NetworkPolicy]", func() {
-
 		})
 
 		ginkgo.It("should enforce policy to allow traffic only from a different namespace, based on NamespaceSelector [Feature:NetworkPolicy]", func() {
