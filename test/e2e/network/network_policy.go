@@ -310,10 +310,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}},
 			}
 			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-ns-y-matchselector", map[string]string{"pod": "a"}, allowedNamespaces)
-			// Appending to an ingress rule is an *OR* operation, which broadens the policy to allow more traffic.
-			// Now we add a second ingress rule to the policy, which means there are two ways to be whitelisted.
-			// 1) via ns:y (Above)
-			// 2) via pod:b (defined here)
+
 			podBWhitelisting := networkingv1.NetworkPolicyPeer{
 				PodSelector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
@@ -329,7 +326,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// disallow all traffic from the x or z namespaces.. but allow 'pod:b' and 'ns:y'
 			scenario.forEach(func(from, to netpol.PodString){
 				if to.Namespace() == "x" && to.PodName()== "a"{
-					reachability.Expect(from, to, from.Namespace()=="z" || from.PodName()=="b")
+					reachability.Expect(from, to, from.Namespace()=="z" || from.Namespace()=="x" || from.PodName()=="b")
 				}
 			})
 
