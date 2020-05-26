@@ -192,6 +192,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				reachability.ExpectAllIngress(netpol.PodString("x/"+pp), false)
 				reachability.ExpectAllEgress(netpol.PodString("x/"+pp), false)
 			}
+			reachability.AllowLoopback()
+
 			validateOrFailFunc("x", 80, policy, reachability, true)
 
 			// TODO, should we have a positive control before this test runs in GinkoEach?
