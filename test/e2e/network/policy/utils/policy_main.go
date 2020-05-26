@@ -159,6 +159,7 @@ func Validate(k8s *Kubernetes, reachability *Reachability, port int) {
 		expected := reachability.Expected.Get(r.podFrom.String(), r.podTo.String())
 		if r.connected != expected {
 			log.Infof("Validation of ", r.podFrom, r.podTo, " FAILED !!! \n")
+			log.Infof("error %v ", r.err)
 			if expected {
 				log.Infof("Whitelisted pod connection was BLOCKED --- run '", r.command, "' to reproduce.")
 			} else {
