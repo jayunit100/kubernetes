@@ -327,11 +327,12 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			// disallow all traffic from the x or z namespaces.. but allow 'pod:b' and 'ns:y'
-			for _, nn := range []string{"x", "z"} {
-				for _, pp := range []string{"a", "c"} {
-					reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), false)
+			scenario.forEach(func(from, to netpol.PodString){
+				if from.Namespace() == "x" {
+					reachability.Expect(from, to, from.Namespace()=="z" || from.PodName()=="b")
 				}
-			}
+			})
+
 			reachability.AllowLoopback()
 			validateOrFailFunc("x", 80, policy, reachability, true)
 		})
