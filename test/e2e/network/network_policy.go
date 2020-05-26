@@ -306,7 +306,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				MatchExpressions: []metav1.LabelSelectorRequirement{{
 					Key:      "ns",
 					Operator: metav1.LabelSelectorOpNotIn,
-					Values:   []string{"y"},
+					Values:   []string{"x"},
 				}},
 			}
 			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-ns-y-matchselector", map[string]string{"pod": "a"}, allowedNamespaces)
@@ -323,13 +323,9 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}})
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			// disallow all traffic from the x or z namespaces.. but allow 'pod:b' and 'ns:y'
-			scenario.forEach(func(from, to netpol.PodString){
-				if to.Namespace() == "x" && to.PodName()== "a"{
-					reachability.Expect(from, to, from.Namespace()=="z" || from.Namespace()=="x" || from.PodName()=="b")
-				}
-			})
-
+			reachability.Expect("x/a","x/b", false)
+			reachability.Expect("x/b","x/b", true)
+			reachability.Expect("x/c","x/b", false)
 			reachability.AllowLoopback()
 			validateOrFailFunc("x", 80, policy, reachability, true)
 		})
