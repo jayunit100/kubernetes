@@ -375,35 +375,45 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		})
 
 		ginkgo.It("should enforce policy based on Ports [Feature:NetworkPolicy]", func() {
-			ginkgo.By("Creating a network policy which only allows whitelisted namespaces (y) to connect on exactly one port (81)")
+			ginkgo.By("*************** Creating a network policy which only allows whitelisted namespaces (y) to connect on exactly one port (81)")
 			allowedLabels := &metav1.LabelSelector{
 				MatchLabels: map[string]string{"ns": "y"},
 			}
-			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-client-a-via-ns-selector-81", map[string]string{"pod": "a"}, allowedLabels)
+			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-client-a-via-ns-selector", map[string]string{"pod": "a"}, allowedLabels)
 
 			// allow all traffic from the x,y,z namespaces
-			reachability := netpol.NewReachability(scenario.allPods, true)
+			reachabilityALLOW := netpol.NewReachability(scenario.allPods, true)
 
-			// disallow all traffic from the x or z namespaces
-			for _, nn := range []string{"x", "z"} {
-				for _, pp := range []string{"a", "b", "c"} {
-					reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), false)
+			scenario.forEach(func(from netpol.PodString, to netpol.PodString){
+				if to=="x/a" {
+					if from.Namespace()=="y"{
+						reachabilityALLOW.Expect(to,from,true )
+					}
+					if from.Namespace()=="z"{
+						reachabilityALLOW.Expect(to,from,false )
+					}
+					if from.Namespace()=="x"{
+						reachabilityALLOW.Expect(to,from,false )
+					}
 				}
-			}
-			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
+			})
+			reachabilityALLOW.AllowLoopback()
 
 			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
-				Port: &intstr.IntOrString{IntVal: 81},
+				Port: &intstr.IntOrString{
+					IntVal: 81,
+				},
 			}}
 
-			// 1) Make sure now that port 81 works ok for the y namespace...
-			validateOrFailFunc("x", 81, policy, reachability, false)
+			// 1) Make sure now that port 81 works ok for the y namespace THEN 2) Verify that port 80 doesnt work for any namespace (other then loopback)
 
-			// 2) Verify that port 80 doesnt work for any namespace (other then loopback)
-			ginkgo.By("Verifying that all traffic to another port, 80, is blocked.")
-			reachability = netpol.NewReachability(scenario.allPods, false)
-			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
-			validateOrFailFunc("x", 80, policy, reachability, false)
+			ginkgo.By("************* Verifying that all traffic to another port, 81, is works.")
+			validateOrFailFunc("x", 81, policy, reachabilityALLOW, true)
+			ginkgo.By("************ Verifying that all traffic to another port, 80, is blocked.")
+			reachabilityDENY := netpol.NewReachability(scenario.allPods, true)
+			reachabilityDENY.ExpectAllIngress("x/a",false)
+			reachabilityDENY.AllowLoopback()
+			validateOrFailFunc("x", 80, policy, reachabilityDENY, false)
 
 			// 3) Verify that we can stack a policy to unblock port 80
 
@@ -411,12 +421,12 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// "should enforce multiple, stacked policies with overlapping podSelectors [Feature:NetworkPolicy]"
 			// test specification, as it has already setup a set of policies which allowed some, but not all traffic.
 			// Now we will add another policy for port 80, and verify that it is unblocked...
-			ginkgo.By("Verifying that we can stack a policy to unblock port 80")
+			ginkgo.By("************ Verifying that we can stack a policy to unblock port 80")
 			policy2 := netpol.GetAllowBasedOnNamespaceSelector("allow-client-a-via-ns-selector-80", map[string]string{"pod": "a"}, allowedLabels)
 			policy2.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
 				Port: &intstr.IntOrString{IntVal: 80},
 			}}
-			validateOrFailFunc("x", 80, policy, reachability, false)
+			validateOrFailFunc("x", 80, policy, reachabilityALLOW, false)
 		})
 
 		ginkgo.It("should support allow-all policy [Feature:NetworkPolicy]", func() {
