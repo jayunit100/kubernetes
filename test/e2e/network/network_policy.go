@@ -49,12 +49,12 @@ type Scenario struct {
 
 // forEach is a convenient function for iterating through all combinations
 // of to->from pods in the scenario.
-func (s *Scenario) forEach(process func(string, string, string, string)){
+func (s *Scenario) forEach(process func(netpol.PodString, netpol.PodString)){
 	for _, n := range s.namespaces {
 		for _, p := range s.pods {
 			for _, nn := range s.namespaces {
 				for _, pp := range s.pods {
-					process(n,p,nn,pp)
+					process(netpol.PodString(n+"/"+p), netpol.PodString(nn+"/"+pp))
 				}
 			}
 		}
@@ -150,6 +150,11 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				k8s, _ = netpol.NewKubernetes()
 				k8s.Bootstrap()
 				k8s.CleanNetworkPolicies([]string{"x","y","z"})
+
+				// convenience: putting unit tests in here for now...
+				if netpol.PodString("x/a") != netpol.NewPod("x","a"){
+					panic("omg theyre not the same, dying")
+				}
 			}
 		}()
 	})
@@ -213,19 +218,16 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// TODO, should we have a positive control before this test runs in GinkoEach?
 		})
 
-		ginkgo.It("should enforce policy to allow traffic from pods within server namespace based on PodSelector [Feature:NetworkPolicy]", func() {
+		// should enforce policy to allow traffic from pods within server namespace based on PodSelector
+		ginkgo.It("should enforce policy that allows only a specific pod in the same namespace (based on PodSelector) [Feature:NetworkPolicy]", func() {
 			allowedPodLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"pod": "b"}}
 			policy := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-pod-selector", map[string]string{"pod": "a"}, allowedPodLabels)
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			scenario.forEach(func(n1, p1, n2, p2 string){
+			scenario.forEach(func(from, to netpol.PodString ){
 				// disallow any external traffic
-				if n2 == "x" && n1 != n2 {
-					reachability.Expect(netpol.PodString(n1+"/"+p1),netpol.PodString(n2+"/"+p2), false )
-				}
-				// allow internal if pod = b
-				if n2 == "x" && p1 != "b" {
-					reachability.Expect(netpol.PodString(n1+"/"+p1),netpol.PodString(n2+"/"+p2), false )
+				if to == "x/a" && from != "x/b" {
+						reachability.Expect(from, to, false )
 				}
 			})
 			reachability.AllowLoopback()
