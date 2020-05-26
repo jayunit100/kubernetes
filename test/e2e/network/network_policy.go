@@ -186,12 +186,16 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			}
 			ginkgo.By("Validating reachability matrix...")
-			fmt.Println("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV")
-			reachability.PrintSummary(true,true,true)
 
 			netpol.Validate(k8s, reachability, port)
+			fmt.Println("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV")
+
+			reachability.PrintSummary(true,true,true)
+
 			if _, wrong, _ := reachability.Summary(); wrong != 0 {
 				ginkgo.Fail("Had more then one wrong result in the reachability matrix.")
+			} else {
+				fmt.Println("VALIDATION SUCCESSFUL............................................................")
 			}
 			fmt.Println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
