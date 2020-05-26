@@ -107,7 +107,9 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2 string, port int) (bool, error, 
 		"-c",
 		// 3 tries, timeout is 1 second
 		// it uses the identical port for send and receive traffic.  TODO possibly support different ports.
-		fmt.Sprintf("for i in $(seq 1 3); do ncat -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", port, toIP, port),
+
+		// *** hardcode port 82 - will update that later if needed ***
+		fmt.Sprintf("for i in $(seq 1 3); do ncat -p 82 -vz -w 1 %s %d && exit 0 || true; done; exit 1", port, toIP, port),
 	}
 	// HACK: inferring container name as c80, c81, etc, for simplicity.
 	containerName := fmt.Sprintf("c%v", port)
