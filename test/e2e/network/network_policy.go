@@ -206,7 +206,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
 			reachability.ExpectAllIngress(netpol.PodString("x/b"), true)
-			reachability.ExpectAllIngress(netpol.PodString("x/c"), false)x
+			reachability.ExpectAllIngress(netpol.PodString("x/c"), false)
 			// allow loopback
 			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
 			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
