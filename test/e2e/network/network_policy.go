@@ -229,45 +229,39 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		// The next two tests test an identical condition.
 		// should enforce policy to allow traffic from pods within server namespace based on PodSelector
 		ginkgo.It("should enforce policy that allows only a specific pod in the same namespace (based on PodSelector) [Feature:NetworkPolicy]", func() {
-			allowedPodLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"pod": "b"}}
-			ginkgo.By("By using ")
-			policy := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-pod-selector", map[string]string{"pod": "a"}, allowedPodLabels)
 
+			// We will reuse this scenario in both validations...
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			scenario.forEach(func(from, to netpol.PodString ){
-				// disallow any external traffic
 				if to == "x/a" && from != "x/b" {
-						reachability.Expect(from, to, false )
+					reachability.Expect(from, to, false )
 				}
 			})
 			reachability.AllowLoopback()
+
+			ginkgo.By("Using a LABEL SELECTOR")
+
+			allowedPodLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"pod": "b"}}
+			policy := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-pod-selector-1", map[string]string{"pod": "a"}, allowedPodLabels)
 			validateOrFailFunc("x", 80, policy, reachability, true)
 
-			By("Using a match expression")
-		})
+			ginkgo.By("Using a MATCH EXPRESSION")
 
-		ginkgo.It("should enforce policy based on PodSelector with MatchExpressions[Feature:NetworkPolicy]", func() {
-			allowedLabels := &metav1.LabelSelector{
+			k8s.CleanNetworkPolicies([]string{"x","y","z"})
+			allowedPodLabels = &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{
 					Key:      "pod",
 					Operator: metav1.LabelSelectorOpIn,
 					Values:   []string{"b"},
 				}},
 			}
-			policy := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-pod-match-selector", map[string]string{"pod": "a"}, allowedLabels)
+			policy2 := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-pod-match-selector-2", map[string]string{"pod": "a"}, allowedPodLabels)
 
-			reachability := netpol.NewReachability(scenario.allPods, true)
-			// dissallow anything to A that isn't pod B.
-			scenario.forEach(func(from, to netpol.PodString ){
-				// disallow any external traffic
-				if to == "x/a" && from != "x/b" {
-					reachability.Expect(from, to, false )
-				}
-			})
+			validateOrFailFunc("x", 80, policy2, reachability, true)
+		})
 
-			// loopback
-			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
-			validateOrFailFunc("x", 80, policy, reachability, true)
+		ginkgo.It("should enforce policy based on PodSelector with MatchExpressions[Feature:NetworkPolicy]", func() {
+
 		})
 
 		ginkgo.It("should enforce policy to allow traffic only from a different namespace, based on NamespaceSelector [Feature:NetworkPolicy]", func() {
