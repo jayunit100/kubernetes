@@ -327,36 +327,45 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.Expect("x/c", "x/a", false)
 			reachability.AllowLoopback()
 			validateOrFailFunc("x", 80, policy, reachability, true)
+
 		})
 
 		// TODO We probably should have a test for multiple ns and pod filters.
 
 		ginkgo.It("should enforce policy based on PodSelector and NamespaceSelector [Feature:NetworkPolicy]", func() {
-			ginkgo.By("enforcing policy to allow traffic only from a pod in a different namespace based on PodSelector and NamespaceSelector [Feature:NetworkPolicy]", func() {
-				allowedNamespaces := &metav1.LabelSelector{
-					MatchExpressions: []metav1.LabelSelectorRequirement{{
-						Key:      "ns",
-						Operator: metav1.LabelSelectorOpNotIn,
-						Values:   []string{"y"},
-					}},
-				}
-				policy := netpol.GetAllowBasedOnNamespaceSelector("allow-ns-y-matchselector", map[string]string{"pod": "x"}, allowedNamespaces)
-				// Adding a namespace filter to a networkpolicy ingressRule will tighten the security boundary.
-				// In this case, now ONLY y/b will be allowed.
-				policy.Spec.Ingress[0].From[0].NamespaceSelector = &metav1.LabelSelector{
+			allowedNamespaces := &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{{
+					Key:      "ns",
+					Operator: metav1.LabelSelectorOpNotIn,
+					Values:   []string{"x"},
+				}},
+			}
+			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-ns-y-matchselector", map[string]string{"pod": "a"}, allowedNamespaces)
+
+			podBWhitelisting := networkingv1.NetworkPolicyPeer{
+				PodSelector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"pod": "b",
 					},
-				}
-				reachability := netpol.NewReachability(scenario.allPods, true)
-				// disallow all traffic from the x or z namespaces.. but allow 'specifically' y/b.
-				for _, nn := range []string{"x", "z"} {
-					for _, pp := range []string{"a", "b", "c"} {
-						reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), pp == "b" && nn == "y")
+				},
+			}
+
+			// Append the rule DIRECTLY to the From clause, which makes it much more restrictive then the previous policy.
+			policy.Spec.Ingress[0].From = append(policy.Spec.Ingress[0].From,podBWhitelisting)
+
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			scenario.forEach(func(from, to netpol.PodString) {
+				if from.Namespace() == "z" || from.Namespace() == "y" {
+					if from.PodName() != "b" {
+						reachability.Expect(from, to, false)
 					}
 				}
-				validateOrFailFunc("x", 80, policy, reachability, true)
+				if from.Namespace() == "x" {
+					reachability.Expect(from, to, false)
+				}
 			})
+			reachability.AllowLoopback()
+			validateOrFailFunc("x", 80, policy, reachability, true)
 		})
 
 		ginkgo.It("should enforce policy based on Ports [Feature:NetworkPolicy]", func() {
