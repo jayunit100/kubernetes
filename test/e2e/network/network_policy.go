@@ -359,7 +359,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			scenario.forEach(func(from, to netpol.PodString) {
-				if to.Namespace() == "x" {
+				if to == "x/a"{
 					if from.Namespace() == "z" || from.Namespace() == "y" {
 						if from.PodName() != "b" {
 							reachability.Expect(from, to, false)
