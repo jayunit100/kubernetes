@@ -219,11 +219,16 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			scenario.forEach(func(n1, p1, n2, p2 string){
-				if n1 == n2 {
-					// allow any namespace to talk to itself.
-					reachability.Expect(netpol.PodString(n1+"/"+p1),netpol.PodString(n2+"/"+p2), true )
+				// disallow any external traffic
+				if n2 == "x" && n1 != n2 {
+					reachability.Expect(netpol.PodString(n1+"/"+p1),netpol.PodString(n2+"/"+p2), false )
+				}
+				// allow internal if pod = b
+				if n2 == "x" && p1 != "b" {
+					reachability.Expect(netpol.PodString(n1+"/"+p1),netpol.PodString(n2+"/"+p2), false )
 				}
 			})
+			reachability.AllowLoopback()
 			validateOrFailFunc("x", 80, policy, reachability, true)
 		})
 
