@@ -188,14 +188,14 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		ginkgo.It("should support a 'default-deny-all' policy [Feature:NetworkPolicy]", func() {
 			policy := netpol.GetDefaultALLDenyPolicy("deny-all")
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			for _,pp := range pods {
-				reachability.ExpectAllIngress(netpol.PodString("x/"+pp), false)
-				reachability.ExpectAllEgress(netpol.PodString("x/"+pp), false)
-			}
+			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
+			reachability.ExpectAllEgress(netpol.PodString("x/b"), false)
+			reachability.ExpectAllIngress(netpol.PodString("x/c"), false)
+			reachability.ExpectAllEgress(netpol.PodString("x/a"), false)
+			reachability.ExpectAllIngress(netpol.PodString("x/b"), false)
+			reachability.ExpectAllEgress(netpol.PodString("x/c"), false)
 			reachability.AllowLoopback()
-
 			validateOrFailFunc("x", 80, policy, reachability, true)
-
 			// TODO, should we have a positive control before this test runs in GinkoEach?
 		})
 
