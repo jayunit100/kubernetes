@@ -323,9 +323,9 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}})
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			reachability.Expect("x/a","x/b", false)
-			reachability.Expect("x/b","x/b", true)
-			reachability.Expect("x/c","x/b", false)
+			reachability.Expect("x/a","x/a", false)
+			reachability.Expect("x/b","x/a", true)
+			reachability.Expect("x/c","x/a", false)
 			reachability.AllowLoopback()
 			validateOrFailFunc("x", 80, policy, reachability, true)
 		})
