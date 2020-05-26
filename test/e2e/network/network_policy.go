@@ -165,7 +165,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		})
 
 		cleanup := func() {
-			// delete all namespaces
+			k8s.CleanNetworkPolicies([]string{"x", "y", "z"})
 		}
 
 		validateOrFailFunc := func(ns string, port int, policy *networkingv1.NetworkPolicy, reachability *netpol.Reachability, cleanPreviousPolicies bool) {
@@ -173,7 +173,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				cleanup()
 			}
 
-			// TODO: DELETE ALL NETWORK POLICIES BEFORE RUNNING THIS TEST...
 			if policy != nil {
 				fmt.Println("NETPOL creating ", policy.Name)
 				_, err1 := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Create(context.TODO(), policy, metav1.CreateOptions{})
@@ -427,7 +426,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policy2.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
 				Port: &intstr.IntOrString{IntVal: 80},
 			}}
-			validateOrFailFunc("x", 80, policy, reachabilityALLOW, false)
+			validateOrFailFunc("x", 80, policy2, reachabilityALLOW, false)
 		})
 
 		ginkgo.It("should support allow-all policy [Feature:NetworkPolicy]", func() {
