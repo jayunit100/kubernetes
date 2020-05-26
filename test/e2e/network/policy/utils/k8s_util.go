@@ -77,7 +77,7 @@ func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error
 // Probe execs into a pod and checks its connectivity to another pod.  Of course it assumes
 // that the target pod is serving on the input port, and also that wget is installed.  For perf it uses
 // spider rather then actually getting the full contents.
-func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2 string, port int) (bool, error) {
+func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2 string, port int) (bool, error, string) {
 	fromPods, err := k.GetPods(ns1, "pod", pod1)
 	if err != nil {
 		return false, errors.WithMessagef(err, "unable to get pods from ns %s", ns1)
@@ -111,15 +111,15 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2 string, port int) (bool, error) 
 	}
 	// HACK: inferring container name as c80, c81, etc, for simplicity.
 	containerName := fmt.Sprintf("c%v", port)
-	log.Tracef("Running: kubectl exec %s -c %s -n %s -- %s", fromPod.Name, containerName, fromPod.Namespace, strings.Join(cmd, " "))
+	theCommand := fmt.Sprintf("kubectl exec %s -c %s -n %s -- %s", fromPod.Name, containerName, fromPod.Namespace, strings.Join(cmd, " "))
 	stdout, stderr, err := k.ExecuteRemoteCommand(fromPod, containerName, cmd)
 	if err != nil {
 		// log this error as trace since may be an expected failure
 		log.Tracef("%s/%s -> %s/%s: error when running command: err - %v /// stdout - %s /// stderr - %s", ns1, pod1, ns2, pod2, err, stdout, stderr)
 		// do not return an error
-		return false, nil
+		return false, nil, theCommand
 	}
-	return true, nil
+	return true, nil, theCommand
 }
 
 // ExecuteRemoteCommand executes a remote shell command on the given pod

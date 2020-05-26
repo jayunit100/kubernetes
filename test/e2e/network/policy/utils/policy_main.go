@@ -133,14 +133,15 @@ func Validate(k8s *Kubernetes, reachability *Reachability, port int) {
 		podTo     PodString
 		connected bool
 		err       error
+		command string
 	}
 	numProbes := len(allPods) * len(allPods)
 	resultsCh := make(chan *probeResult, numProbes)
 	// TODO: find better metrics, this is only for POC.
 	oneProbe := func(podFrom, podTo PodString) {
 		log.Infof("Probing: %s -> %s", podFrom, podTo)
-		connected, err := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), port)
-		resultsCh <- &probeResult{podFrom, podTo, connected, err}
+		connected, err, command := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), port)
+		resultsCh <- &probeResult{podFrom, podTo, connected, err, command }
 	}
 	for _, pod1 := range allPods {
 		for _, pod2 := range allPods {
@@ -155,8 +156,14 @@ func Validate(k8s *Kubernetes, reachability *Reachability, port int) {
 			log.Infof("unable to perform probe %s -> %s: %v", r.podFrom, r.podTo, r.err)
 		}
 		reachability.Observe(r.podFrom, r.podTo, r.connected)
-		if !r.connected && reachability.Expected.Get(r.podFrom.String(), r.podTo.String()) {
-			log.Infof("FAILED CONNECTION FOR WHITELISTED PODS %s -> %s !!!! ", r.podFrom, r.podTo)
+		expected := reachability.Expected.Get(r.podFrom.String(), r.podTo.String())
+		if r.connected != expected {
+			log.Infof("Validation of ", r.podFrom, r.podTo, " FAILED !!! \n")
+			if expected {
+				log.Infof("Whitelisted pod connection was BLOCKED --- run '", r.command, "' to reproduce.")
+			} else {
+				log.Infof("Blacklisted pod connection was ALLOWED --- run '", r.command, "' to reproduce.")
+			}
 		}
 	}
 

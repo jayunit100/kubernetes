@@ -846,15 +846,15 @@ func (az *Cloud) reconcileLoadBalancer(clusterName string, service *v1.Service, 
 	for i := len(updatedProbes) - 1; i >= 0; i-- {
 		existingProbe := updatedProbes[i]
 		if az.serviceOwnsRule(service, *existingProbe.Name) {
-			klog.V(10).Infof("reconcileLoadBalancer for service (%s)(%t): lb probe(%s) - considering evicting", serviceName, wantLb, *existingProbe.Name)
+			klog.V(10).Infof("reconcileLoadBalancer for service (%s)(%t): lb %s) - considering evicting", serviceName, wantLb, *existingProbe.Name)
 			keepProbe := false
-			if findProbe(expectedProbes, existingProbe) {
-				klog.V(10).Infof("reconcileLoadBalancer for service (%s)(%t): lb probe(%s) - keeping", serviceName, wantLb, *existingProbe.Name)
+			if findexpectedProbes, existingProbe) {
+				klog.V(10).Infof("reconcileLoadBalancer for service (%s)(%t): lb %s) - keeping", serviceName, wantLb, *existingProbe.Name)
 				keepProbe = true
 			}
 			if !keepProbe {
 				updatedProbes = append(updatedProbes[:i], updatedProbes[i+1:]...)
-				klog.V(10).Infof("reconcileLoadBalancer for service (%s)(%t): lb probe(%s) - dropping", serviceName, wantLb, *existingProbe.Name)
+				klog.V(10).Infof("reconcileLoadBalancer for service (%s)(%t): lb %s) - dropping", serviceName, wantLb, *existingProbe.Name)
 				dirtyProbes = true
 			}
 		}
