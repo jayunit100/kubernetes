@@ -47,6 +47,20 @@ type Scenario struct {
 	podIPs map[string]string
 }
 
+// forEach is a convenient function for iterating through all combinations
+// of to->from pods in the scenario.
+func (s *Scenario) forEach(process func(string, string, string, string)){
+	for _, n := range s.namespaces {
+		for _, p := range s.pods {
+			for _, nn := range s.namespaces {
+				for _, pp := range s.pods {
+					process(n,p,nn,pp)
+				}
+			}
+		}
+	}
+}
+
 // NewScenario creates a new test scenario.
 func NewScenario() *Scenario{
 	s := &Scenario{}
@@ -204,13 +218,12 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policy := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-pod-selector", map[string]string{"pod": "a"}, allowedPodLabels)
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
-			reachability.ExpectAllIngress(netpol.PodString("x/b"), true)
-			reachability.ExpectAllIngress(netpol.PodString("x/c"), false)
-			// allow loopback
-			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
-			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
-			reachability.Expect(netpol.PodString("x/c"), netpol.PodString("x/c"), true)
+			scenario.forEach(func(n1, p1, n2, p2 string){
+				if n1 == n2 {
+					// allow any namespace to talk to itself.
+					reachability.Expect(netpol.PodString(n1+"/"+p1),netpol.PodString(n2+"/"+p2), true )
+				}
+			})
 			validateOrFailFunc("x", 80, policy, reachability, true)
 		})
 
