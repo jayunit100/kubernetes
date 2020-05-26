@@ -374,6 +374,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			validateOrFailFunc("x", 80, policy, reachability, true)
 		})
 
+		// This tests both verifies stacking as well as ports.
 		ginkgo.It("should enforce policy based on Ports [Feature:NetworkPolicy]", func() {
 			ginkgo.By("*************** Creating a network policy which only allows whitelisted namespaces (y) to connect on exactly one port (81)")
 			allowedLabels := &metav1.LabelSelector{
@@ -387,13 +388,13 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			scenario.forEach(func(from netpol.PodString, to netpol.PodString){
 				if to=="x/a" {
 					if from.Namespace()=="y"{
-						reachabilityALLOW.Expect(to,from,true )
+						reachabilityALLOW.Expect(from, to,true )
 					}
 					if from.Namespace()=="z"{
-						reachabilityALLOW.Expect(to,from,false )
+						reachabilityALLOW.Expect(from, to ,false )
 					}
 					if from.Namespace()=="x"{
-						reachabilityALLOW.Expect(to,from,false )
+						reachabilityALLOW.Expect(from, to,false )
 					}
 				}
 			})
