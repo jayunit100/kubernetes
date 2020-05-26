@@ -145,7 +145,7 @@ func Validate(k8s *Kubernetes, reachability *Reachability, port int) {
 	for _, pod1 := range allPods {
 		for _, pod2 := range allPods {
 			go oneProbe(pod1, pod2)
-			time.Sleep(100*time.Second)
+			time.Sleep(100*time.Millisecond)
 		}
 	}
 	for i := 0; i < numProbes; i++ {
