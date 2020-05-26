@@ -185,12 +185,16 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					}
 				}
 			}
-			ginkgo.By("Validating reachability matrix")
+			ginkgo.By("Validating reachability matrix...")
+			fmt.Println("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV")
+			reachability.PrintSummary(true,true,true)
+
 			netpol.Validate(k8s, reachability, port)
 			if _, wrong, _ := reachability.Summary(); wrong != 0 {
-				reachability.PrintSummary(true,true,true)
 				ginkgo.Fail("Had more then one wrong result in the reachability matrix.")
 			}
+			fmt.Println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+
 		}
 		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:NetworkPolicy]", func() {
 			policy := netpol.GetDefaultDenyIngressPolicy("deny-ingress")
