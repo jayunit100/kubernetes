@@ -482,7 +482,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// but still should be pretty fast.
 			reachabilityFAIL := netpol.NewReachability(scenario.allPods, false)
 			reachabilityFAIL.AllowLoopback()
-			validateOrFailFunc("x", 81, policy, reachabilityFAIL, false)
+			cleanup()
+			validateOrFailFunc("x", 81, policy, reachabilityFAIL, true)
 		})
 
 		// TODO In this test we remove the DNS check.  Write a higher level DNS checking test
