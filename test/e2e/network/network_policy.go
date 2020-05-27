@@ -495,6 +495,16 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// port 80.  We add DNS support as well so that this can be done over a service.
 			policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{
 				{
+					To: []networkingv1.NetworkPolicyPeer{
+							{
+								PodSelector: nil,
+								// allow all
+								NamespaceSelector: &metav1.LabelSelector{
+									MatchLabels:map[string]string{},
+								},
+								IPBlock: nil,
+							},
+						},
 					Ports: []networkingv1.NetworkPolicyPort{
 						{
 							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-82"},
