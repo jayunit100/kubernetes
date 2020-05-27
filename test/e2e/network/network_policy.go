@@ -497,7 +497,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				{
 					To: []networkingv1.NetworkPolicyPeer{
 						{
-							PodSelector: nil,
+							PodSelector: &metav1.LabelSelector{},
 							// allow all
 							NamespaceSelector: &metav1.LabelSelector{},
 							IPBlock: nil,
