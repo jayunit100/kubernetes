@@ -496,15 +496,23 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{
 				{
 					To: []networkingv1.NetworkPolicyPeer{
-							{
-								PodSelector: nil,
-								// allow all
-								NamespaceSelector: &metav1.LabelSelector{
-									MatchLabels:map[string]string{"ns":"y"},
-								},
-								IPBlock: nil,
+						{
+							PodSelector: nil,
+							// allow all
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"ns": "y"},
 							},
+							IPBlock: nil,
 						},
+						{
+							PodSelector: nil,
+							// allow all
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"pod": "b"},
+							},
+							IPBlock: nil,
+						},
+					},
 					Ports: []networkingv1.NetworkPolicyPort{
 						{
 							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-82"},
