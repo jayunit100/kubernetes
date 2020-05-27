@@ -515,14 +515,12 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			// meanwhile no traffic over 81 should work, since our egress policy is on 82
 			reachability81 := netpol.NewReachability(scenario.allPods, true)
-			for _, nn := range []string{"x", "y", "z"} {
-				for _, pp := range []string{"a", "b", "c"} {
-					reachability81.Expect("x/a", netpol.NewPod(nn, pp), false)
-				}
-			}
+			reachability81.ExpectAllEgress("x/a", false)
+			reachability81.ExpectAllEgress("x/b", false)
+			reachability81.ExpectAllEgress("x/c", false)
 			reachability81.AllowLoopback()
 			// no input policy, dont erase the last one...
-			validateOrFailFunc("x", 80,81, nil, reachability81, false)
+			validateOrFailFunc("x", 82,81, nil, reachability81, false)
 		})
 
 		// The simplest possible mutation for this test - which is denyall->allow all.
