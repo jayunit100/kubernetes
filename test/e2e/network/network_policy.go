@@ -490,7 +490,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		// TODO In this test we remove the DNS check.  Write a higher level DNS checking test
 		// which can be used to fulfill that requirement.
 		ginkgo.It("should allow egress access on one named port [Feature:NetworkPolicy]", func() {
-			policy := netpol.GetAllowAll("egress-on-port")
+			policy := netpol.GetDefaultAllAllowEggress("allow-egress")
 			// By adding a port rule to the egress class we now restrict regress to only work on
 			// port 80.  We add DNS support as well so that this can be done over a service.
 			policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{
@@ -503,9 +503,9 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				},
 			}
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			validateOrFailFunc("x", 82,80, policy, reachability, false)
+			validateOrFailFunc("x", 82,80, policy, reachability, true)
 
-			// meanwhile no traffic over 81 should work, since our egress policy is on 80
+			// meanwhile no traffic over 81 should work, since our egress policy is on 82
 			reachability81 := netpol.NewReachability(scenario.allPods, false)
 			for _, nn := range []string{"x", "y", "z"} {
 				for _, pp := range []string{"a", "b", "c"} {
@@ -513,7 +513,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			}
 			// no input policy, dont erase the last one...
-			validateOrFailFunc("x", 82,81, nil, reachability81, false)
+			validateOrFailFunc("x", 80,81, nil, reachability81, false)
 		})
 
 		// The simplest possible mutation for this test - which is denyall->allow all.
