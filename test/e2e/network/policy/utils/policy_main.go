@@ -83,8 +83,8 @@ func waitForHTTPServers(k8s *Kubernetes) error {
 	var wrong int
 	for i := 0; i < maxTries; i++ {
 		reachability := NewReachability(allPods, true)
-		Validate(k8s, reachability, 80)
-		Validate(k8s, reachability, 81)
+		Validate(k8s, reachability, 82, 80)
+		Validate(k8s, reachability, 82, 81)
 		_, wrong, _ = reachability.Summary()
 		if wrong == 0 {
 			log.Infof("all HTTP servers are ready")
@@ -127,7 +127,7 @@ func bootstrap(k8s *Kubernetes) error {
 	return nil
 }
 
-func Validate(k8s *Kubernetes, reachability *Reachability, port int) {
+func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int) {
 	type probeResult struct {
 		podFrom   PodString
 		podTo     PodString
@@ -140,13 +140,13 @@ func Validate(k8s *Kubernetes, reachability *Reachability, port int) {
 	// TODO: find better metrics, this is only for POC.
 	oneProbe := func(podFrom, podTo PodString) {
 		log.Infof("Probing: %s -> %s", podFrom, podTo)
-		connected, err, command := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), port)
+		connected, err, command := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), fromPort, toPort)
 		resultsCh <- &probeResult{podFrom, podTo, connected, err, command }
 	}
 	for _, pod1 := range allPods {
 		for _, pod2 := range allPods {
 			go oneProbe(pod1, pod2)
-			time.Sleep(100*time.Millisecond)
+			time.Sleep(50*time.Millisecond)
 		}
 	}
 	for i := 0; i < numProbes; i++ {
@@ -262,7 +262,7 @@ func executeTests(k8s *Kubernetes, testList []*TestCase) []*TestCase {
 				time.Sleep(networkPolicyDelay)
 			}
 			start := time.Now()
-			Validate(k8s, reachability, step.Port)
+			Validate(k8s, reachability, 82,step.Port)
 			step.Duration = time.Now().Sub(start)
 			reachability.PrintSummary(true, true, true)
 		}

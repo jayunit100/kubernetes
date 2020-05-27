@@ -77,7 +77,7 @@ func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error
 // Probe execs into a pod and checks its connectivity to another pod.  Of course it assumes
 // that the target pod is serving on the input port, and also that wget is installed.  For perf it uses
 // spider rather then actually getting the full contents.
-func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2 string, port int) (bool, error, string) {
+func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2 string, egress, ingress int) (bool, error, string) {
 	fromPods, err := k.GetPods(ns1, "pod", pod1)
 	if err != nil {
 		return false, errors.WithMessagef(err, "unable to get pods from ns %s", ns1), ""
@@ -109,10 +109,10 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2 string, port int) (bool, error, 
 		// it uses the identical port for send and receive traffic.  TODO possibly support different ports.
 
 		// *** hardcode port 82 - will update that later if needed ***
-		fmt.Sprintf("for i in $(seq 1 3); do ncat -p 82 -vz -w 1 %s %d && exit 0 || true; done; exit 1", toIP, port),
+		fmt.Sprintf("for i in $(seq 1 3); do ncat -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", egress, toIP, ingress),
 	}
 	// HACK: inferring container name as c80, c81, etc, for simplicity.
-	containerName := fmt.Sprintf("c%v", port)
+	containerName := fmt.Sprintf("c%v", ingress)
 	theCommand := fmt.Sprintf("kubectl exec %s -c %s -n %s -- %s", fromPod.Name, containerName, fromPod.Namespace, strings.Join(cmd, " "))
 	stdout, stderr, err := k.ExecuteRemoteCommand(fromPod, containerName, cmd)
 	if err != nil {
@@ -218,6 +218,12 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 				{
 					ContainerPort: port,
 					Name:          fmt.Sprintf("serve-%d", port),
+				},
+				// open some extra ports up, so, we'll have 80, 81, 82, 83, and so on.
+				// useful for other named port tests.  kinda redundant also, as
+				{
+					ContainerPort: port,
+					Name:          fmt.Sprintf("serve-%d", port+2),
 				},
 			},
 		}
