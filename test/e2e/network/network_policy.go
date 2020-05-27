@@ -499,17 +499,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 						{
 							PodSelector: nil,
 							// allow all
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{"ns": "y"},
-							},
-							IPBlock: nil,
-						},
-						{
-							PodSelector: nil,
-							// allow all
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{"pod": "b"},
-							},
+							NamespaceSelector: nil,
 							IPBlock: nil,
 						},
 					},
