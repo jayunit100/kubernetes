@@ -509,6 +509,11 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 						{
 							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-82"},
 						},
+						{
+							Port: &intstr.IntOrString{
+								IntVal: 82,
+							},
+						},
 					},
 				},
 			}
