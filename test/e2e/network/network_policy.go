@@ -514,7 +514,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			validateOrFailFunc("x", 82,80, policy, reachability, true)
 
 			// meanwhile no traffic over 81 should work, since our egress policy is on 82
-			reachability81 := netpol.NewReachability(scenario.allPods, false)
+			reachability81 := netpol.NewReachability(scenario.allPods, true)
 			for _, nn := range []string{"x", "y", "z"} {
 				for _, pp := range []string{"a", "b", "c"} {
 					reachability81.Expect("x/a", netpol.NewPod(nn, pp), false)
