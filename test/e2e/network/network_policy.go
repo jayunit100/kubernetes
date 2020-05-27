@@ -480,8 +480,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			// now validate 81 doesnt work, AT ALL, even for ns y... this validation might be overkill,
 			// but still should be pretty fast.
-			reachability = netpol.NewReachability(scenario.allPods, false)
-			validateOrFailFunc("x", 81, policy, reachability, false)
+			reachabilityFAIL := netpol.NewReachability(scenario.allPods, false)
+			validateOrFailFunc("x", 81, policy, reachabilityFAIL, false)
 
 		})
 
