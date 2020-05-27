@@ -520,6 +520,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					reachability81.Expect("x/a", netpol.NewPod(nn, pp), false)
 				}
 			}
+			reachability81.AllowLoopback()
 			// no input policy, dont erase the last one...
 			validateOrFailFunc("x", 80,81, nil, reachability81, false)
 		})
