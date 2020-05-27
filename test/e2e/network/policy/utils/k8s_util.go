@@ -207,6 +207,7 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 	zero := int64(0)
 	log.Infof("creating/updating deployment %s in ns %s", deploymentName, ns)
 	makeContainerSpec := func(port int32) v1.Container {
+		egressPort := port+2
 		return v1.Container{
 			Name:            fmt.Sprintf("c%d", port),
 			ImagePullPolicy: v1.PullIfNotPresent,
@@ -219,11 +220,10 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 					ContainerPort: port,
 					Name:          fmt.Sprintf("serve-%d", port),
 				},
-				// open some extra ports up, so, we'll have 80, 81, 82, 83, and so on.
-				// useful for other named port tests.  kinda redundant also, as
+				// provide a name for the egress port.
 				{
-					ContainerPort: port,
-					Name:          fmt.Sprintf("serve-%d", port+2),
+					ContainerPort: port+2,
+					Name:          fmt.Sprintf("serve-${egressPort}"),
 				},
 			},
 		}
