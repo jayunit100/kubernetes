@@ -222,8 +222,8 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 				},
 				// provide a name for the egress port.
 				{
-					ContainerPort: port+2,
-					Name:          fmt.Sprintf("serve-${egressPort}"),
+					ContainerPort: egressPort,
+					Name:          fmt.Sprintf("serve-%d",egressPort),
 				},
 			},
 		}
