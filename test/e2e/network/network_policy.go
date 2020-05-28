@@ -523,6 +523,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			validateOrFailFunc("x", 82,81, nil, reachability81, false)
 		})
 
+
 		// The simplest possible mutation for this test - which is denyall->allow all.
 		ginkgo.It("should enforce updated policy [Feature:NetworkPolicy]", func() {
 			// part 1) allow all
@@ -532,17 +533,21 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			// part 2) update the policy and confirm deny all
 			policy = netpol.GetDefaultALLDenyPolicy("allow-all-mutate-to-deny-all")
-			reachability = netpol.NewReachability(scenario.allPods, false)
-			reachability.Expect("x/a", "x/a", true)
-			reachability.Expect("x/b", "x/b", true)
-			reachability.Expect("x/b", "x/b", true)
-
+			reachability = netpol.NewReachability(scenario.allPods, true)
+			scenario.forEach(func(from, to netpol.PodString) {
+				if from == "x/a" || from == "x/b" || from == "x/c" {
+					reachability.Expect(from, to, false)
+				}
+			})
+			reachability.AllowLoopback()
 			validateOrFailFunc("x",82, 81, policy, reachability, false)
 
 		})
 
+		// WEDNESDAY
+
 		ginkgo.It("should allow ingress access from updated namespace [Feature:NetworkPolicy]", func() {
-			// add a new label, we'll remove it after this test is
+			// add a new label, we'll remove it after this test is completed...
 			allowedLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"ns2": "updated"}}
 
 			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-client-a-via-ns-selector", map[string]string{"pod": "a"}, allowedLabels)
