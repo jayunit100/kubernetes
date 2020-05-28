@@ -444,9 +444,9 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		ginkgo.It("should allow ingress access on one named port [Feature:NetworkPolicy]", func() {
 			policy := netpol.GetAllowAll("allow-all")
 			// Add a 'port' rule to the AllowAll ingress type, so now only 81 is valid.
-			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
-				Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81"},
-			}}
+		//	policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
+		//		Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81"},
+		//	}}
 
 			// disallow all traffic from the x or z namespaces
 			reachability := netpol.NewReachability(scenario.allPods, true)
