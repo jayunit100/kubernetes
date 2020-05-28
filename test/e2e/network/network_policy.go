@@ -597,46 +597,46 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			policy := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-ns-selector", map[string]string{"pod": "a"}, allowedLabels)
 
-			// 1) Confirm that traffic is denied because the pod2:updated hasn't been applied to podB yet.
-			// We'll apply that in step (2).
+			// 1) Confirm that traffic is denied  (pod2:updated matches no pod)
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			// disallow all traffic from the x or z namespaces
-			for _, nn := range []string{"x", "y", "z"} {
-				for _, pp := range []string{"a", "b", "c"} {
-					// nobody can talk to a bc nothing has this ns2:updated label...
-					reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), false)
-				}
-			}
-			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
+			reachability.ExpectAllIngress("x/a", false)
+			reachability.AllowLoopback()
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 
 			// (2) Now confirm that traffic from this pod is enabled by adding the label
-			// now mutate pod to to have this special new label.
-			podB, err := f.ClientSet.CoreV1().Pods("x").Get(context.TODO(), "x", metav1.GetOptions{})
+			xb, err := f.ClientSet.CoreV1().Deployments("x").Get(context.TODO(), "xb", metav1.GetOptions{})
 			if err != nil {
-				ginkgo.Fail("couldnt get pod")
+				ginkgo.Fail("couldnt get deployment")
 			}
-			podB.ObjectMeta.Labels["pod2"] = "updated"
+			xb.ObjectMeta.Labels["pod2"] = "updated"
 			cleanNewLabel := func() {
-				delete(podB.ObjectMeta.Labels, "pod2")
-				_, err = f.ClientSet.CoreV1().Pods("x").Update(context.TODO(), podB, metav1.UpdateOptions{})
+				delete(xb.ObjectMeta.Labels, "pod2")
+				_, err = f.ClientSet.CoreV1().Deployments("x").Update(context.TODO(), xb, metav1.UpdateOptions{})
 			}
-			_, err = f.ClientSet.CoreV1().Pods("x").Update(context.TODO(), podB, metav1.UpdateOptions{})
+			_, err = f.ClientSet.CoreV1().Deployments("x").Update(context.TODO(), xb, metav1.UpdateOptions{})
 
 			// clean this out when done, remember we preserve pods/ns throughout
 			if err != nil {
-				ginkgo.Fail("couldnt update pod")
+				ginkgo.Fail("couldnt update deployment")
 			}
-			// now update our matrix - we want this 'b' pod to access x/a.
-			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/a"), true)
-			validateOrFailFunc("x", 82,80, nil, reachability, false)
+			scenario.forEach(func(from, to netpol.PodString) {
+				if to == "x/a" {
+					reachability.Expect(from, to, false)
+					if from == "x/b" {
+						reachability.Expect(from, to, true)
+					}
+				}
+			})
+
+			validateOrFailFunc("x", 82, 80, nil, reachability, false)
 
 			// (3) Now validate that denial is recovered from removing the label...
 			// delete this label, so we can confirm that removing it DENIES access to the pod,
 			// i.e. this is the 'should deny ingress access to updated pod' case.
 			cleanNewLabel()
+			reachability.ExpectAllIngress("x/a", false)
 
-			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/a"), false)
 			validateOrFailFunc("x", 82,80, nil, reachability, false)
 		})
 
