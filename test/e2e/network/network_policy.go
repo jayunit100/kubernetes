@@ -443,20 +443,24 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 		ginkgo.It("should allow ingress access on one named port [Feature:NetworkPolicy]", func() {
 			policy := netpol.GetAllowAll("allow-all")
-			// Add a 'port' rule to the AllowAll ingress type, so now only 81 is valid.
-		//	policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
-		//		Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81"},
-		//	}}
+
+			// WARNING ! Since we are adding a port rule, that means that the lack of a
+			// pod selector will cause this policy to target the ENTIRE namespace.....
+			ginkgo.By("Blocking all ports other then 81 in the entire namespace")
+			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
+				Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81"},
+			}}
 
 			// disallow all traffic from the x or z namespaces
 			reachability := netpol.NewReachability(scenario.allPods, true)
+
 			validateOrFailFunc("x",82, 81, policy, reachability, true)
 
 			// disallow all traffic from the x or z namespaces
 			reachability80 := netpol.NewReachability(scenario.allPods, true)
 			scenario.forEach(func(from, to netpol.PodString) {
-				if to == "x/a" {
-					reachability.Expect(from, to, false)
+				if to.Namespace() == "x" {
+					reachability80.Expect(from, to, false)
 				}
 			})
 			reachability80.AllowLoopback()
