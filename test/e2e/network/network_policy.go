@@ -605,16 +605,16 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 
 			// (2) Now confirm that traffic from this pod is enabled by adding the label
-			xb, err := f.ClientSet.CoreV1().Deployments("x").Get(context.TODO(), "xb", metav1.GetOptions{})
+			xb, err := f.ClientSet.AppsV1().Deployments("x").Get(context.TODO(), "xb", metav1.GetOptions{})
 			if err != nil {
 				ginkgo.Fail("couldnt get deployment")
 			}
 			xb.ObjectMeta.Labels["pod2"] = "updated"
 			cleanNewLabel := func() {
 				delete(xb.ObjectMeta.Labels, "pod2")
-				_, err = f.ClientSet.CoreV1().Deployments("x").Update(context.TODO(), xb, metav1.UpdateOptions{})
+				_, err = f.ClientSet.AppsV1().Deployments("x").Update(context.TODO(), xb, metav1.UpdateOptions{})
 			}
-			_, err = f.ClientSet.CoreV1().Deployments("x").Update(context.TODO(), xb, metav1.UpdateOptions{})
+			_, err = f.ClientSet.AppsV1().Deployments("x").Update(context.TODO(), xb, metav1.UpdateOptions{})
 
 			// clean this out when done, remember we preserve pods/ns throughout
 			if err != nil {
