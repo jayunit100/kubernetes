@@ -135,11 +135,12 @@ func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int)
 		err       error
 		command string
 	}
+	k8s.ClearCache()
 	numProbes := len(allPods) * len(allPods)
 	resultsCh := make(chan *probeResult, numProbes)
 	// TODO: find better metrics, this is only for POC.
 	oneProbe := func(podFrom, podTo PodString) {
-		log.Infof("Probing: %s -> %s", podFrom, podTo)
+//		log.Infof("Probing: %s -> %s", podFrom, podTo)
 		connected, err, command := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), fromPort, toPort)
 		resultsCh <- &probeResult{podFrom, podTo, connected, err, command }
 	}
@@ -151,7 +152,7 @@ func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int)
 	}
 	for i := 0; i < numProbes; i++ {
 		r := <-resultsCh
-		log.Infof("Received result %v!", r.podFrom, r.podTo, r.connected, r.err)
+//		log.Infof("Received result %v!", r.podFrom, r.podTo, r.connected, r.err)
 		if r.err != nil {
 			log.Infof("unable to perform probe %s -> %s: %v", r.podFrom, r.podTo, r.err)
 		}

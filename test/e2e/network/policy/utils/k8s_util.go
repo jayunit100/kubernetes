@@ -264,13 +264,14 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 // CleanNetworkPolicies is a convenience function for deleting network policies before startup of any new test.
 func (k *Kubernetes) CleanNetworkPolicies(namespaces []string) error {
 	for _, ns := range namespaces {
+		log.Infof("deleting policys..........%v ",ns)
 		l, err := k.ClientSet.NetworkingV1().NetworkPolicies(ns).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			return errors.Wrapf(err, "unable to list network policies in ns %s", ns)
 		}
 		for _, np := range l.Items {
 			log.Infof("deleting network policy %s in ns %s", np.Name, ns)
-			err = k.ClientSet.NetworkingV1().NetworkPolicies(np.Namespace).Delete(context.TODO(), np.Name, metav1.DeleteOptions{})
+			err = k.ClientSet.NetworkingV1().NetworkPolicies(ns).Delete(context.TODO(), np.Name, metav1.DeleteOptions{})
 			if err != nil {
 				return errors.Wrapf(err, "unable to delete network policy %s", np.Name)
 			}
@@ -278,7 +279,10 @@ func (k *Kubernetes) CleanNetworkPolicies(namespaces []string) error {
 	}
 	return nil
 }
-
+func (k *Kubernetes) ClearCache() {
+	log.Info("Clearing pod cache...")
+	k.podCache=map[string][]v1.Pod{}
+}
 // CreateOrUpdateNetworkPolicy is a convenience function for updating/creating netpols. Updating is important since
 // some tests update a network policy to confirm that mutation works with a CNI.
 func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *v1net.NetworkPolicy) (*v1net.NetworkPolicy, error) {
