@@ -465,7 +465,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			})
 			reachability80.AllowLoopback()
 			validateOrFailFunc("x", 82,80, nil, reachability80, false)
-
 		})
 
 		ginkgo.It("should allow ingress access from namespace on one named port [Feature:NetworkPolicy]", func() {
@@ -542,17 +541,16 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			validateOrFailFunc("x",82, 81, policy, reachability, false)
 
-			// part 2) update the policy and confirm deny all
-			policy = netpol.GetDefaultALLDenyPolicy("allow-all-mutate-to-deny-all")
+			// part 2) update the policy to deny all, empty...
+			policy.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{}
 			reachability = netpol.NewReachability(scenario.allPods, true)
 			scenario.forEach(func(from, to netpol.PodString) {
-				if from == "x/a" || from == "x/b" || from == "x/c" {
+				if to.Namespace() == "x" {
 					reachability.Expect(from, to, false)
 				}
 			})
 			reachability.AllowLoopback()
 			validateOrFailFunc("x",82, 81, policy, reachability, false)
-
 		})
 
 		// WEDNESDAY
