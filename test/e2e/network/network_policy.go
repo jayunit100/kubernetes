@@ -291,7 +291,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					Values:   []string{"y"},
 				}},
 			}
-			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-ns-y-matchselector", map[string]string{"pod": "x"}, allowedNamespaces)
+			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-ns-y-matchselector", map[string]string{"pod": "a"}, allowedNamespaces)
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			// disallow all traffic from the x or z namespaces
 			for _, nn := range []string{"x", "z"} {
