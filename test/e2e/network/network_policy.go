@@ -299,6 +299,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), false)
 				}
 			}
+			reachability.AllowLoopback()
 			validateOrFailFunc("x", 82,80, policy, reachability, true)
 		})
 
@@ -593,7 +594,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.Expect(netpol.PodString("y/b"), netpol.PodString("x/a"), true)
 			reachability.Expect(netpol.PodString("y/c"), netpol.PodString("x/a"), true)
 			validateOrFailFunc("x",82, 80, policy, reachability, false)
-
 		})
 
 		//  This function enables, and then denies, access to an updated pod. combining two previous test cases into
