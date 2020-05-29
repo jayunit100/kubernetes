@@ -694,7 +694,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 		ginkgo.It("should enforce multiple egress policies with egress allow-all policy taking precedence [Feature:NetworkPolicy]", func() {
 
-			// DUPLICATED FROM ABOVE TEST ... 
 
 			policy := netpol.GetDefaultAllAllowEggress("allow-all")
 			// add an egress rule on to it... 
@@ -713,7 +712,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.ExpectAllEgress("x/a",false)
 			reachability.ExpectAllEgress("x/b",false)
 			reachability.ExpectAllEgress("x/c",false)
-
 			reachability.AllowLoopback()
 			validateOrFailFunc("x", 82, 81, policy, reachability, false)
 
