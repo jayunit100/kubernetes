@@ -24,6 +24,7 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 	netpol "k8s.io/kubernetes/test/e2e/network/policy/utils"
 	"time"
+
 	"fmt"
 	"github.com/onsi/ginkgo"
 )
@@ -202,6 +203,21 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			fmt.Println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
 		}
+
+		ginkgo.It("im not crazy", func() {
+			time.Sleep(5*time.Second)
+			// Getting podServer's status to get podServer's IP, to create the CIDR with except clause
+			// 			podList, err := clientset.Core().Pods(name).List(api.ListOptions{LabelSelector: set.AsSelector()})
+			podList, err := f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=a"})
+			if err != nil {
+				panic(err)
+			}
+			pod := podList.Items[0]
+			fmt.Print(fmt.Sprintf("\n\npod:::::%v\n\n",pod.Status.PodIP))
+
+
+		})
+
 		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:NetworkPolicy]", func() {
 			policy := netpol.GetDefaultDenyIngressPolicy("deny-ingress")
 
@@ -540,7 +556,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// part 1) allow all
 			policy := netpol.GetAllowAll("allow-all-mutate-to-deny-all")
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			validateOrFailFunc("x",82, 81, policy, reachability, false)
+			validateOrFailFunc("x",82, 81, policy, reachability, true)
 
 			// part 2) update the policy to deny all, empty...
 			policy.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{}
