@@ -558,8 +558,22 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 		ginkgo.It("should allow ingress access from updated namespace [Feature:NetworkPolicy]", func() {
 			// add a new label, we'll remove it after this test is completed...
-			allowedLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"ns2": "updated"}}
+			cleanNewLabel := func() {
+				nsY, _ := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), "y", metav1.GetOptions{})
+				nsY.ObjectMeta.Labels=map[string]string{"ns":"y"}
+				_,_ = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), nsY, metav1.UpdateOptions{})
+			}
+			cleanNewLabel() // in case its dirty, clean before this test starts... TODO replace w/ global ns cleaner.
+			defer cleanNewLabel()
 
+			AddNewLabel := func() {
+				nsY, _ := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), "y", metav1.GetOptions{})
+				nsY.ObjectMeta.Labels["ns2"]="updated"
+				nsY.ObjectMeta.Labels["ns"]="y"
+				_,_ = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), nsY, metav1.UpdateOptions{})
+			}
+
+			allowedLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"ns2": "updated"}}
 			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-client-a-via-ns-selector", map[string]string{"pod": "a"}, allowedLabels)
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
@@ -570,25 +584,12 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					reachability.Expect(netpol.PodString(nn+"/"+pp), netpol.PodString("x/a"), false)
 				}
 			}
-			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
+			reachability.AllowLoopback()
 			validateOrFailFunc("x", 82,80, policy, reachability, true)
+			
+			AddNewLabel()
 
-			// now mutate ns y to have this special new label.
-			nsY, err := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), "y", metav1.GetOptions{})
-			if err != nil {
-				log("possible problem")
-			}
-			nsY.ObjectMeta.Labels["ns2"] = "updated"
-			_, err = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), nsY, metav1.UpdateOptions{})
-			// clean this out when done, remember we preserve pods/ns throughout
-			cleanNewLabel := func() {
-				delete(nsY.ObjectMeta.Labels, "ns2")
-				_, err = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), nsY, metav1.UpdateOptions{})
-			}
-			defer cleanNewLabel()
-			if err != nil {
-				log("possible problem...")
-			}
+
 			// now update our matrix - we want anything 'y' to be able to get to x/a...
 			reachability.Expect(netpol.PodString("y/a"), netpol.PodString("x/a"), true)
 			reachability.Expect(netpol.PodString("y/b"), netpol.PodString("x/a"), true)
