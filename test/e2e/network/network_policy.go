@@ -854,14 +854,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policyAllowCIDR.Spec.Egress[0].To[0].IPBlock.Except = podServerExceptList
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			for _,nn := range []string{"x","y","z"} {
-				for _, pp := range []string{"a", "b", "c"} {
-					reachability.Expect("x/a",netpol.NewPod(nn,pp), false)
-				}
-			}
-
-			reachability.Expect("x/a","x/a", true)
-			reachability.Expect("x/a","x/c", true)
+			
+			reachability.Expect("x/a","x/b", false)
 
 			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability,true)
 		})
