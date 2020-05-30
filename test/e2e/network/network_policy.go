@@ -815,7 +815,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				panic(err)
 			}
 			pod := podList.Items[0]
-			fmt.Print(fmt.Sprintf("\n\npod:::::%v\n\n",pod.Status.PodIP))
 
 			podServerCIDR := fmt.Sprintf("%s/32", pod.Status.PodIP)
 
@@ -828,6 +827,41 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			}
 			reachability.Expect("x/a","x/a", true)
+
+			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability,true)
+		})
+
+		ginkgo.It("should enforce except clause while egress access to server in CIDR block [Feature:NetworkPolicy]", func() {
+
+
+			// Getting podServer's status to get podServer's IP, to create the CIDR with except clause
+			podList, err := f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=a"})
+			if err != nil {
+				panic(err)
+			}
+			pod := podList.Items[0]
+
+			podServerAllowCIDR := fmt.Sprintf("%s/4", pod.Status.PodIP)
+			policyAllowCIDR := netpol.PolicyAllowCIDR("x", "a", podServerAllowCIDR)
+
+			podList, err = f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=b"})
+			if err != nil {
+				panic(err)
+			}
+			podb := podList.Items[0]
+			// Exclude podServer's IP with an Except clause
+			podServerExceptList := []string{fmt.Sprintf("%s/32", podb.Status.PodIP)}
+			policyAllowCIDR.Spec.Eggress[0].Except = podServerExceptList
+
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			for _,nn := range []string{"x","y","z"} {
+				for _, pp := range []string{"a", "b", "c"} {
+					reachability.Expect("x/a",netpol.NewPod(nn,pp), false)
+				}
+			}
+
+			reachability.Expect("x/a","x/a", true)
+			reachability.Expect("x/a","x/c", true)
 
 			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability,true)
 		})
