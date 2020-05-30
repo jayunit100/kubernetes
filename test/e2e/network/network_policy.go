@@ -765,5 +765,48 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability = netpol.NewReachability(scenario.allPods, true)
 			validateOrFailFunc("x", 82, 80, nil, reachability, false)
 		})
+
+		ginkgo.It("should enforce policies to check ingress and egress policies can be controlled independently based on PodSelector [Feature:NetworkPolicy]", func() {
+			/*
+				Test steps:
+				1. Verify every pod in every namespace can talk to each other
+				2. Create and apply a policy to allow eggress traffic to pod b
+				3. Deny all Ingress traffic to Pod A in Namespace A (so that B cannot talk to A, that is how it was originally
+				4. Verify B cannot send traffic to A
+				5. Verify A can send traffic to B
+			*/
+			policy := netpol.GetAllowAll("allow-all")
+
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
+
+			ginkgo.By("Creating a network policy for pod-a which allows Egress traffic to pod-b.")
+
+			egressPolicyAllowToB := netpol.GetPolicyWithEgressRuleOnlyPodSelector("x", "a", "b")
+
+			reachability = netpol.NewReachability(scenario.allPods, true)
+			for _,nn := range []string{"x","y","z"} {
+				for _, pp := range []string{"a", "c"} {
+					reachability.Expect("x/a",netpol.NewPod(nn,pp), false)
+				}
+			}
+			reachability.Expect("x/a","x/a", true)
+
+			validateOrFailFunc("x", 82, 80, egressPolicyAllowToB, reachability,true)
+
+			ginkgo.By("Creating a network policy for pod-a that denies traffic from pod-b.")
+			policyDenyFromPodB := netpol.GetDefaultDenyIngressPolicy("deny-all")
+
+			reachability = netpol.NewReachability(scenario.allPods, true)
+			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
+			reachability.ExpectAllIngress(netpol.PodString("x/b"), false)
+			reachability.ExpectAllIngress(netpol.PodString("x/c"), false)
+			// allow loopback
+			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
+			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
+			reachability.Expect(netpol.PodString("x/c"), netpol.PodString("x/c"), true)
+
+			validateOrFailFunc("x", 82, 80, policyDenyFromPodB, reachability, true)
+		})
 	})
 })
