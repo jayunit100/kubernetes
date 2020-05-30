@@ -171,7 +171,7 @@ func GetPolicyWithEgressRuleOnlyPodSelector(ns string, name string, toPod string
 						{
 							PodSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
-										"pod": toPod
+										"pod": toPod,
 								},
 							},
 						},
