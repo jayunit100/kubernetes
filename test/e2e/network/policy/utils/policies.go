@@ -181,3 +181,33 @@ func GetPolicyWithEgressRuleOnlyPodSelector(ns string, name string, toPod string
 		},
 	}
 }
+
+func PolicyAllowCIDR(namespace string, podname string, podserverCIDR string) *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "allow-client-a-via-cidr-egress-rule",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			// Apply this policy to the Server
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"pod": podname,
+				},
+			},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+			// Allow traffic to only one CIDR block.
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: podserverCIDR,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}

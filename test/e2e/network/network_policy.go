@@ -806,5 +806,30 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability2.AllowLoopback()
 			validateOrFailFunc("x", 82,80, policyDenyFromPodB, reachability2, true)
 		})
+
+		ginkgo.It("should allow egress access to server in CIDR block [Feature:NetworkPolicy]", func() {
+
+			// Getting podServer's status to get podServer's IP, to create the CIDR
+			podList, err := f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=a"})
+			if err != nil {
+				panic(err)
+			}
+			pod := podList.Items[0]
+			fmt.Print(fmt.Sprintf("\n\npod:::::%v\n\n",pod.Status.PodIP))
+
+			podServerCIDR := fmt.Sprintf("%s/32", pod.Status.PodIP)
+
+			policyAllowCIDR := netpol.PolicyAllowCIDR("x", "a", podServerCIDR)
+
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			for _,nn := range []string{"x","y","z"} {
+				for _, pp := range []string{"a", "b", "c"} {
+					reachability.Expect("x/a",netpol.NewPod(nn,pp), false)
+				}
+			}
+			reachability.Expect("x/a","x/a", true)
+
+			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability,true)
+		})
 	})
 })
