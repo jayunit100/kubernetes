@@ -797,16 +797,13 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			ginkgo.By("Creating a network policy for pod-a that denies traffic from pod-b.")
 			policyDenyFromPodB := netpol.GetDefaultDenyIngressPolicy("deny-all")
 
-			reachability = netpol.NewReachability(scenario.allPods, true)
-			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
-			reachability.ExpectAllIngress(netpol.PodString("x/b"), false)
-			reachability.ExpectAllIngress(netpol.PodString("x/c"), false)
-			// allow loopback
-			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
-			reachability.Expect(netpol.PodString("x/b"), netpol.PodString("x/b"), true)
-			reachability.Expect(netpol.PodString("x/c"), netpol.PodString("x/c"), true)
+			reachability2 := netpol.NewReachability(scenario.allPods, true)
 
-			validateOrFailFunc("x", 82, 80, policyDenyFromPodB, reachability, true)
+			reachability2.ExpectAllIngress(netpol.PodString("x/a"), false)
+			reachability2.ExpectAllIngress(netpol.PodString("x/b"), false)
+			reachability2.ExpectAllIngress(netpol.PodString("x/c"), false)
+			reachability2.AllowLoopback()
+			validateOrFailFunc("x", 82,80, policyDenyFromPodB, reachability2, true)
 		})
 	})
 })
