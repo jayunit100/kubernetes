@@ -851,7 +851,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			podb := podList.Items[0]
 			// Exclude podServer's IP with an Except clause
 			podServerExceptList := []string{fmt.Sprintf("%s/32", podb.Status.PodIP)}
-			policyAllowCIDR.Spec.Eggress[0].Except = podServerExceptList
+			policyAllowCIDR.Spec.Egress[0].Except = podServerExceptList
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			for _,nn := range []string{"x","y","z"} {
