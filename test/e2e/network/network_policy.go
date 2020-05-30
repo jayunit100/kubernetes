@@ -786,11 +786,12 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			reachability = netpol.NewReachability(scenario.allPods, true)
 			for _,nn := range []string{"x","y","z"} {
-				for _, pp := range []string{"a", "c"} {
+				for _, pp := range []string{"a", "b", "c"} {
 					reachability.Expect("x/a",netpol.NewPod(nn,pp), false)
 				}
 			}
 			reachability.Expect("x/a","x/a", true)
+			reachability.Expect("x/a","x/b", true)
 
 			validateOrFailFunc("x", 82, 80, egressPolicyAllowToB, reachability,true)
 
