@@ -854,10 +854,42 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policyAllowCIDR.Spec.Egress[0].To[0].IPBlock.Except = podServerExceptList
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			
+
 			reachability.Expect("x/a","x/b", false)
 
 			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability,true)
+		})
+
+		ginkgo.It("should ensure an IP overlapping both IPBlock.CIDR and IPBlock.Except is allowed [Feature:NetworkPolicy]", func() {
+			podList, err := f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=a"})
+			if err != nil {
+				panic(err)
+			}
+			pod := podList.Items[0]
+
+			podServerAllowCIDR := fmt.Sprintf("%s/4", pod.Status.PodIP)
+			policyAllowCIDR := netpol.PolicyAllowCIDR("x", "a", podServerAllowCIDR)
+
+			podList, err = f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=b"})
+			if err != nil {
+				panic(err)
+			}
+			podb := podList.Items[0]
+			// Exclude podServer's IP with an Except clause
+			podServerExceptList := []string{fmt.Sprintf("%s/32", podb.Status.PodIP)}
+			policyAllowCIDR.Spec.Egress[0].To[0].IPBlock.Except = podServerExceptList
+
+			reachability := netpol.NewReachability(scenario.allPods, true)
+
+			reachability.Expect("x/a","x/b", false)
+
+			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability,true)
+
+			podbIp := fmt.Sprintf("%s/32", podb.Status.PodIP)
+			// Create NetworkPolicy which allows access to the podServer using podServer's IP in allow CIDR.
+			allowPolicy := netpol.PolicyAllowCIDR("x", "a", podbIp)
+			reachability_2 := netpol.NewReachability(scenario.allPods, true)
+			validateOrFailFunc("x", 82, 80, allowPolicy, reachability_2,false)
 		})
 	})
 })
