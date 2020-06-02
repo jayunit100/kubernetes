@@ -896,7 +896,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			}
 			reachability.Expect("x/a","x/b", true)
-			reachability.Expect("x/a","x/a", false)
+			reachability.Expect("x/a","x/a", true)
 			validateOrFailFunc("x", 82, 80, allowPolicy, reachability_2,false)
 		})
 	})
