@@ -886,11 +886,11 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability,true)
 
-			//podbIp := fmt.Sprintf("%s/32", podb.Status.PodIP)
+			podbIp := fmt.Sprintf("%s/32", podb.Status.PodIP)
 			//// Create NetworkPolicy which allows access to the podServer using podServer's IP in allow CIDR.
-			//allowPolicy := netpol.PolicyAllowCIDR("x", "a", podbIp)
-			//reachability_2 := netpol.NewReachability(scenario.allPods, true)
-			//validateOrFailFunc("x", 82, 80, allowPolicy, reachability_2,false)
+			allowPolicy := netpol.PolicyAllowCIDR("x", "a", podbIp)
+			reachability_2 := netpol.NewReachability(scenario.allPods, true)
+			validateOrFailFunc("x", 82, 80, allowPolicy, reachability_2,false)
 		})
 	})
 })
