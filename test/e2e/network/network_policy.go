@@ -892,11 +892,11 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability_2 := netpol.NewReachability(scenario.allPods, true)
 			for _,nn := range []string{"x","y","z"} {
 				for _, pp := range []string{"a", "b", "c"} {
-					reachability.Expect("x/a",netpol.NewPod(nn,pp), false)
+					reachability_2.Expect("x/a",netpol.NewPod(nn,pp), false)
 				}
 			}
-			reachability.Expect("x/a","x/b", true)
-			reachability.Expect("x/a","x/a", true)
+			reachability_2.Expect("x/a","x/b", true)
+			reachability_2.Expect("x/a","x/a", true)
 			validateOrFailFunc("x", 82, 80, allowPolicy, reachability_2,false)
 		})
 	})
