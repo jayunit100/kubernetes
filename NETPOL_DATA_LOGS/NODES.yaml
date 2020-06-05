@@ -1,0 +1,12 @@
+          f:podCIDR: {}
+          f:podCIDRs:
+    podCIDR: 100.96.2.0/24
+    podCIDRs:
+          f:podCIDR: {}
+          f:podCIDRs:
+    podCIDR: 100.96.0.0/24
+    podCIDRs:
+          f:podCIDR: {}
+          f:podCIDRs:
+    podCIDR: 100.96.1.0/24
+    podCIDRs:
