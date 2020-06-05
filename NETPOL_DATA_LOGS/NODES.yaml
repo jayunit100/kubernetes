@@ -1,12 +1,896 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Node
+  metadata:
+    annotations:
+      kubeadm.alpha.kubernetes.io/cri-socket: /run/containerd/containerd.sock
+      node.alpha.kubernetes.io/ttl: "0"
+      volumes.kubernetes.io/controller-managed-attach-detach: "true"
+    creationTimestamp: "2020-06-05T00:03:06Z"
+    labels:
+      beta.kubernetes.io/arch: amd64
+      beta.kubernetes.io/instance-type: t3.xlarge
+      beta.kubernetes.io/os: linux
+      failure-domain.beta.kubernetes.io/region: us-west-2
+      failure-domain.beta.kubernetes.io/zone: us-west-2a
+      kubernetes.io/arch: amd64
+      kubernetes.io/hostname: ip-10-0-0-206.us-west-2.compute.internal
+      kubernetes.io/os: linux
+      node.kubernetes.io/instance-type: t3.xlarge
+      topology.kubernetes.io/region: us-west-2
+      topology.kubernetes.io/zone: us-west-2a
+    managedFields:
+    - apiVersion: v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            f:kubeadm.alpha.kubernetes.io/cri-socket: {}
+      manager: kubeadm
+      operation: Update
+      time: "2020-06-05T00:03:06Z"
+    - apiVersion: v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            f:node.alpha.kubernetes.io/ttl: {}
+        f:spec:
           f:podCIDR: {}
           f:podCIDRs:
+            .: {}
+            v:"100.96.2.0/24": {}
+      manager: kube-controller-manager
+      operation: Update
+      time: "2020-06-05T00:03:26Z"
+    - apiVersion: v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            .: {}
+            f:volumes.kubernetes.io/controller-managed-attach-detach: {}
+          f:labels:
+            .: {}
+            f:beta.kubernetes.io/arch: {}
+            f:beta.kubernetes.io/instance-type: {}
+            f:beta.kubernetes.io/os: {}
+            f:failure-domain.beta.kubernetes.io/region: {}
+            f:failure-domain.beta.kubernetes.io/zone: {}
+            f:kubernetes.io/arch: {}
+            f:kubernetes.io/hostname: {}
+            f:kubernetes.io/os: {}
+            f:node.kubernetes.io/instance-type: {}
+            f:topology.kubernetes.io/region: {}
+            f:topology.kubernetes.io/zone: {}
+        f:spec:
+          f:providerID: {}
+        f:status:
+          f:addresses:
+            .: {}
+            k:{"type":"Hostname"}:
+              .: {}
+              f:address: {}
+              f:type: {}
+            k:{"type":"InternalDNS"}:
+              .: {}
+              f:address: {}
+              f:type: {}
+            k:{"type":"InternalIP"}:
+              .: {}
+              f:address: {}
+              f:type: {}
+          f:allocatable:
+            .: {}
+            f:attachable-volumes-aws-ebs: {}
+            f:cpu: {}
+            f:ephemeral-storage: {}
+            f:hugepages-1Gi: {}
+            f:hugepages-2Mi: {}
+            f:memory: {}
+            f:pods: {}
+          f:capacity:
+            .: {}
+            f:attachable-volumes-aws-ebs: {}
+            f:cpu: {}
+            f:ephemeral-storage: {}
+            f:hugepages-1Gi: {}
+            f:hugepages-2Mi: {}
+            f:memory: {}
+            f:pods: {}
+          f:conditions:
+            .: {}
+            k:{"type":"DiskPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"MemoryPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"PIDPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"Ready"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+          f:daemonEndpoints:
+            f:kubeletEndpoint:
+              f:Port: {}
+          f:images: {}
+          f:nodeInfo:
+            f:architecture: {}
+            f:bootID: {}
+            f:containerRuntimeVersion: {}
+            f:kernelVersion: {}
+            f:kubeProxyVersion: {}
+            f:kubeletVersion: {}
+            f:machineID: {}
+            f:operatingSystem: {}
+            f:osImage: {}
+            f:systemUUID: {}
+      manager: kubelet
+      operation: Update
+      time: "2020-06-05T03:45:02Z"
+    name: ip-10-0-0-206.us-west-2.compute.internal
+    resourceVersion: "44700"
+    selfLink: /api/v1/nodes/ip-10-0-0-206.us-west-2.compute.internal
+    uid: ab730a83-42c0-4818-a9a4-a900eb512125
+  spec:
     podCIDR: 100.96.2.0/24
     podCIDRs:
+    - 100.96.2.0/24
+    providerID: aws:///us-west-2a/i-0f56841b270b5c258
+  status:
+    addresses:
+    - address: 10.0.0.206
+      type: InternalIP
+    - address: ip-10-0-0-206.us-west-2.compute.internal
+      type: Hostname
+    - address: ip-10-0-0-206.us-west-2.compute.internal
+      type: InternalDNS
+    allocatable:
+      attachable-volumes-aws-ebs: "25"
+      cpu: "4"
+      ephemeral-storage: "77298068148"
+      hugepages-1Gi: "0"
+      hugepages-2Mi: "0"
+      memory: 16132452Ki
+      pods: "110"
+    capacity:
+      attachable-volumes-aws-ebs: "25"
+      cpu: "4"
+      ephemeral-storage: 83873772Ki
+      hugepages-1Gi: "0"
+      hugepages-2Mi: "0"
+      memory: 16234852Ki
+      pods: "110"
+    conditions:
+    - lastHeartbeatTime: "2020-06-05T03:45:02Z"
+      lastTransitionTime: "2020-06-05T00:03:06Z"
+      message: kubelet has sufficient memory available
+      reason: KubeletHasSufficientMemory
+      status: "False"
+      type: MemoryPressure
+    - lastHeartbeatTime: "2020-06-05T03:45:02Z"
+      lastTransitionTime: "2020-06-05T00:03:06Z"
+      message: kubelet has no disk pressure
+      reason: KubeletHasNoDiskPressure
+      status: "False"
+      type: DiskPressure
+    - lastHeartbeatTime: "2020-06-05T03:45:02Z"
+      lastTransitionTime: "2020-06-05T00:03:06Z"
+      message: kubelet has sufficient PID available
+      reason: KubeletHasSufficientPID
+      status: "False"
+      type: PIDPressure
+    - lastHeartbeatTime: "2020-06-05T03:45:02Z"
+      lastTransitionTime: "2020-06-05T00:03:26Z"
+      message: kubelet is posting ready status
+      reason: KubeletReady
+      status: "True"
+      type: Ready
+    daemonEndpoints:
+      kubeletEndpoint:
+        Port: 10250
+    images:
+    - names:
+      - registry.tkg.vmware.run/kube-apiserver:v1.18.1_vmware.1
+      sizeBytes: 216227122
+    - names:
+      - registry.tkg.vmware.run/kube-controller-manager:v1.18.1_vmware.1
+      sizeBytes: 204032329
+    - names:
+      - registry.tkg.vmware.run/kube-proxy:v1.18.1_vmware.1
+      sizeBytes: 133034619
+    - names:
+      - docker.io/antrea/antrea-ubuntu@sha256:a018fff57fda49af1ef25f1aad665d1c10ae37db1a18fd1e8721c3a2267ab910
+      - docker.io/antrea/antrea-ubuntu:latest
+      sizeBytes: 126032616
+    - names:
+      - docker.io/sonobuoy/systemd-logs@sha256:fadad24a66ddd544987c38811108a73d1a306dd3b5e3f090b207786f2825ffde
+      - docker.io/sonobuoy/systemd-logs:v0.3
+      sizeBytes: 121664960
+    - names:
+      - registry.tkg.vmware.run/kube-scheduler:v1.18.1_vmware.1
+      sizeBytes: 113088822
+    - names:
+      - registry.tkg.vmware.run/etcd:v3.4.3_vmware.5
+      sizeBytes: 107987469
+    - names:
+      - gcr.io/kubernetes-e2e-test-images/jessie-dnsutils@sha256:ad583e33cb284f7ef046673809b146ec4053cda19b54a85d2b180a86169715eb
+      - gcr.io/kubernetes-e2e-test-images/jessie-dnsutils:1.0
+      sizeBytes: 85425365
+    - names:
+      - us.gcr.io/k8s-artifacts-prod/e2e-test-images/agnhost@sha256:6d5c9e684dd8f91cc36601933d51b91768d0606593de6820e19e5f194b0df1b9
+      - us.gcr.io/k8s-artifacts-prod/e2e-test-images/agnhost:2.13
+      sizeBytes: 45704260
+    - names:
+      - us.gcr.io/k8s-artifacts-prod/e2e-test-images/agnhost@sha256:1d7f0d77a6f07fd507f147a38d06a7c8269ebabd4f923bfe46d4fb8b396a520c
+      - us.gcr.io/k8s-artifacts-prod/e2e-test-images/agnhost:2.12
+      sizeBytes: 45599269
+    - names:
+      - registry.tkg.vmware.run/coredns:v1.6.7_vmware.1
+      sizeBytes: 43889119
+    - names:
+      - docker.io/library/httpd@sha256:addd70e4ee83f3bc9a4c1c7c41e37927ba47faf639312fc936df3afad7926f5a
+      - docker.io/library/httpd:2.4.39-alpine
+      sizeBytes: 41901429
+    - names:
+      - docker.io/library/httpd@sha256:eb8ccf084cf3e80eece1add239effefd171eb39adbc154d33c14260d905d4060
+      - docker.io/library/httpd:2.4.38-alpine
+      sizeBytes: 40765017
+    - names:
+      - docker.io/antrea/netpol-test@sha256:b32f99b299ceb5b64e91242c654e30a02ccc853de914351dd0d3d5022ffcf80b
+      - docker.io/antrea/netpol-test:latest
+      sizeBytes: 36322791
+    - names:
+      - docker.io/sonobuoy/sonobuoy@sha256:63fa139355f2b6f68bb4ef8e2b9ac34e9020e4c0af7ecd065f2a5daa6540c9c8
+      - docker.io/sonobuoy/sonobuoy:v0.18.2
+      sizeBytes: 31959211
+    - names:
+      - docker.io/library/nginx@sha256:485b610fefec7ff6c463ced9623314a04ed67e3945b9c08d7e53a47f6d108dc7
+      - docker.io/library/nginx:1.14-alpine
+      sizeBytes: 6978806
+    - names:
+      - gcr.io/kubernetes-e2e-test-images/nonewprivs@sha256:10066e9039219449fe3c81f38fe01928f87914150768ab81b62a468e51fa7411
+      - gcr.io/kubernetes-e2e-test-images/nonewprivs:1.0
+      sizeBytes: 3054649
+    - names:
+      - gcr.io/authenticated-image-pulling/alpine@sha256:7ff177862cb50c602bfe81f805969412e619c054a2bbead977d0c276988aa4a0
+      - gcr.io/authenticated-image-pulling/alpine:3.7
+      sizeBytes: 2110879
+    - names:
+      - gcr.io/kubernetes-e2e-test-images/nautilus@sha256:33a732d4c42a266912a5091598a0f07653c9134db4b8d571690d8afd509e0bfc
+      - gcr.io/kubernetes-e2e-test-images/nautilus:1.0
+      sizeBytes: 1804628
+    - names:
+      - docker.io/library/busybox@sha256:8ccbac733d19c0dd4d70b4f0c1e12245b5fa3ad24758a11035ee505c629c0796
+      - docker.io/library/busybox:1.29
+      sizeBytes: 732685
+    - names:
+      - registry.tkg.vmware.run/pause:3.2
+      sizeBytes: 685728
+    - names:
+      - gcr.io/kubernetes-e2e-test-images/mounttest@sha256:c0bd6f0755f42af09a68c9a47fb993136588a76b3200ec305796b60d629d85d2
+      - gcr.io/kubernetes-e2e-test-images/mounttest:1.0
+      sizeBytes: 599341
+    - names:
+      - gcr.io/kubernetes-e2e-test-images/mounttest-user@sha256:17319ca525ee003681fccf7e8c6b1b910ff4f49b653d939ac7f9b6e7c463933d
+      - gcr.io/kubernetes-e2e-test-images/mounttest-user:1.0
+      sizeBytes: 539309
+    - names:
+      - k8s.gcr.io/pause@sha256:927d98197ec1141a368550822d18fa1c60bdae27b78b0c004f705f548c07814f
+      - k8s.gcr.io/pause:3.2
+      sizeBytes: 299513
+    - names:
+      - registry.tkg.vmware.run/pause@sha256:e18a7ebf04f4de04cf11e95b0ad6b6c2cf4713882866d948cb5d2bce0b05ac25
+      - registry.tkg.vmware.run/pause:3.1
+      sizeBytes: 298624
+    nodeInfo:
+      architecture: amd64
+      bootID: df6b7672-a7f4-440b-960f-a079f40b51f4
+      containerRuntimeVersion: containerd://1.3.4
+      kernelVersion: 4.14.173-137.229.amzn2.x86_64
+      kubeProxyVersion: v1.18.1+vmware.1
+      kubeletVersion: v1.18.1+vmware.1
+      machineID: ec2c55ce6c64aeee3807d956563bfaaf
+      operatingSystem: linux
+      osImage: Amazon Linux 2
+      systemUUID: EC2C55CE-6C64-AEEE-3807-D956563BFAAF
+- apiVersion: v1
+  kind: Node
+  metadata:
+    annotations:
+      kubeadm.alpha.kubernetes.io/cri-socket: /run/containerd/containerd.sock
+      node.alpha.kubernetes.io/ttl: "0"
+      volumes.kubernetes.io/controller-managed-attach-detach: "true"
+    creationTimestamp: "2020-06-05T00:01:40Z"
+    labels:
+      beta.kubernetes.io/arch: amd64
+      beta.kubernetes.io/instance-type: t3.xlarge
+      beta.kubernetes.io/os: linux
+      failure-domain.beta.kubernetes.io/region: us-west-2
+      failure-domain.beta.kubernetes.io/zone: us-west-2a
+      kubernetes.io/arch: amd64
+      kubernetes.io/hostname: ip-10-0-0-219.us-west-2.compute.internal
+      kubernetes.io/os: linux
+      node-role.kubernetes.io/master: ""
+      node.kubernetes.io/instance-type: t3.xlarge
+      topology.kubernetes.io/region: us-west-2
+      topology.kubernetes.io/zone: us-west-2a
+    managedFields:
+    - apiVersion: v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            f:kubeadm.alpha.kubernetes.io/cri-socket: {}
+          f:labels:
+            f:node-role.kubernetes.io/master: {}
+      manager: kubeadm
+      operation: Update
+      time: "2020-06-05T00:01:41Z"
+    - apiVersion: v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            f:node.alpha.kubernetes.io/ttl: {}
+        f:spec:
           f:podCIDR: {}
           f:podCIDRs:
+            .: {}
+            v:"100.96.0.0/24": {}
+          f:taints: {}
+      manager: kube-controller-manager
+      operation: Update
+      time: "2020-06-05T00:02:33Z"
+    - apiVersion: v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            .: {}
+            f:volumes.kubernetes.io/controller-managed-attach-detach: {}
+          f:labels:
+            .: {}
+            f:beta.kubernetes.io/arch: {}
+            f:beta.kubernetes.io/instance-type: {}
+            f:beta.kubernetes.io/os: {}
+            f:failure-domain.beta.kubernetes.io/region: {}
+            f:failure-domain.beta.kubernetes.io/zone: {}
+            f:kubernetes.io/arch: {}
+            f:kubernetes.io/hostname: {}
+            f:kubernetes.io/os: {}
+            f:node.kubernetes.io/instance-type: {}
+            f:topology.kubernetes.io/region: {}
+            f:topology.kubernetes.io/zone: {}
+        f:spec:
+          f:providerID: {}
+        f:status:
+          f:addresses:
+            .: {}
+            k:{"type":"Hostname"}:
+              .: {}
+              f:address: {}
+              f:type: {}
+            k:{"type":"InternalDNS"}:
+              .: {}
+              f:address: {}
+              f:type: {}
+            k:{"type":"InternalIP"}:
+              .: {}
+              f:address: {}
+              f:type: {}
+          f:allocatable:
+            .: {}
+            f:attachable-volumes-aws-ebs: {}
+            f:cpu: {}
+            f:ephemeral-storage: {}
+            f:hugepages-1Gi: {}
+            f:hugepages-2Mi: {}
+            f:memory: {}
+            f:pods: {}
+          f:capacity:
+            .: {}
+            f:attachable-volumes-aws-ebs: {}
+            f:cpu: {}
+            f:ephemeral-storage: {}
+            f:hugepages-1Gi: {}
+            f:hugepages-2Mi: {}
+            f:memory: {}
+            f:pods: {}
+          f:conditions:
+            .: {}
+            k:{"type":"DiskPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"MemoryPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"PIDPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"Ready"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+          f:daemonEndpoints:
+            f:kubeletEndpoint:
+              f:Port: {}
+          f:images: {}
+          f:nodeInfo:
+            f:architecture: {}
+            f:bootID: {}
+            f:containerRuntimeVersion: {}
+            f:kernelVersion: {}
+            f:kubeProxyVersion: {}
+            f:kubeletVersion: {}
+            f:machineID: {}
+            f:operatingSystem: {}
+            f:osImage: {}
+            f:systemUUID: {}
+      manager: kubelet
+      operation: Update
+      time: "2020-06-05T03:48:17Z"
+    name: ip-10-0-0-219.us-west-2.compute.internal
+    resourceVersion: "45182"
+    selfLink: /api/v1/nodes/ip-10-0-0-219.us-west-2.compute.internal
+    uid: 377e482d-6b51-4b10-9ccb-a5b6544d8d32
+  spec:
     podCIDR: 100.96.0.0/24
     podCIDRs:
+    - 100.96.0.0/24
+    providerID: aws:///us-west-2a/i-0e2d44abb64d02bfd
+    taints:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/master
+  status:
+    addresses:
+    - address: 10.0.0.219
+      type: InternalIP
+    - address: ip-10-0-0-219.us-west-2.compute.internal
+      type: Hostname
+    - address: ip-10-0-0-219.us-west-2.compute.internal
+      type: InternalDNS
+    allocatable:
+      attachable-volumes-aws-ebs: "25"
+      cpu: "4"
+      ephemeral-storage: "77298068148"
+      hugepages-1Gi: "0"
+      hugepages-2Mi: "0"
+      memory: 16132452Ki
+      pods: "110"
+    capacity:
+      attachable-volumes-aws-ebs: "25"
+      cpu: "4"
+      ephemeral-storage: 83873772Ki
+      hugepages-1Gi: "0"
+      hugepages-2Mi: "0"
+      memory: 16234852Ki
+      pods: "110"
+    conditions:
+    - lastHeartbeatTime: "2020-06-05T03:48:17Z"
+      lastTransitionTime: "2020-06-05T00:01:40Z"
+      message: kubelet has sufficient memory available
+      reason: KubeletHasSufficientMemory
+      status: "False"
+      type: MemoryPressure
+    - lastHeartbeatTime: "2020-06-05T03:48:17Z"
+      lastTransitionTime: "2020-06-05T00:01:40Z"
+      message: kubelet has no disk pressure
+      reason: KubeletHasNoDiskPressure
+      status: "False"
+      type: DiskPressure
+    - lastHeartbeatTime: "2020-06-05T03:48:17Z"
+      lastTransitionTime: "2020-06-05T00:01:40Z"
+      message: kubelet has sufficient PID available
+      reason: KubeletHasSufficientPID
+      status: "False"
+      type: PIDPressure
+    - lastHeartbeatTime: "2020-06-05T03:48:17Z"
+      lastTransitionTime: "2020-06-05T00:02:33Z"
+      message: kubelet is posting ready status
+      reason: KubeletReady
+      status: "True"
+      type: Ready
+    daemonEndpoints:
+      kubeletEndpoint:
+        Port: 10250
+    images:
+    - names:
+      - registry.tkg.vmware.run/kube-apiserver:v1.18.1_vmware.1
+      sizeBytes: 216227122
+    - names:
+      - registry.tkg.vmware.run/kube-controller-manager:v1.18.1_vmware.1
+      sizeBytes: 204032329
+    - names:
+      - registry.tkg.vmware.run/kube-proxy:v1.18.1_vmware.1
+      sizeBytes: 133034619
+    - names:
+      - docker.io/antrea/antrea-ubuntu@sha256:a018fff57fda49af1ef25f1aad665d1c10ae37db1a18fd1e8721c3a2267ab910
+      - docker.io/antrea/antrea-ubuntu:latest
+      sizeBytes: 126032616
+    - names:
+      - docker.io/sonobuoy/systemd-logs@sha256:fadad24a66ddd544987c38811108a73d1a306dd3b5e3f090b207786f2825ffde
+      - docker.io/sonobuoy/systemd-logs:v0.3
+      sizeBytes: 121664960
+    - names:
+      - registry.tkg.vmware.run/kube-scheduler:v1.18.1_vmware.1
+      sizeBytes: 113088822
+    - names:
+      - registry.tkg.vmware.run/etcd:v3.4.3_vmware.5
+      sizeBytes: 107987469
+    - names:
+      - registry.tkg.vmware.run/coredns:v1.6.7_vmware.1
+      sizeBytes: 43889119
+    - names:
+      - docker.io/sonobuoy/sonobuoy@sha256:63fa139355f2b6f68bb4ef8e2b9ac34e9020e4c0af7ecd065f2a5daa6540c9c8
+      - docker.io/sonobuoy/sonobuoy:v0.18.2
+      sizeBytes: 31959211
+    - names:
+      - registry.tkg.vmware.run/pause:3.2
+      sizeBytes: 685728
+    - names:
+      - registry.tkg.vmware.run/pause@sha256:e18a7ebf04f4de04cf11e95b0ad6b6c2cf4713882866d948cb5d2bce0b05ac25
+      - registry.tkg.vmware.run/pause:3.1
+      sizeBytes: 298624
+    nodeInfo:
+      architecture: amd64
+      bootID: 3133864c-d9c7-48c8-8c9e-d52d6fecb09c
+      containerRuntimeVersion: containerd://1.3.4
+      kernelVersion: 4.14.173-137.229.amzn2.x86_64
+      kubeProxyVersion: v1.18.1+vmware.1
+      kubeletVersion: v1.18.1+vmware.1
+      machineID: ec26542e2a31a582b092246950d5bf45
+      operatingSystem: linux
+      osImage: Amazon Linux 2
+      systemUUID: EC26542E-2A31-A582-B092-246950D5BF45
+- apiVersion: v1
+  kind: Node
+  metadata:
+    annotations:
+      kubeadm.alpha.kubernetes.io/cri-socket: /run/containerd/containerd.sock
+      node.alpha.kubernetes.io/ttl: "0"
+      volumes.kubernetes.io/controller-managed-attach-detach: "true"
+    creationTimestamp: "2020-06-05T00:03:00Z"
+    labels:
+      beta.kubernetes.io/arch: amd64
+      beta.kubernetes.io/instance-type: t3.xlarge
+      beta.kubernetes.io/os: linux
+      failure-domain.beta.kubernetes.io/region: us-west-2
+      failure-domain.beta.kubernetes.io/zone: us-west-2a
+      kubernetes.io/arch: amd64
+      kubernetes.io/hostname: ip-10-0-0-253.us-west-2.compute.internal
+      kubernetes.io/os: linux
+      node.kubernetes.io/instance-type: t3.xlarge
+      topology.kubernetes.io/region: us-west-2
+      topology.kubernetes.io/zone: us-west-2a
+    managedFields:
+    - apiVersion: v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            f:kubeadm.alpha.kubernetes.io/cri-socket: {}
+      manager: kubeadm
+      operation: Update
+      time: "2020-06-05T00:03:01Z"
+    - apiVersion: v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            f:node.alpha.kubernetes.io/ttl: {}
+        f:spec:
           f:podCIDR: {}
           f:podCIDRs:
+            .: {}
+            v:"100.96.1.0/24": {}
+      manager: kube-controller-manager
+      operation: Update
+      time: "2020-06-05T00:03:20Z"
+    - apiVersion: v1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            .: {}
+            f:volumes.kubernetes.io/controller-managed-attach-detach: {}
+          f:labels:
+            .: {}
+            f:beta.kubernetes.io/arch: {}
+            f:beta.kubernetes.io/instance-type: {}
+            f:beta.kubernetes.io/os: {}
+            f:failure-domain.beta.kubernetes.io/region: {}
+            f:failure-domain.beta.kubernetes.io/zone: {}
+            f:kubernetes.io/arch: {}
+            f:kubernetes.io/hostname: {}
+            f:kubernetes.io/os: {}
+            f:node.kubernetes.io/instance-type: {}
+            f:topology.kubernetes.io/region: {}
+            f:topology.kubernetes.io/zone: {}
+        f:spec:
+          f:providerID: {}
+        f:status:
+          f:addresses:
+            .: {}
+            k:{"type":"Hostname"}:
+              .: {}
+              f:address: {}
+              f:type: {}
+            k:{"type":"InternalDNS"}:
+              .: {}
+              f:address: {}
+              f:type: {}
+            k:{"type":"InternalIP"}:
+              .: {}
+              f:address: {}
+              f:type: {}
+          f:allocatable:
+            .: {}
+            f:attachable-volumes-aws-ebs: {}
+            f:cpu: {}
+            f:ephemeral-storage: {}
+            f:hugepages-1Gi: {}
+            f:hugepages-2Mi: {}
+            f:memory: {}
+            f:pods: {}
+          f:capacity:
+            .: {}
+            f:attachable-volumes-aws-ebs: {}
+            f:cpu: {}
+            f:ephemeral-storage: {}
+            f:hugepages-1Gi: {}
+            f:hugepages-2Mi: {}
+            f:memory: {}
+            f:pods: {}
+          f:conditions:
+            .: {}
+            k:{"type":"DiskPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"MemoryPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"PIDPressure"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+            k:{"type":"Ready"}:
+              .: {}
+              f:lastHeartbeatTime: {}
+              f:lastTransitionTime: {}
+              f:message: {}
+              f:reason: {}
+              f:status: {}
+              f:type: {}
+          f:daemonEndpoints:
+            f:kubeletEndpoint:
+              f:Port: {}
+          f:images: {}
+          f:nodeInfo:
+            f:architecture: {}
+            f:bootID: {}
+            f:containerRuntimeVersion: {}
+            f:kernelVersion: {}
+            f:kubeProxyVersion: {}
+            f:kubeletVersion: {}
+            f:machineID: {}
+            f:operatingSystem: {}
+            f:osImage: {}
+            f:systemUUID: {}
+      manager: kubelet
+      operation: Update
+      time: "2020-06-05T03:45:06Z"
+    name: ip-10-0-0-253.us-west-2.compute.internal
+    resourceVersion: "44711"
+    selfLink: /api/v1/nodes/ip-10-0-0-253.us-west-2.compute.internal
+    uid: 65bddfbc-1054-47c0-bb96-b0b06c1b2caa
+  spec:
     podCIDR: 100.96.1.0/24
     podCIDRs:
+    - 100.96.1.0/24
+    providerID: aws:///us-west-2a/i-0b4f55f6b561f528a
+  status:
+    addresses:
+    - address: 10.0.0.253
+      type: InternalIP
+    - address: ip-10-0-0-253.us-west-2.compute.internal
+      type: Hostname
+    - address: ip-10-0-0-253.us-west-2.compute.internal
+      type: InternalDNS
+    allocatable:
+      attachable-volumes-aws-ebs: "25"
+      cpu: "4"
+      ephemeral-storage: "77298068148"
+      hugepages-1Gi: "0"
+      hugepages-2Mi: "0"
+      memory: 16132452Ki
+      pods: "110"
+    capacity:
+      attachable-volumes-aws-ebs: "25"
+      cpu: "4"
+      ephemeral-storage: 83873772Ki
+      hugepages-1Gi: "0"
+      hugepages-2Mi: "0"
+      memory: 16234852Ki
+      pods: "110"
+    conditions:
+    - lastHeartbeatTime: "2020-06-05T03:45:06Z"
+      lastTransitionTime: "2020-06-05T00:03:00Z"
+      message: kubelet has sufficient memory available
+      reason: KubeletHasSufficientMemory
+      status: "False"
+      type: MemoryPressure
+    - lastHeartbeatTime: "2020-06-05T03:45:06Z"
+      lastTransitionTime: "2020-06-05T00:03:00Z"
+      message: kubelet has no disk pressure
+      reason: KubeletHasNoDiskPressure
+      status: "False"
+      type: DiskPressure
+    - lastHeartbeatTime: "2020-06-05T03:45:06Z"
+      lastTransitionTime: "2020-06-05T00:03:00Z"
+      message: kubelet has sufficient PID available
+      reason: KubeletHasSufficientPID
+      status: "False"
+      type: PIDPressure
+    - lastHeartbeatTime: "2020-06-05T03:45:06Z"
+      lastTransitionTime: "2020-06-05T00:03:20Z"
+      message: kubelet is posting ready status
+      reason: KubeletReady
+      status: "True"
+      type: Ready
+    daemonEndpoints:
+      kubeletEndpoint:
+        Port: 10250
+    images:
+    - names:
+      - registry.tkg.vmware.run/kube-apiserver:v1.18.1_vmware.1
+      sizeBytes: 216227122
+    - names:
+      - registry.tkg.vmware.run/kube-controller-manager:v1.18.1_vmware.1
+      sizeBytes: 204032329
+    - names:
+      - registry.tkg.vmware.run/kube-proxy:v1.18.1_vmware.1
+      sizeBytes: 133034619
+    - names:
+      - docker.io/antrea/antrea-ubuntu@sha256:a018fff57fda49af1ef25f1aad665d1c10ae37db1a18fd1e8721c3a2267ab910
+      - docker.io/antrea/antrea-ubuntu:latest
+      sizeBytes: 126032616
+    - names:
+      - docker.io/sonobuoy/systemd-logs@sha256:fadad24a66ddd544987c38811108a73d1a306dd3b5e3f090b207786f2825ffde
+      - docker.io/sonobuoy/systemd-logs:v0.3
+      sizeBytes: 121664960
+    - names:
+      - registry.tkg.vmware.run/kube-scheduler:v1.18.1_vmware.1
+      sizeBytes: 113088822
+    - names:
+      - registry.tkg.vmware.run/etcd:v3.4.3_vmware.5
+      sizeBytes: 107987469
+    - names:
+      - gcr.io/google-containers/conformance@sha256:1ce65848cbec9de389c249b3ec626d2aca29ea9fc9c3e65e8ba10aaa8c0e2438
+      - gcr.io/google-containers/conformance:v1.18.1
+      sizeBytes: 73385081
+    - names:
+      - us.gcr.io/k8s-artifacts-prod/e2e-test-images/agnhost@sha256:6d5c9e684dd8f91cc36601933d51b91768d0606593de6820e19e5f194b0df1b9
+      - us.gcr.io/k8s-artifacts-prod/e2e-test-images/agnhost:2.13
+      sizeBytes: 45704260
+    - names:
+      - us.gcr.io/k8s-artifacts-prod/e2e-test-images/agnhost@sha256:1d7f0d77a6f07fd507f147a38d06a7c8269ebabd4f923bfe46d4fb8b396a520c
+      - us.gcr.io/k8s-artifacts-prod/e2e-test-images/agnhost:2.12
+      sizeBytes: 45599269
+    - names:
+      - registry.tkg.vmware.run/coredns:v1.6.7_vmware.1
+      sizeBytes: 43889119
+    - names:
+      - docker.io/library/httpd@sha256:addd70e4ee83f3bc9a4c1c7c41e37927ba47faf639312fc936df3afad7926f5a
+      - docker.io/library/httpd:2.4.39-alpine
+      sizeBytes: 41901429
+    - names:
+      - docker.io/library/httpd@sha256:eb8ccf084cf3e80eece1add239effefd171eb39adbc154d33c14260d905d4060
+      - docker.io/library/httpd:2.4.38-alpine
+      sizeBytes: 40765017
+    - names:
+      - docker.io/antrea/netpol-test@sha256:b32f99b299ceb5b64e91242c654e30a02ccc853de914351dd0d3d5022ffcf80b
+      - docker.io/antrea/netpol-test:latest
+      sizeBytes: 36322791
+    - names:
+      - docker.io/sonobuoy/sonobuoy@sha256:63fa139355f2b6f68bb4ef8e2b9ac34e9020e4c0af7ecd065f2a5daa6540c9c8
+      - docker.io/sonobuoy/sonobuoy:v0.18.2
+      sizeBytes: 31959211
+    - names:
+      - docker.io/library/nginx@sha256:485b610fefec7ff6c463ced9623314a04ed67e3945b9c08d7e53a47f6d108dc7
+      - docker.io/library/nginx:1.14-alpine
+      sizeBytes: 6978806
+    - names:
+      - gcr.io/kubernetes-e2e-test-images/nonewprivs@sha256:10066e9039219449fe3c81f38fe01928f87914150768ab81b62a468e51fa7411
+      - gcr.io/kubernetes-e2e-test-images/nonewprivs:1.0
+      sizeBytes: 3054649
+    - names:
+      - docker.io/library/busybox@sha256:8ccbac733d19c0dd4d70b4f0c1e12245b5fa3ad24758a11035ee505c629c0796
+      - docker.io/library/busybox:1.29
+      sizeBytes: 732685
+    - names:
+      - registry.tkg.vmware.run/pause:3.2
+      sizeBytes: 685728
+    - names:
+      - gcr.io/kubernetes-e2e-test-images/mounttest@sha256:c0bd6f0755f42af09a68c9a47fb993136588a76b3200ec305796b60d629d85d2
+      - gcr.io/kubernetes-e2e-test-images/mounttest:1.0
+      sizeBytes: 599341
+    - names:
+      - k8s.gcr.io/pause@sha256:927d98197ec1141a368550822d18fa1c60bdae27b78b0c004f705f548c07814f
+      - k8s.gcr.io/pause:3.2
+      sizeBytes: 299513
+    - names:
+      - registry.tkg.vmware.run/pause@sha256:e18a7ebf04f4de04cf11e95b0ad6b6c2cf4713882866d948cb5d2bce0b05ac25
+      - registry.tkg.vmware.run/pause:3.1
+      sizeBytes: 298624
+    nodeInfo:
+      architecture: amd64
+      bootID: 90dc2e95-93b2-41a5-a9c2-25730523d768
+      containerRuntimeVersion: containerd://1.3.4
+      kernelVersion: 4.14.173-137.229.amzn2.x86_64
+      kubeProxyVersion: v1.18.1+vmware.1
+      kubeletVersion: v1.18.1+vmware.1
+      machineID: ec2bac57635f6cbf215981b8db0f4536
+      operatingSystem: linux
+      osImage: Amazon Linux 2
+      systemUUID: EC2BAC57-635F-6CBF-2159-81B8DB0F4536
+kind: List
+metadata:
+  resourceVersion: ""
+  selfLink: ""
