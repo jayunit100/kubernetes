@@ -1,0 +1,119 @@
+I0605 00:02:35.828882       1 controller.go:54] Starting Antrea Controller (version v0.8.0-dev-1ee4992)
+I0605 00:02:35.829194       1 client.go:34] No kubeconfig file was specified. Falling back to in-cluster config
+I0605 00:02:36.346836       1 serving.go:312] Generated self-signed cert in-memory
+W0605 00:02:36.850222       1 configmap_cafile_content.go:102] unable to load initial CA bundle for: "client-ca::kube-system::extension-apiserver-authentication::client-ca-file" due to: configmap "extension-apiserver-authentication" not found
+W0605 00:02:36.850451       1 configmap_cafile_content.go:102] unable to load initial CA bundle for: "client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file" due to: configmap "extension-apiserver-authentication" not found
+I0605 00:02:36.874028       1 cacert_controller.go:117] Syncing CA certificate with ConfigMap
+I0605 00:02:36.874361       1 controller.go:59] Starting Antrea Controller Monitor
+I0605 00:02:36.874373       1 controller.go:61] Waiting for node synced for Controller Monitor
+I0605 00:02:36.874721       1 networkpolicy_controller.go:912] Starting NetworkPolicy controller
+I0605 00:02:36.874736       1 networkpolicy_controller.go:915] Waiting for caches to sync for NetworkPolicy controller
+I0605 00:02:36.882073       1 cacert_controller.go:98] Syncing CA certificate with APIServices
+I0605 00:02:36.894794       1 cacert_controller.go:155] Starting CACertController
+I0605 00:02:36.918859       1 configmap_cafile_content.go:205] Starting client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file
+I0605 00:02:36.918879       1 shared_informer.go:197] Waiting for caches to sync for client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file
+I0605 00:02:36.918907       1 configmap_cafile_content.go:205] Starting client-ca::kube-system::extension-apiserver-authentication::client-ca-file
+I0605 00:02:36.918913       1 shared_informer.go:197] Waiting for caches to sync for client-ca::kube-system::extension-apiserver-authentication::client-ca-file
+I0605 00:02:36.919235       1 secure_serving.go:178] Serving securely on [::]:10349
+I0605 00:02:36.919271       1 tlsconfig.go:219] Starting DynamicServingCertificateController
+I0605 00:02:36.974512       1 controller.go:66] Caches are synced for Controller Monitor
+I0605 00:02:36.974846       1 networkpolicy_controller.go:920] Caches are synced for NetworkPolicy controller
+I0605 00:02:37.019067       1 shared_informer.go:204] Caches are synced for client-ca::kube-system::extension-apiserver-authentication::client-ca-file 
+I0605 00:02:37.019075       1 shared_informer.go:204] Caches are synced for client-ca::kube-system::extension-apiserver-authentication::requestheader-client-ca-file 
+I0605 00:34:44.517609       1 watch.go:129] The context had been canceled, stopping process
+I0605 00:35:40.916198       1 watch.go:122] The input channel had been closed, stopping process
+I0605 00:37:28.105816       1 watch.go:129] The context had been canceled, stopping process
+I0605 01:09:29.511774       1 watch.go:129] The context had been canceled, stopping process
+I0605 01:25:18.764675       1 watch.go:129] The context had been canceled, stopping process
+I0605 01:34:56.354203       1 watch.go:129] The context had been canceled, stopping process
+I0605 01:44:58.780303       1 watch.go:129] The context had been canceled, stopping process
+I0605 02:14:33.975988       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/deny-ingress
+I0605 02:14:36.108873       1 watch.go:122] The input channel had been closed, stopping process
+I0605 02:14:41.047218       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/deny-ingress
+I0605 02:14:41.055570       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/x-a-allows-x-b
+I0605 02:14:48.139691       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/x-a-allows-x-b
+I0605 02:14:48.147265       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/deny-all
+I0605 02:14:55.252211       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/deny-all
+I0605 02:14:55.260200       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-all
+I0605 02:15:02.402461       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-all
+I0605 02:15:02.420471       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:15:12.832394       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:15:12.842776       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-pod-selector
+I0605 02:15:19.926103       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-pod-selector
+I0605 02:15:19.934033       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-ns-y-matchselector
+I0605 02:15:27.029393       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-ns-y-matchselector
+I0605 02:15:27.038461       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-all
+I0605 02:16:24.909984       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-all
+I0605 02:16:24.925408       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-pod-selector
+I0605 02:16:32.136986       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-pod-selector
+I0605 02:16:32.144731       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-all
+I0605 02:16:38.401202       1 watch.go:129] The context had been canceled, stopping process
+I0605 02:16:39.260342       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-all
+I0605 02:16:39.268317       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-all
+I0605 02:16:46.340463       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-all
+I0605 02:16:46.348099       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-ns-y-matchselector2
+I0605 02:16:53.456562       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-ns-y-matchselector2
+I0605 02:16:53.464058       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-ns-y-matchselector
+I0605 02:17:00.556771       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-ns-y-matchselector
+I0605 02:17:00.565395       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-all
+I0605 02:17:07.744013       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-all
+I0605 02:17:07.752266       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:17:24.837934       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:17:24.846542       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:17:31.950348       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:17:31.959269       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/deny-all
+I0605 02:17:39.086898       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/deny-all
+I0605 02:17:39.094431       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/deny-all
+I0605 02:17:46.170914       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/deny-all
+I0605 02:17:46.180260       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-all
+I0605 02:18:00.429640       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-all
+I0605 02:18:00.437388       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/deny-ingress
+I0605 02:18:07.516972       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-ns-selector-80
+I0605 02:18:14.601004       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-ns-selector-80
+I0605 02:18:14.605180       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/deny-ingress
+I0605 02:18:14.613422       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:18:26.845928       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:18:26.853356       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-cidr-egress-rule
+I0605 02:18:33.946634       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-cidr-egress-rule
+I0605 02:18:33.954791       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-cidr-egress-rule
+I0605 02:18:41.049775       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-cidr-egress-rule
+I0605 02:18:41.059315       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-all
+I0605 02:18:48.151033       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-all
+I0605 02:18:48.158637       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:20:10.245025       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:20:10.263146       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-all
+I0605 02:20:17.346497       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-all
+I0605 02:20:17.354578       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-cidr-egress-rule
+I0605 02:21:10.128880       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-cidr-egress-rule
+I0605 02:21:10.145771       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:21:25.113906       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:21:25.128015       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/deny-ingress
+I0605 02:23:19.427586       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/deny-ingress
+I0605 02:23:19.442785       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-pod-selector
+I0605 02:23:26.521562       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-pod-selector
+I0605 02:23:26.529518       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:23:33.616849       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:23:33.624847       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-ns-y-matchselector
+I0605 02:23:40.702828       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-ns-y-matchselector
+I0605 02:23:40.712703       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-all
+I0605 02:23:47.815999       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-all
+I0605 02:23:47.823687       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/deny-all
+I0605 02:23:59.956134       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/deny-all
+I0605 02:23:59.965202       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/deny-all
+I0605 02:24:07.125697       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/deny-all
+I0605 02:24:07.133426       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-ns-y-matchselector2
+I0605 02:24:14.215971       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-ns-y-matchselector2
+I0605 02:24:14.223491       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-all
+I0605 02:24:31.438791       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-all
+I0605 02:24:31.448259       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:24:38.531717       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:24:38.539591       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-cidr-egress-rule
+I0605 02:24:55.232159       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-cidr-egress-rule
+I0605 02:24:55.239767       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-cidr-egress-rule
+I0605 02:26:35.826487       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/allow-client-a-via-cidr-egress-rule
+I0605 02:26:35.842290       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/x-a-allows-x-b
+I0605 02:26:42.925377       1 networkpolicy_controller.go:662] Deleting internal NetworkPolicy x/x-a-allows-x-b
+I0605 02:26:42.933344       1 networkpolicy_controller.go:583] Creating new internal NetworkPolicy x/allow-client-a-via-ns-selector
+I0605 02:31:02.291572       1 watch.go:129] The context had been canceled, stopping process
+I0605 02:47:25.682077       1 watch.go:129] The context had been canceled, stopping process
+I0605 02:58:21.308548       1 watch.go:129] The context had been canceled, stopping process
