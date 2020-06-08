@@ -308,6 +308,7 @@ func (k8s *Kubernetes) Bootstrap() error {
 		if err != nil {
 			return errors.WithMessagef(err, "unable to create/update ns %s", ns)
 		}
+
 		for _, pod := range pods {
 			log.Infof("creating/updating pod %s/%s", ns, pod)
 			_, err := k8s.CreateOrUpdateDeployment(ns, ns+pod, 1, map[string]string{"pod": pod})

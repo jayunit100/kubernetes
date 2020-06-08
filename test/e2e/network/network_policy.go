@@ -18,15 +18,16 @@ package network
 
 import (
 	"context"
+	"fmt"
+	"time"
+
+	"github.com/onsi/ginkgo"
+
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/kubernetes/test/e2e/framework"
 	netpol "k8s.io/kubernetes/test/e2e/network/policy/utils"
-	"time"
-
-	"fmt"
-	"github.com/onsi/ginkgo"
 )
 
 /*
@@ -138,7 +139,7 @@ install_calico
 
 */
 
-func log(s string){
+func log(s string) {
 	fmt.Println(s)
 }
 
@@ -172,7 +173,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			k8s.CleanNetworkPolicies([]string{"x", "y", "z"})
 		}
 
-		validateOrFailFunc := func(ns string, fromPort, toPort int,  policy *networkingv1.NetworkPolicy, reachability *netpol.Reachability, cleanPreviousPolicies bool) {
+		validateOrFailFunc := func(ns string, fromPort, toPort int, policy *networkingv1.NetworkPolicy, reachability *netpol.Reachability, cleanPreviousPolicies bool) {
 			if cleanPreviousPolicies == true {
 				cleanup()
 			}
@@ -205,7 +206,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		}
 
 		ginkgo.It("im not crazy", func() {
-			time.Sleep(5*time.Second)
+			time.Sleep(5 * time.Second)
 			// Getting podServer's status to get podServer's IP, to create the CIDR with except clause
 			// 			podList, err := clientset.Core().Pods(name).List(api.ListOptions{LabelSelector: set.AsSelector()})
 			podList, err := f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=a"})
@@ -213,8 +214,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				panic(err)
 			}
 			pod := podList.Items[0]
-			fmt.Print(fmt.Sprintf("\n\npod:::::%v\n\n",pod.Status.PodIP))
-
+			fmt.Print(fmt.Sprintf("\n\npod:::::%v\n\n", pod.Status.PodIP))
 
 		})
 
@@ -227,7 +227,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.ExpectAllIngress(netpol.PodString("x/b"), false)
 			reachability.ExpectAllIngress(netpol.PodString("x/c"), false)
 			reachability.AllowLoopback()
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 		})
 
 		ginkgo.It("should support a 'default-deny-all' policy [Feature:NetworkPolicy]", func() {
@@ -240,7 +240,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.ExpectAllIngress(netpol.PodString("x/b"), false)
 			reachability.ExpectAllEgress(netpol.PodString("x/c"), false)
 			reachability.AllowLoopback()
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 			// TODO, should we have a positive control before this test runs in GinkoEach?
 		})
 
@@ -264,7 +264,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policy := netpol.GetAllowBasedOnPodSelector("x-a-allows-x-b", map[string]string{"pod": "a"}, &metav1.LabelSelector{
 				MatchLabels: map[string]string{"pod": "b"},
 			})
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 
 			ginkgo.By("Using a MATCH EXPRESSION")
 
@@ -276,7 +276,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}},
 			})
 
-			validateOrFailFunc("x", 82,80, policy2, reachability, true)
+			validateOrFailFunc("x", 82, 80, policy2, reachability, true)
 		})
 
 		ginkgo.It("should enforce policy to allow traffic only from a different namespace, based on NamespaceSelector [Feature:NetworkPolicy]", func() {
@@ -296,7 +296,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}
 			reachability.Expect(netpol.PodString("x/a"), netpol.PodString("x/a"), true)
 
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 		})
 
 		ginkgo.It("should enforce policy based on NamespaceSelector with MatchExpressions[Feature:NetworkPolicy]", func() {
@@ -316,7 +316,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			}
 			reachability.AllowLoopback()
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 		})
 
 		ginkgo.It("should enforce policy based on PodSelector or NamespaceSelector [Feature:NetworkPolicy]", func() {
@@ -350,7 +350,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.Expect("x/b", "x/a", true)
 			reachability.Expect("x/c", "x/a", false)
 			reachability.AllowLoopback()
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 
 		})
 
@@ -378,7 +378,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			scenario.forEach(func(from, to netpol.PodString) {
-				if to == "x/a"{
+				if to == "x/a" {
 					if from.Namespace() == "z" || from.Namespace() == "y" {
 						if from.PodName() != "b" {
 							reachability.Expect(from, to, false)
@@ -390,7 +390,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			})
 			reachability.AllowLoopback()
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 		})
 
 		// This tests both verifies stacking as well as ports.
@@ -404,16 +404,16 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// allow all traffic from the x,y,z namespaces
 			reachabilityALLOW := netpol.NewReachability(scenario.allPods, true)
 
-			scenario.forEach(func(from netpol.PodString, to netpol.PodString){
-				if to=="x/a" {
-					if from.Namespace()=="y"{
-						reachabilityALLOW.Expect(from, to,true )
+			scenario.forEach(func(from netpol.PodString, to netpol.PodString) {
+				if to == "x/a" {
+					if from.Namespace() == "y" {
+						reachabilityALLOW.Expect(from, to, true)
 					}
-					if from.Namespace()=="z"{
-						reachabilityALLOW.Expect(from, to ,false )
+					if from.Namespace() == "z" {
+						reachabilityALLOW.Expect(from, to, false)
 					}
-					if from.Namespace()=="x"{
-						reachabilityALLOW.Expect(from, to,false )
+					if from.Namespace() == "x" {
+						reachabilityALLOW.Expect(from, to, false)
 					}
 				}
 			})
@@ -428,12 +428,12 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// 1) Make sure now that port 81 works ok for the y namespace THEN 2) Verify that port 80 doesnt work for any namespace (other then loopback)
 
 			ginkgo.By("************* Verifying that all traffic to another port, 81, is works.")
-			validateOrFailFunc("x", 82,81, policy, reachabilityALLOW, true)
+			validateOrFailFunc("x", 82, 81, policy, reachabilityALLOW, true)
 			ginkgo.By("************ Verifying that all traffic to another port, 80, is blocked.")
 			reachabilityDENY := netpol.NewReachability(scenario.allPods, true)
-			reachabilityDENY.ExpectAllIngress("x/a",false)
+			reachabilityDENY.ExpectAllIngress("x/a", false)
 			reachabilityDENY.AllowLoopback()
-			validateOrFailFunc("x", 82,80, policy, reachabilityDENY, false)
+			validateOrFailFunc("x", 82, 80, policy, reachabilityDENY, false)
 
 			// 3) Verify that we can stack a policy to unblock port 80
 
@@ -446,7 +446,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policy2.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
 				Port: &intstr.IntOrString{IntVal: 80},
 			}}
-			validateOrFailFunc("x", 82,80, policy2, reachabilityALLOW, false)
+			validateOrFailFunc("x", 82, 80, policy2, reachabilityALLOW, false)
 		})
 
 		ginkgo.It("should support allow-all policy [Feature:NetworkPolicy]", func() {
@@ -454,8 +454,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policy := netpol.GetAllowAll("allow-all")
 			ginkgo.By("Testing pods can connect to both ports when an 'allow-all' policy is present.")
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
-			validateOrFailFunc("x", 82,81, policy, reachability, false)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
+			validateOrFailFunc("x", 82, 81, policy, reachability, false)
 		})
 
 		ginkgo.It("should allow ingress access on one named port [Feature:NetworkPolicy]", func() {
@@ -471,7 +471,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// disallow all traffic from the x or z namespaces
 			reachability := netpol.NewReachability(scenario.allPods, true)
 
-			validateOrFailFunc("x",82, 81, policy, reachability, true)
+			validateOrFailFunc("x", 82, 81, policy, reachability, true)
 
 			// disallow all traffic from the x or z namespaces
 			reachability80 := netpol.NewReachability(scenario.allPods, true)
@@ -481,7 +481,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			})
 			reachability80.AllowLoopback()
-			validateOrFailFunc("x", 82,80, nil, reachability80, false)
+			validateOrFailFunc("x", 82, 80, nil, reachability80, false)
 		})
 
 		ginkgo.It("should allow ingress access from namespace on one named port [Feature:NetworkPolicy]", func() {
@@ -503,15 +503,15 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}
 			reachability.AllowLoopback()
 
-			validateOrFailFunc("x",82, 80, policy, reachability, false)
+			validateOrFailFunc("x", 82, 80, policy, reachability, false)
 
 			// now validate 81 doesnt work, AT ALL, even for ns y... this validation might be overkill,
 			// but still should be pretty fast.
 			reachabilityFAIL := netpol.NewReachability(scenario.allPods, true)
-			reachabilityFAIL.ExpectAllIngress("x/a",false)
+			reachabilityFAIL.ExpectAllIngress("x/a", false)
 			reachabilityFAIL.AllowLoopback()
 			cleanup()
-			validateOrFailFunc("x", 82,81, policy, reachabilityFAIL, true)
+			validateOrFailFunc("x", 82, 81, policy, reachabilityFAIL, true)
 		})
 
 		// TODO In this test we remove the DNS check.  Write a higher level DNS checking test
@@ -527,7 +527,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 							PodSelector: &metav1.LabelSelector{},
 							// allow all
 							NamespaceSelector: &metav1.LabelSelector{},
-							IPBlock: nil,
+							IPBlock:           nil,
 						},
 					},
 					Ports: []networkingv1.NetworkPolicyPort{
@@ -538,7 +538,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				},
 			}
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 
 			// meanwhile no traffic over 81 should work, since our egress policy is on 82
 			reachability81 := netpol.NewReachability(scenario.allPods, true)
@@ -547,16 +547,15 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability81.ExpectAllEgress("x/c", false)
 			reachability81.AllowLoopback()
 			// no input policy, dont erase the last one...
-			validateOrFailFunc("x", 82,81, nil, reachability81, false)
+			validateOrFailFunc("x", 82, 81, nil, reachability81, false)
 		})
-
 
 		// The simplest possible mutation for this test - which is denyall->allow all.
 		ginkgo.It("should enforce updated policy [Feature:NetworkPolicy]", func() {
 			// part 1) allow all
 			policy := netpol.GetAllowAll("allow-all-mutate-to-deny-all")
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			validateOrFailFunc("x",82, 81, policy, reachability, true)
+			validateOrFailFunc("x", 82, 81, policy, reachability, true)
 
 			// part 2) update the policy to deny all, empty...
 			policy.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{}
@@ -567,7 +566,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			})
 			reachability.AllowLoopback()
-			validateOrFailFunc("x",82, 81, policy, reachability, false)
+			validateOrFailFunc("x", 82, 81, policy, reachability, false)
 		})
 
 		// WEDNESDAY
@@ -576,17 +575,17 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// add a new label, we'll remove it after this test is completed...
 			cleanNewLabel := func() {
 				nsY, _ := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), "y", metav1.GetOptions{})
-				nsY.ObjectMeta.Labels=map[string]string{"ns":"y"}
-				_,_ = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), nsY, metav1.UpdateOptions{})
+				nsY.ObjectMeta.Labels = map[string]string{"ns": "y"}
+				_, _ = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), nsY, metav1.UpdateOptions{})
 			}
 			cleanNewLabel() // in case its dirty, clean before this test starts... TODO replace w/ global ns cleaner.
 			defer cleanNewLabel()
 
 			AddNewLabel := func() {
 				nsY, _ := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), "y", metav1.GetOptions{})
-				nsY.ObjectMeta.Labels["ns2"]="updated"
-				nsY.ObjectMeta.Labels["ns"]="y"
-				_,_ = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), nsY, metav1.UpdateOptions{})
+				nsY.ObjectMeta.Labels["ns2"] = "updated"
+				nsY.ObjectMeta.Labels["ns"] = "y"
+				_, _ = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), nsY, metav1.UpdateOptions{})
 			}
 
 			allowedLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"ns2": "updated"}}
@@ -601,16 +600,15 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			}
 			reachability.AllowLoopback()
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
-			
-			AddNewLabel()
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 
+			AddNewLabel()
 
 			// now update our matrix - we want anything 'y' to be able to get to x/a...
 			reachability.Expect(netpol.PodString("y/a"), netpol.PodString("x/a"), true)
 			reachability.Expect(netpol.PodString("y/b"), netpol.PodString("x/a"), true)
 			reachability.Expect(netpol.PodString("y/c"), netpol.PodString("x/a"), true)
-			validateOrFailFunc("x",82, 80, policy, reachability, false)
+			validateOrFailFunc("x", 82, 80, policy, reachability, false)
 		})
 
 		//  This function enables, and then denies, access to an updated pod. combining two previous test cases into
@@ -619,7 +617,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		//  as well.
 		ginkgo.It("should allow ingress access from updated pod , and deny access to the updated pod as well [Feature:NetworkPolicy]", func() {
 			// add a new label, we'll remove it after this test is
-			allowedLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"pod":"b", "pod2": "updated"}}
+			allowedLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"pod": "b", "pod2": "updated"}}
 
 			xb, err := f.ClientSet.AppsV1().Deployments("x").Get(context.TODO(), "xb", metav1.GetOptions{})
 
@@ -635,18 +633,18 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			cleanNewLabel := func() {
 				xb, err = f.ClientSet.AppsV1().Deployments("x").Get(context.TODO(), "xb", metav1.GetOptions{})
-				xb.Spec.Template.ObjectMeta.Labels=map[string]string{"pod":"b"}
+				xb.Spec.Template.ObjectMeta.Labels = map[string]string{"pod": "b"}
 
 				_, err = f.ClientSet.AppsV1().Deployments("x").Update(context.TODO(), xb, metav1.UpdateOptions{})
 				if err != nil {
-						log("possible problem ")
+					log("possible problem ")
 					panic(err)
 				}
-				time.Sleep(10*time.Second)
+				time.Sleep(10 * time.Second)
 			}
 			updateNewLabel := func() {
 				xb, err = f.ClientSet.AppsV1().Deployments("x").Get(context.TODO(), "xb", metav1.GetOptions{})
-				xb.Spec.Template.ObjectMeta.Labels=map[string]string{"pod":"b", "pod2":"updated"}
+				xb.Spec.Template.ObjectMeta.Labels = map[string]string{"pod": "b", "pod2": "updated"}
 				_, err = f.ClientSet.AppsV1().Deployments("x").Update(context.TODO(), xb, metav1.UpdateOptions{})
 				if err != nil {
 					panic(err)
@@ -656,7 +654,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					panic(err)
 				}
 				fmt.Println(fmt.Sprintf("---> xb labels ----> %v", xb.ObjectMeta.Labels))
-				time.Sleep(10*time.Second)
+				time.Sleep(10 * time.Second)
 			}
 
 			// replace this w/ a clean step in each that relabels ? seems like bespoke logic which we could use
@@ -668,8 +666,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			updateNewLabel()
 
 			ginkgo.By("Verfying it works nowwwwwwwwwwww")
-			reachability.Expect("x/b", "x/a", true )
-			validateOrFailFunc("x", 82,80, nil, reachability, false)
+			reachability.Expect("x/b", "x/a", true)
+			validateOrFailFunc("x", 82, 80, nil, reachability, false)
 
 			ginkgo.By("final removal of label to confir blacklisting is back")
 			cleanNewLabel()
@@ -679,7 +677,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		// ingress NS + PORT
 		// egress NS + PORT
 		ginkgo.It("should work with Ingress, Egress specified together [Feature:NetworkPolicy]", func() {
-
 
 			allowedPodLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"pod": "b"}}
 			policy := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-pod-selector", map[string]string{"pod": "a"}, allowedPodLabels)
@@ -694,22 +691,21 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				},
 			}
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			reachability.ExpectAllIngress("x/a",false)
-			reachability.Expect("x/b","x/a",true)
+			reachability.ExpectAllIngress("x/a", false)
+			reachability.Expect("x/b", "x/a", true)
 			reachability.AllowLoopback()
-			validateOrFailFunc("x", 82,80, policy, reachability, true)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 
 			ginkgo.By("validating that 81 doesnt work.......................................")
 
 			// meanwhile no traffic over 81 should work, since our egress policy is on 80
-			reachability.ExpectAllEgress("x/a",false)
+			reachability.ExpectAllEgress("x/a", false)
 			reachability.AllowLoopback()
 			validateOrFailFunc("x", 82, 81, nil, reachability, false)
 
 		})
 
 		ginkgo.It("should enforce multiple egress policies with egress allow-all policy taking precedence [Feature:NetworkPolicy]", func() {
-
 
 			policy := netpol.GetDefaultAllAllowEggress("allow-all")
 			// add an egress rule on to it... 
@@ -725,17 +721,17 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			ginkgo.By("making sure egress doesnt work to start")
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			reachability.ExpectAllEgress("x/a",false)
-			reachability.ExpectAllEgress("x/b",false)
-			reachability.ExpectAllEgress("x/c",false)
+			reachability.ExpectAllEgress("x/a", false)
+			reachability.ExpectAllEgress("x/b", false)
+			reachability.ExpectAllEgress("x/c", false)
 			reachability.AllowLoopback()
 			validateOrFailFunc("x", 82, 81, policy, reachability, false)
 
 			ginkgo.By("FIXING IT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 			// 2nd allow all policy, we wont mess it up this time thought.
-			reachability.ExpectAllEgress("x/a",true)
-			reachability.ExpectAllEgress("x/b",true)
-			reachability.ExpectAllEgress("x/c",true)
+			reachability.ExpectAllEgress("x/a", true)
+			reachability.ExpectAllEgress("x/b", true)
+			reachability.ExpectAllEgress("x/c", true)
 
 			policy2 := netpol.GetDefaultAllAllowEggress("allow-all-2")
 			validateOrFailFunc("x", 82, 81, policy2, reachability, false)
@@ -749,18 +745,18 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			reachability.AllowLoopback()
 			scenario.forEach(func(from, to netpol.PodString) {
-				if from.Namespace()=="x" || to.Namespace()=="x" {
+				if from.Namespace() == "x" || to.Namespace() == "x" {
 					if from != to {
 						reachability.Expect(from, to, false)
 					}
 				}
 			})
-			validateOrFailFunc("x",82,80,policy,reachability, true)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 
 			err := k8s.CleanNetworkPolicies([]string{"x", "y", "z"})
-			time.Sleep(1*time.Second)
+			time.Sleep(1 * time.Second)
 			if err != nil {
-				ginkgo.Fail(fmt.Sprintf("%v",err))
+				ginkgo.Fail(fmt.Sprintf("%v", err))
 			}
 			reachability = netpol.NewReachability(scenario.allPods, true)
 			validateOrFailFunc("x", 82, 80, nil, reachability, false)
@@ -785,15 +781,15 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			egressPolicyAllowToB := netpol.GetPolicyWithEgressRuleOnlyPodSelector("x", "a", "b")
 
 			reachability = netpol.NewReachability(scenario.allPods, true)
-			for _,nn := range []string{"x","y","z"} {
+			for _, nn := range []string{"x", "y", "z"} {
 				for _, pp := range []string{"a", "b", "c"} {
-					reachability.Expect("x/a",netpol.NewPod(nn,pp), false)
+					reachability.Expect("x/a", netpol.NewPod(nn, pp), false)
 				}
 			}
-			reachability.Expect("x/a","x/a", true)
-			reachability.Expect("x/a","x/b", true)
+			reachability.Expect("x/a", "x/a", true)
+			reachability.Expect("x/a", "x/b", true)
 
-			validateOrFailFunc("x", 82, 80, egressPolicyAllowToB, reachability,true)
+			validateOrFailFunc("x", 82, 80, egressPolicyAllowToB, reachability, true)
 
 			ginkgo.By("Creating a network policy for pod-a that denies traffic from pod-b.")
 			policyDenyFromPodB := netpol.GetDefaultDenyIngressPolicy("deny-all")
@@ -804,7 +800,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability2.ExpectAllIngress(netpol.PodString("x/b"), false)
 			reachability2.ExpectAllIngress(netpol.PodString("x/c"), false)
 			reachability2.AllowLoopback()
-			validateOrFailFunc("x", 82,80, policyDenyFromPodB, reachability2, true)
+			validateOrFailFunc("x", 82, 80, policyDenyFromPodB, reachability2, true)
 		})
 
 		ginkgo.It("should allow egress access to server in CIDR block [Feature:NetworkPolicy]", func() {
@@ -821,18 +817,17 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policyAllowCIDR := netpol.PolicyAllowCIDR("x", "a", podServerCIDR)
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			for _,nn := range []string{"x","y","z"} {
+			for _, nn := range []string{"x", "y", "z"} {
 				for _, pp := range []string{"a", "b", "c"} {
-					reachability.Expect("x/a",netpol.NewPod(nn,pp), false)
+					reachability.Expect("x/a", netpol.NewPod(nn, pp), false)
 				}
 			}
-			reachability.Expect("x/a","x/a", true)
+			reachability.Expect("x/a", "x/a", true)
 
-			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability,true)
+			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability, true)
 		})
 
 		ginkgo.It("should enforce except clause while egress access to server in CIDR block [Feature:NetworkPolicy]", func() {
-
 
 			// Getting podServer's status to get podServer's IP, to create the CIDR with except clause
 			podList, err := f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=a"})
@@ -855,9 +850,9 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 
-			reachability.Expect("x/a","x/b", false)
+			reachability.Expect("x/a", "x/b", false)
 
-			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability,true)
+			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability, true)
 		})
 
 		ginkgo.It("should ensure an IP overlapping both IPBlock.CIDR and IPBlock.Except is allowed [Feature:NetworkPolicy]", func() {
@@ -882,22 +877,22 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 
-			reachability.Expect("x/a","x/b", false)
+			reachability.Expect("x/a", "x/b", false)
 
-			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability,true)
+			validateOrFailFunc("x", 82, 80, policyAllowCIDR, reachability, true)
 
 			podbIp := fmt.Sprintf("%s/32", podb.Status.PodIP)
 			//// Create NetworkPolicy which allows access to the podServer using podServer's IP in allow CIDR.
 			allowPolicy := netpol.PolicyAllowCIDR("x", "a", podbIp)
 			reachability_2 := netpol.NewReachability(scenario.allPods, true)
-			for _,nn := range []string{"x","y","z"} {
+			for _, nn := range []string{"x", "y", "z"} {
 				for _, pp := range []string{"a", "b", "c"} {
-					reachability_2.Expect("x/a",netpol.NewPod(nn,pp), false)
+					reachability_2.Expect("x/a", netpol.NewPod(nn, pp), false)
 				}
 			}
-			reachability_2.Expect("x/a","x/b", true)
-			reachability_2.Expect("x/a","x/a", true)
-			validateOrFailFunc("x", 82, 80, allowPolicy, reachability_2,false)
+			reachability_2.Expect("x/a", "x/b", true)
+			reachability_2.Expect("x/a", "x/a", true)
+			validateOrFailFunc("x", 82, 80, allowPolicy, reachability_2, false)
 		})
 	})
 })
