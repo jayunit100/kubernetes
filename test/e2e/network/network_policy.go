@@ -154,7 +154,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			if k8s == nil {
 				k8s, _ = netpol.NewKubernetes()
 				k8s.Bootstrap()
-				k8s.CleanNetworkPolicies([]string{"x", "y", "z"})
+				k8s.CleanNetworkPolicies(scenario.namespaces)
 
 				// convenience: putting unit tests in here for now...
 				if netpol.PodString("x/a") != netpol.NewPod("x", "a") {
@@ -170,7 +170,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		})
 
 		cleanup := func() {
-			k8s.CleanNetworkPolicies([]string{"x", "y", "z"})
+			k8s.CleanNetworkPolicies(scenario.namespaces)
 		}
 
 		validateOrFailFunc := func(ns string, fromPort, toPort int, policy *networkingv1.NetworkPolicy, reachability *netpol.Reachability, cleanPreviousPolicies bool) {
@@ -204,19 +204,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			fmt.Println("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
 		}
-
-		ginkgo.It("im not crazy", func() {
-			time.Sleep(5 * time.Second)
-			// Getting podServer's status to get podServer's IP, to create the CIDR with except clause
-			// 			podList, err := clientset.Core().Pods(name).List(api.ListOptions{LabelSelector: set.AsSelector()})
-			podList, err := f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=a"})
-			if err != nil {
-				panic(err)
-			}
-			pod := podList.Items[0]
-			fmt.Print(fmt.Sprintf("\n\npod:::::%v\n\n", pod.Status.PodIP))
-
-		})
 
 		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:NetworkPolicy]", func() {
 			policy := netpol.GetDefaultDenyIngressPolicy("deny-ingress")
@@ -468,7 +455,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81"},
 			}}
 
-			// disallow all traffic from the x or z namespaces
 			reachability := netpol.NewReachability(scenario.allPods, true)
 
 			validateOrFailFunc("x", 82, 81, policy, reachability, true)
@@ -503,7 +489,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}
 			reachability.AllowLoopback()
 
-			validateOrFailFunc("x", 82, 80, policy, reachability, false)
+			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 
 			// now validate 81 doesnt work, AT ALL, even for ns y... this validation might be overkill,
 			// but still should be pretty fast.
@@ -753,7 +739,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			})
 			validateOrFailFunc("x", 82, 80, policy, reachability, true)
 
-			err := k8s.CleanNetworkPolicies([]string{"x", "y", "z"})
+			err := k8s.CleanNetworkPolicies(scenario.namespaces)
 			time.Sleep(1 * time.Second)
 			if err != nil {
 				ginkgo.Fail(fmt.Sprintf("%v", err))
