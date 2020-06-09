@@ -23,6 +23,7 @@ import (
 
 	"github.com/onsi/ginkgo"
 
+	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -666,7 +667,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			allowedPodLabels := &metav1.LabelSelector{MatchLabels: map[string]string{"pod": "b"}}
 			policy := netpol.GetAllowBasedOnPodSelector("allow-client-a-via-pod-selector", map[string]string{"pod": "a"}, allowedPodLabels)
-			// add an egress rule on to it... 
+			// add an egress rule on to it...
 			policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{
 				{
 					Ports: []networkingv1.NetworkPolicyPort{
@@ -691,10 +692,41 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 		})
 
+		ginkgo.It("should enforce multiple ingress policies with ingress allow-all policy taking precedence [Feature:NetworkPolicy]", func() {
+
+			policy := netpol.GetAllowAll("allow-all")
+			policy.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+						},
+					},
+				},
+			}
+
+			ginkgo.By("making sure ingress doesn't work to start")
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			reachability.ExpectAllIngress("x/a", false)
+			reachability.ExpectAllIngress("x/b", false)
+			reachability.ExpectAllIngress("x/c", false)
+			reachability.AllowLoopback()
+			validateOrFailFunc("x", 82, 81, policy, reachability, true)
+
+			ginkgo.By("FIXING IT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+			reachability.ExpectAllIngress("x/a", true)
+			reachability.ExpectAllIngress("x/b", true)
+			reachability.ExpectAllIngress("x/c", true)
+
+			policy2 := netpol.GetAllowAll("allow-all-2")
+			validateOrFailFunc("x", 82, 81, policy2, reachability, false)
+
+		})
+
 		ginkgo.It("should enforce multiple egress policies with egress allow-all policy taking precedence [Feature:NetworkPolicy]", func() {
 
 			policy := netpol.GetDefaultAllAllowEggress("allow-all")
-			// add an egress rule on to it... 
+			// add an egress rule on to it...
 			policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{
 				{
 					Ports: []networkingv1.NetworkPolicyPort{
@@ -711,10 +743,9 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.ExpectAllEgress("x/b", false)
 			reachability.ExpectAllEgress("x/c", false)
 			reachability.AllowLoopback()
-			validateOrFailFunc("x", 82, 81, policy, reachability, false)
+			validateOrFailFunc("x", 82, 81, policy, reachability, true)
 
 			ginkgo.By("FIXING IT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-			// 2nd allow all policy, we wont mess it up this time thought.
 			reachability.ExpectAllEgress("x/a", true)
 			reachability.ExpectAllEgress("x/b", true)
 			reachability.ExpectAllEgress("x/c", true)
@@ -880,5 +911,25 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability_2.Expect("x/a", "x/a", true)
 			validateOrFailFunc("x", 82, 80, allowPolicy, reachability_2, false)
 		})
+
+		// NOTE: SCTP protocol is not in Kubernetes 1.19 so this test will fail locally.
+		ginkgo.It("should not allow access by TCP when a policy specifies only SCTP [Feature:NetworkPolicy] [Feature:SCTP]", func() {
+			policy := netpol.GetAllowAll("allow-all")
+
+			ginkgo.By("Creating a network policy for the server which allows traffic only via SCTP on port 81.")
+			protocolSCTP := v1.ProtocolSCTP
+			// WARNING ! Since we are adding a port rule, that means that the lack of a
+			// pod selector will cause this policy to target the ENTIRE namespace.....
+			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
+				Port:     &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81"},
+				Protocol: &protocolSCTP,
+			}}
+
+			// Probing with TCP, so all traffic should be dropped.
+			reachability := netpol.NewReachability(scenario.allPods, false)
+
+			validateOrFailFunc("x", 82, 81, policy, reachability, true)
+		})
+
 	})
 })
