@@ -68,13 +68,16 @@ func NewScenario() *Scenario {
 	s := &Scenario{}
 	s.p80 = 80
 	s.p81 = 81
-	s.pods = []string{"a", "b", "c"}
+	s.pods = []string{"a", "b", "c","d"}
 	s.namespaces = []string{"x", "y", "z"}
 	s.podIPs = make(map[string]string, len(s.pods)*len(s.namespaces))
 	for _, podName := range s.pods {
 		for _, ns := range s.namespaces {
 			s.allPods = append(s.allPods, netpol.NewPod(ns, podName))
 		}
+	}
+	for i := 0; i < 200; i++ {
+		netpol.GetRandom(i)
 	}
 	return s
 }
@@ -555,6 +558,26 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.AllowLoopback()
 			validateOrFailFunc("x", 82, 81, policy, reachability, false)
 		})
+
+		// The simplest possible mutation for this test - which is denyall->allow all.
+		ginkgo.It("should enforce updated policy under load [Feature:NetworkPolicy]", func() {
+			// part 1) allow all
+			policy := netpol.GetAllowAll("allow-all-mutate-to-deny-all")
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			validateOrFailFunc("x", 82, 81, policy, reachability, true)
+
+			// part 2) update the policy to deny all, empty...
+			policy.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{}
+			reachability = netpol.NewReachability(scenario.allPods, true)
+			scenario.forEach(func(from, to netpol.PodString) {
+				if to.Namespace() == "x" {
+					reachability.Expect(from, to, false)
+				}
+			})
+			reachability.AllowLoopback()
+			validateOrFailFunc("x", 82, 81, policy, reachability, false)
+		})
+
 
 		// WEDNESDAY
 
