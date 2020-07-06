@@ -150,20 +150,20 @@ func GetDefaultDenyIngressPolicy(name string) *networkingv1.NetworkPolicy {
 
 // GetRandom returns "num" random policies that whitelist a unique:1 label, i.e.
 // unique:1, unique:2, and so on.  Used for creating a 'background' set of policies.
-func GetRandom(num int) []networkingv1.NetworkPolicy {
+func GetRandom(num int) []*networkingv1.NetworkPolicy {
 
-        policies := []networkingv1.NetworkPolicy{}
+        policies := []*networkingv1.NetworkPolicy{}
 
         for i:=0 ; i<num; i++{
-		policy := networkingv1.NetworkPolicy{
+		policy := &networkingv1.NetworkPolicy{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: fmt.Sprintf("allow-all-%s",i),
+				Name: fmt.Sprintf("allow-all-%v",i),
 			},
 			Spec: networkingv1.NetworkPolicySpec{
 				// Allow all traffic
 				PodSelector: metav1.LabelSelector{
 					MatchLabels: map[string]string{
-						"unique":fmt.Sprintf("%s",i),
+						"unique":fmt.Sprintf("%v",i),
 					},
 				},
 				Ingress: []networkingv1.NetworkPolicyIngressRule{{}},

@@ -47,6 +47,7 @@ type Scenario struct {
 	p81        int
 	allPods    []netpol.PodString
 	podIPs     map[string]string
+        polices    []networkingv1.NetworkPolicy
 }
 
 // forEach is a convenient function for iterating through all combinations
@@ -68,16 +69,13 @@ func NewScenario() *Scenario {
 	s := &Scenario{}
 	s.p80 = 80
 	s.p81 = 81
-	s.pods = []string{"a", "b", "c","d"}
+	s.pods = []string{"a", "b", "c"}
 	s.namespaces = []string{"x", "y", "z"}
 	s.podIPs = make(map[string]string, len(s.pods)*len(s.namespaces))
 	for _, podName := range s.pods {
 		for _, ns := range s.namespaces {
 			s.allPods = append(s.allPods, netpol.NewPod(ns, podName))
 		}
-	}
-	for i := 0; i < 200; i++ {
-		netpol.GetRandom(i)
 	}
 	return s
 }
@@ -152,6 +150,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 	var k8s *netpol.Kubernetes
 	var scenario *Scenario
+	backgroundInit := false
 	ginkgo.BeforeEach(func() {
 		func() {
 			scenario = NewScenario()
@@ -164,6 +163,15 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				if netpol.PodString("x/a") != netpol.NewPod("x", "a") {
 					panic("omg theyre not the same, dying")
 				}
+			}
+			if ! backgroundInit {
+				p := netpol.GetRandom(201)
+				for i := 0; i < 200; i++ {
+					_,e := f.ClientSet.NetworkingV1().NetworkPolicies("default").Create(context.TODO(), p[i], metav1.CreateOptions{})
+				if e != nil {
+					fmt.Println(fmt.Sprintf("%v",e))
+				}}
+				backgroundInit = true
 			}
 		}()
 	})
