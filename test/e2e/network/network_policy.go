@@ -19,8 +19,9 @@ package network
 import (
 	"context"
 	"fmt"
-	"github.com/onsi/ginkgo"
 	"time"
+
+	"github.com/onsi/ginkgo"
 
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,7 +46,7 @@ type Scenario struct {
 	p81        int
 	allPods    []netpol.PodString
 	podIPs     map[string]string
-        polices    []networkingv1.NetworkPolicy
+	polices    []networkingv1.NetworkPolicy
 }
 
 // forEach is a convenient function for iterating through all combinations
@@ -78,7 +79,7 @@ func NewScenario() *Scenario {
 	return s
 }
 
-func validateOrFailFunc (k8s *netpol.Kubernetes, f *framework.Framework, ns string, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
+func validateOrFailFunc(k8s *netpol.Kubernetes, f *framework.Framework, ns string, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
 	reachability *netpol.Reachability, cleanPreviousPolicies bool, scenario *Scenario) {
 	if cleanPreviousPolicies == true {
 		err := k8s.CleanNetworkPolicies(scenario.namespaces)
@@ -111,7 +112,7 @@ func validateOrFailFunc (k8s *netpol.Kubernetes, f *framework.Framework, ns stri
 
 }
 
-func nsLabelCleaner(f *framework.Framework, ns string){
+func nsLabelCleaner(f *framework.Framework, ns string) {
 	selectedNameSpace, err := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
 	framework.ExpectNoError(err, "Failing to get namespace %v", ns)
 	selectedNameSpace.ObjectMeta.Labels = map[string]string{"ns": ns}
@@ -235,13 +236,14 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					framework.Failf("Namespace, pod representation doesn't match PodString type")
 				}
 			}
-			if ! backgroundInit {
+			if !backgroundInit {
 				p := netpol.GetRandom(201)
 				for i := 0; i < 200; i++ {
-					_,e := f.ClientSet.NetworkingV1().NetworkPolicies("default").Create(context.TODO(), p[i], metav1.CreateOptions{})
-				if e != nil {
-					fmt.Println(fmt.Sprintf("%v",e))
-				}}
+					_, e := f.ClientSet.NetworkingV1().NetworkPolicies("default").Create(context.TODO(), p[i], metav1.CreateOptions{})
+					if e != nil {
+						fmt.Println(fmt.Sprintf("%v", e))
+					}
+				}
 				backgroundInit = true
 			}
 		}()
@@ -254,9 +256,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			err := k8s.CleanNetworkPolicies(scenario.namespaces)
 			framework.ExpectNoError(err, "Error occurred while cleaning network policy")
 			reachability = netpol.NewReachability(scenario.allPods, true)
-			validateOrFailFunc(k8s,f, "x", 82, 80, nil, reachability, false, scenario)
+			validateOrFailFunc(k8s, f, "x", 82, 80, nil, reachability, false, scenario)
 		})
-
 
 		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:NetworkPolicy]", func() {
 			policy := netpol.GetDefaultDenyIngressPolicy("deny-ingress")
@@ -298,7 +299,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			policy := netpol.GetAllowBasedOnPodSelector("x-a-allows-x-b", map[string]string{"pod": "a"}, &allowedPods)
 
-
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			scenario.forEach(func(from, to netpol.PodString) {
 				if to == "x/a" && from != "x/b" {
@@ -307,7 +307,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			})
 			reachability.AllowLoopback()
 
-			validateOrFailFunc(k8s, f,"x", 82, 80, policy, reachability, true, scenario)
+			validateOrFailFunc(k8s, f, "x", 82, 80, policy, reachability, true, scenario)
 
 			ginkgo.By("Using a MATCH EXPRESSION")
 
@@ -410,7 +410,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 		})
 
-
 		ginkgo.It("should enforce policy based on PodSelector and NamespaceSelector [Feature:NetworkPolicy]", func() {
 			allowedNamespaces := &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{{
@@ -446,7 +445,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			})
 			reachability.AllowLoopback()
-			validateOrFailFunc(k8s, f,"x", 82, 80, policy, reachability, false, scenario)
+			validateOrFailFunc(k8s, f, "x", 82, 80, policy, reachability, false, scenario)
 		})
 
 		//add this new case to allow multiple podselctor and namespaceselectors
@@ -474,7 +473,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}
 			policy.Spec.Ingress[0].From[0].PodSelector = allowedPod
 
-
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			scenario.forEach(func(from, to netpol.PodString) {
 				if to == "x/a" {
@@ -489,10 +487,10 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			})
 			reachability.AllowLoopback()
-			validateOrFailFunc(k8s, f,"x", 82, 80, policy, reachability, false, scenario)
+			validateOrFailFunc(k8s, f, "x", 82, 80, policy, reachability, false, scenario)
 		})
 
-		ginkgo.It("should enforce policy to allow traffic only from a pod in a different namespace based on PodSelector and NamespaceSelector [Feature:NetworkPolicy]", func(){
+		ginkgo.It("should enforce policy to allow traffic only from a pod in a different namespace based on PodSelector and NamespaceSelector [Feature:NetworkPolicy]", func() {
 			allowedNamespaces := &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"ns": "y",
@@ -505,7 +503,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}
 
 			policy := netpol.GetAllowBasedOnPodSelectorandNamespaceSelectorFromOtherNamespace("x", "allow-ns-y-pod-a-via-namespace-pod-selector",
-				map[string]string{"pod" : "a"}, allowedNamespaces, allowedPods)
+				map[string]string{"pod": "a"}, allowedNamespaces, allowedPods)
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			scenario.forEach(func(from, to netpol.PodString) {
@@ -644,7 +642,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachabilityFAIL.AllowLoopback()
 			//change here
 			//k8s.CleanNetworkPolicies(scenario.namespaces)
-			validateOrFailFunc(k8s, f,"x", 82, 81, policy, reachabilityFAIL, false, scenario)
+			validateOrFailFunc(k8s, f, "x", 82, 81, policy, reachabilityFAIL, false, scenario)
 		})
 
 		// TODO In this test we remove the DNS check.  Write a higher level DNS checking test
@@ -671,7 +669,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				},
 			}
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			validateOrFailFunc(k8s, f,"x", 82, 80, policy, reachability, true, scenario)
+			validateOrFailFunc(k8s, f, "x", 82, 80, policy, reachability, true, scenario)
 
 			// meanwhile no traffic over 81 should work, since our egress policy is on 82
 			reachability81 := netpol.NewReachability(scenario.allPods, true)
@@ -707,7 +705,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// part 1) allow all
 			policy := netpol.GetAllowAll("allow-all-mutate-to-deny-all")
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			validateOrFailFunc(k8s, f,"x", 82, 81, policy, reachability, true, scenario)
+			validateOrFailFunc(k8s, f, "x", 82, 81, policy, reachability, true, scenario)
 
 			// part 2) update the policy to deny all, empty...
 			policy.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{}
@@ -721,14 +719,12 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			validateOrFailFunc(k8s, f, "x", 82, 81, policy, reachability, false, scenario)
 		})
 
-
-
 		ginkgo.It("should allow ingress access from updated namespace [Feature:NetworkPolicy]", func() {
 			nsLabelCleaner(f, "y")
 			defer nsLabelCleaner(f, "y")
 			// add a new label, we'll remove it after this test is completed...
 			updatedLabels := map[string]string{
-				"ns": "y",
+				"ns":  "y",
 				"ns2": "updated",
 			}
 
@@ -778,15 +774,13 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				validateOrFailFunc(k8s, f, "x", 82, 80, policy, reachability, true, scenario)
 			}
 
-
-
 			podLabelCleaner(f, "x", "b")
 
 			validateUnreachable()
 
 			// now update label in x namespace and pod b
 			updatedLabels := map[string]string{
-				"pod": "b",
+				"pod":  "b",
 				"pod2": "updated",
 			}
 			podLabelUpdater(f, "x", "b", updatedLabels)
@@ -831,7 +825,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 		})
 
-		ginkgo.It("should enforce egress policy allowing traffic to a server in a different namespace based on PodSelector and NamespaceSelector [Feature:NetworkPolicy]", func () {
+		ginkgo.It("should enforce egress policy allowing traffic to a server in a different namespace based on PodSelector and NamespaceSelector [Feature:NetworkPolicy]", func() {
 			allowedNamespaces := &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"ns": "y",
@@ -842,7 +836,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					"pod": "a",
 				},
 			}
-			policy := netpol.GetPolicyWithEgressrule("x", "allow-to-ns-y-pod-a", map[string]string{"pod":"a"}, allowedNamespaces, allowedPods)
+			policy := netpol.GetPolicyWithEgressrule("x", "allow-to-ns-y-pod-a", map[string]string{"pod": "a"}, allowedNamespaces, allowedPods)
 			policy.Spec.Egress[0].Ports = []networkingv1.NetworkPolicyPort{
 				{
 					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
@@ -1083,7 +1077,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		// NOTE: SCTP protocol is not in Kubernetes 1.19 so this test will fail locally.
 		ginkgo.It("should not allow access by TCP when a policy specifies only SCTP [Feature:NetworkPolicy] [Feature:SCTP]", func() {
 
-			policy := netpol.AllowSCTPBasedOnPodSelector("allow-only-sctp-ingress-on-port-81", map[string]string{"pod": "a"}, &intstr.IntOrString{IntVal:81})
+			policy := netpol.AllowSCTPBasedOnPodSelector("allow-only-sctp-ingress-on-port-81", map[string]string{"pod": "a"}, &intstr.IntOrString{IntVal: 81})
 			ginkgo.By("Creating a network policy for the server which allows traffic only via SCTP on port 81.")
 			//protocolSCTP := v1.ProtocolSCTP
 			//			//// WARNING ! Since we are adding a port rule, that means that the lack of a
@@ -1102,4 +1096,10 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		})
 
 	})
+	// ginkgo.Context("NetworkPolicy UDP between server and client", func() {
+
+	// })
+	// ginkgo.Context("NetworkPolicy SCTP between server and client", func() {
+
+	// })
 })

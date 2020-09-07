@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"k8s.io/client-go/rest"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"k8s.io/client-go/rest"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -83,16 +84,16 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2 string, fromPort, toPort int) (b
 		return false, errors.WithMessagef(err, "unable to get pods from ns %s", ns1), ""
 	}
 	if len(fromPods) == 0 {
-		return false, errors.New(fmt.Sprintf("no pod of name %s in namespace %s found", pod1, ns1)),""
+		return false, errors.New(fmt.Sprintf("no pod of name %s in namespace %s found", pod1, ns1)), ""
 	}
 	fromPod := fromPods[0]
 
 	toPods, err := k.GetPods(ns2, "pod", pod2)
 	if err != nil {
-		return false, errors.WithMessagef(err, "unable to get pods from ns %s", ns2),""
+		return false, errors.WithMessagef(err, "unable to get pods from ns %s", ns2), ""
 	}
 	if len(toPods) == 0 {
-		return false, errors.New(fmt.Sprintf("no pod of name %s in namespace %s found", pod2, ns2)),""
+		return false, errors.New(fmt.Sprintf("no pod of name %s in namespace %s found", pod2, ns2)), ""
 	}
 	toPod := toPods[0]
 
@@ -108,7 +109,6 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2 string, fromPort, toPort int) (b
 		// 3 tries, timeout is 1 second
 		// it uses the identical port for send and receive traffic.  TODO possibly support different ports.
 
-		// *** hardcode port 82 - will update that later if needed ***
 		fmt.Sprintf("for i in $(seq 1 3); do ncat -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort),
 	}
 	// HACK: inferring container name as c80, c81, etc, for simplicity.
@@ -206,18 +206,34 @@ func (k *Kubernetes) CreateOrUpdateNamespace(n string, labels map[string]string)
 func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replicas int32, labels map[string]string) (*appsv1.Deployment, error) {
 	zero := int64(0)
 	log.Infof("creating/updating deployment %s in ns %s", deploymentName, ns)
-	makeContainerSpec := func(port int32) v1.Container {
+	// protocol can be one of: tcp udp sctp
+	makeContainerSpec := func(port int32, protocol string) v1.Container {
+		var cmd []string
+		var v1proto v1.Protocol
+
+		switch protocol {
+		case "tcp":
+			cmd = []string{"ncat", "-lk", "-p", fmt.Sprintf("%d", port)}
+			v1proto = v1.ProtocolTCP
+		case "udp":
+			cmd = []string{"ncat", "-u", "-lk", "-p", fmt.Sprintf("%d", port)}
+			v1proto = v1.ProtocolUDP
+		case "sctp":
+			cmd = []string{"ncat", "--sctp", "-lk", "-p", fmt.Sprintf("%d", port)}
+			v1proto = v1.ProtocolSCTP
+		}
 		return v1.Container{
 			Name:            fmt.Sprintf("c%d", port),
 			ImagePullPolicy: v1.PullIfNotPresent,
 			Image:           "antrea/netpol-test:latest",
 			// "-k" for persistent server
-			Command:         []string{"ncat", "-lk", "-p", fmt.Sprintf("%d", port)},
+			Command:         cmd,
 			SecurityContext: &v1.SecurityContext{},
 			Ports: []v1.ContainerPort{
 				{
 					ContainerPort: port,
-					Name:          fmt.Sprintf("serve-%d", port),
+					Name:          fmt.Sprintf("serve-%d-%s", port, protocol),
+					Protocol:      v1proto,
 				},
 			},
 		}
@@ -240,7 +256,9 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 				Spec: v1.PodSpec{
 					TerminationGracePeriodSeconds: &zero,
 					Containers: []v1.Container{
-						makeContainerSpec(80), makeContainerSpec(81),
+						makeContainerSpec(80, "tcp"), makeContainerSpec(81, "tcp"),
+						makeContainerSpec(80, "udp"), makeContainerSpec(81, "udp"),
+						// makeContainerSpec(80, "sctp"), makeContainerSpec(81, "sctp"),
 					},
 				},
 			},
@@ -264,7 +282,7 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 // CleanNetworkPolicies is a convenience function for deleting network policies before startup of any new test.
 func (k *Kubernetes) CleanNetworkPolicies(namespaces []string) error {
 	for _, ns := range namespaces {
-		log.Infof("deleting policies..........%v ",ns)
+		log.Infof("deleting policies..........%v ", ns)
 		l, err := k.ClientSet.NetworkingV1().NetworkPolicies(ns).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			return errors.Wrapf(err, "unable to list network policies in ns %s", ns)
@@ -281,8 +299,9 @@ func (k *Kubernetes) CleanNetworkPolicies(namespaces []string) error {
 }
 func (k *Kubernetes) ClearCache() {
 	log.Info("Clearing pod cache...")
-	k.podCache=map[string][]v1.Pod{}
+	k.podCache = map[string][]v1.Pod{}
 }
+
 // CreateOrUpdateNetworkPolicy is a convenience function for updating/creating netpols. Updating is important since
 // some tests update a network policy to confirm that mutation works with a CNI.
 func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *v1net.NetworkPolicy) (*v1net.NetworkPolicy, error) {
@@ -300,7 +319,6 @@ func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *v1net.Networ
 	}
 	return np, err
 }
-
 
 func (k8s *Kubernetes) Bootstrap() error {
 	for _, ns := range namespaces {
