@@ -213,17 +213,17 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 
 		switch protocol {
 		case "tcp":
-			cmd = []string{"ncat", "-lk", "-p", fmt.Sprintf("%d", port)}
+			cmd = []string{"ncat", "-l", "-k", "-p", fmt.Sprintf("%d", port)}
 			v1proto = v1.ProtocolTCP
 		case "udp":
-			cmd = []string{"ncat", "-u", "-lk", "-p", fmt.Sprintf("%d", port)}
+			cmd = []string{"ncat", "-u", "-l", "-p", fmt.Sprintf("%d", port)}
 			v1proto = v1.ProtocolUDP
 		case "sctp":
-			cmd = []string{"ncat", "--sctp", "-lk", "-p", fmt.Sprintf("%d", port)}
+			cmd = []string{"ncat", "--sctp", "-l", "-k", "-p", fmt.Sprintf("%d", port)}
 			v1proto = v1.ProtocolSCTP
 		}
 		return v1.Container{
-			Name:            fmt.Sprintf("c%d", port),
+			Name:            fmt.Sprintf("c%d-%v", port, protocol),
 			ImagePullPolicy: v1.PullIfNotPresent,
 			Image:           "antrea/netpol-test:latest",
 			// "-k" for persistent server
@@ -321,7 +321,7 @@ func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *v1net.Networ
 }
 
 // Bootstrap creates a namespace
-func (k8s *Kubernetes) Bootstrap(namespaces []string) error {
+func (k8s *Kubernetes) Bootstrap(namespaces []string, pods []string) error {
 	for _, ns := range namespaces {
 		_, err := k8s.CreateOrUpdateNamespace(ns, map[string]string{"ns": ns})
 		if err != nil {
