@@ -320,7 +320,8 @@ func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *v1net.Networ
 	return np, err
 }
 
-func (k8s *Kubernetes) Bootstrap() error {
+// Bootstrap creates a namespace
+func (k8s *Kubernetes) Bootstrap(namespaces []string) error {
 	for _, ns := range namespaces {
 		_, err := k8s.CreateOrUpdateNamespace(ns, map[string]string{"ns": ns})
 		if err != nil {

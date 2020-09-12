@@ -236,10 +236,11 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	var reachability *netpol.Reachability
 	ginkgo.BeforeEach(func() {
 		func() {
+			// The code in here only runs once bc it checks if things are nil
 			scenario = NewScenario()
 			if k8s == nil {
 				k8s, _ = netpol.NewKubernetes()
-				k8s.Bootstrap()
+				k8s.Bootstrap(scenario.namespaces)
 				//TODO Adding the following line will show the error thus cause the failure. Discuss why
 				//framework.ExpectNoError(err, "Error occurs when bootstraping k8s")
 
@@ -249,6 +250,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			}
 			if !backgroundInit {
+				//TODO make 20 networkpolicies per node rather then 200.
 				p := netpol.GetRandom(201)
 				for i := 0; i < 200; i++ {
 					_, e := f.ClientSet.NetworkingV1().NetworkPolicies("default").Create(context.TODO(), p[i], metav1.CreateOptions{})
