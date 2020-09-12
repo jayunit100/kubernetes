@@ -79,8 +79,20 @@ func NewScenario() *Scenario {
 	return s
 }
 
+func cleanPoliciesAndValidate(f *framework.Framework, k8s *netpol.Kubernetes, scenario *Scenario) {
+	err := k8s.CleanNetworkPolicies(scenario.namespaces)
+	framework.ExpectNoError(err, "Error occurred while cleaning network policy")
+	reachability := netpol.NewReachability(scenario.allPods, true)
+	validateOrFailFuncInner(k8s, f, "x", 82, 80, nil, reachability, false, scenario, true)
+}
+
 func validateOrFailFunc(k8s *netpol.Kubernetes, f *framework.Framework, ns string, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
 	reachability *netpol.Reachability, cleanPreviousPolicies bool, scenario *Scenario) {
+	validateOrFailFuncInner(k8s, f, ns, fromPort, toPort, policy, reachability, cleanPreviousPolicies, scenario, false)
+}
+
+func validateOrFailFuncInner(k8s *netpol.Kubernetes, f *framework.Framework, ns string, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
+	reachability *netpol.Reachability, cleanPreviousPolicies bool, scenario *Scenario, quiet bool) {
 	if cleanPreviousPolicies == true {
 		err := k8s.CleanNetworkPolicies(scenario.namespaces)
 		framework.ExpectNoError(err, "Error occurred while cleaning network policy")
@@ -101,9 +113,9 @@ func validateOrFailFunc(k8s *netpol.Kubernetes, f *framework.Framework, ns strin
 	ginkgo.By("Validating reachability matrix...")
 
 	netpol.Validate(k8s, reachability, fromPort, toPort)
-
-	reachability.PrintSummary(true, true, true)
-
+	if !quiet {
+		reachability.PrintSummary(true, true, true)
+	}
 	if _, wrong, _ := reachability.Summary(); wrong != 0 {
 		framework.Failf("Had more then one wrong result in the reachability matrix.\n")
 	} else {
@@ -252,11 +264,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	ginkgo.Context("NetworkPolicy between server and client", func() {
 		ginkgo.BeforeEach(func() {
 			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
-			//test positive flow
-			err := k8s.CleanNetworkPolicies(scenario.namespaces)
-			framework.ExpectNoError(err, "Error occurred while cleaning network policy")
-			reachability = netpol.NewReachability(scenario.allPods, true)
-			validateOrFailFunc(k8s, f, "x", 82, 80, nil, reachability, false, scenario)
+			cleanPoliciesAndValidate(f, k8s, scenario)
 		})
 
 		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:NetworkPolicy]", func() {

@@ -1,11 +1,12 @@
 package utils
 
 import (
-	"k8s.io/apimachinery/pkg/util/intstr"
+	"fmt"
 	"time"
-"fmt"
+
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -153,18 +154,18 @@ func GetDefaultDenyIngressPolicy(name string) *networkingv1.NetworkPolicy {
 // unique:1, unique:2, and so on.  Used for creating a 'background' set of policies.
 func GetRandom(num int) []*networkingv1.NetworkPolicy {
 
-        policies := []*networkingv1.NetworkPolicy{}
+	policies := []*networkingv1.NetworkPolicy{}
 
-        for i:=0 ; i<num; i++{
+	for i := 0; i < num; i++ {
 		policy := &networkingv1.NetworkPolicy{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: fmt.Sprintf("allow-all-%v",i),
+				Name: fmt.Sprintf("allow-all-%v", i),
 			},
 			Spec: networkingv1.NetworkPolicySpec{
 				// Allow all traffic
 				PodSelector: metav1.LabelSelector{
 					MatchLabels: map[string]string{
-						"unique":fmt.Sprintf("%v",i),
+						"unique": fmt.Sprintf("%v", i),
 					},
 				},
 				Ingress: []networkingv1.NetworkPolicyIngressRule{{}},
@@ -174,7 +175,6 @@ func GetRandom(num int) []*networkingv1.NetworkPolicy {
 	}
 	return policies
 }
-
 
 func GetAllowAll(name string) *networkingv1.NetworkPolicy {
 	policy := &networkingv1.NetworkPolicy{
@@ -224,7 +224,7 @@ func GetAllowBasedOnPodSelector(name string, podSelectorLabels map[string]string
 }
 
 func GetAllowBasedOnPodSelectorandNamespaceSelectorFromOtherNamespace(ns1 string, name string, podSelectorLabels map[string]string,
-	nameSpaceSelectorOtherNs *metav1.LabelSelector, podSelectorLabelsOtherNs *metav1.LabelSelector) * networkingv1.NetworkPolicy {
+	nameSpaceSelectorOtherNs *metav1.LabelSelector, podSelectorLabelsOtherNs *metav1.LabelSelector) *networkingv1.NetworkPolicy {
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns1,
@@ -239,7 +239,7 @@ func GetAllowBasedOnPodSelectorandNamespaceSelectorFromOtherNamespace(ns1 string
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				From: []networkingv1.NetworkPolicyPeer{{
 					NamespaceSelector: nameSpaceSelectorOtherNs,
-					PodSelector: podSelectorLabelsOtherNs,
+					PodSelector:       podSelectorLabelsOtherNs,
 				}},
 			}},
 		},
@@ -269,7 +269,7 @@ func GetAllowBasedOnNamespaceSelector(name string, podSelectorLabels map[string]
 }
 
 func GetAllowBasedOnPodSelectorandNamespaceSelector(name string, podSelectorLabels map[string]string,
-	nameSpaceSelectorOtherNs *metav1.LabelSelector, podSelectorLabelsOtherNs *metav1.LabelSelector) * networkingv1.NetworkPolicy {
+	nameSpaceSelectorOtherNs *metav1.LabelSelector, podSelectorLabelsOtherNs *metav1.LabelSelector) *networkingv1.NetworkPolicy {
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -283,14 +283,13 @@ func GetAllowBasedOnPodSelectorandNamespaceSelector(name string, podSelectorLabe
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				From: []networkingv1.NetworkPolicyPeer{{
 					NamespaceSelector: nameSpaceSelectorOtherNs,
-					PodSelector: podSelectorLabelsOtherNs,
+					PodSelector:       podSelectorLabelsOtherNs,
 				}},
 			}},
 		},
 	}
 	return policy
 }
-
 
 // TODO Discuss do we want to pass string(support only single field) or labelselector(support multiple fields) as function arg
 func GetPolicyWithEgressrule(ns string, name string, podLabelSelector map[string]string, egressNsSelector *metav1.LabelSelector, egressPodSelector *metav1.LabelSelector) *networkingv1.NetworkPolicy {
@@ -311,7 +310,7 @@ func GetPolicyWithEgressrule(ns string, name string, podLabelSelector map[string
 					To: []networkingv1.NetworkPolicyPeer{
 						{
 							NamespaceSelector: egressNsSelector,
-							PodSelector: egressPodSelector,
+							PodSelector:       egressPodSelector,
 						},
 					},
 				},
@@ -320,7 +319,6 @@ func GetPolicyWithEgressrule(ns string, name string, podLabelSelector map[string
 	}
 	return policy
 }
-
 
 func GetPolicyWithEgressRule_lagacy(ns string, name string, toNs string, toPod string) *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
@@ -436,7 +434,7 @@ func PolicyAllowCIDR(namespace string, podname string, podserverCIDR string) *ne
 	}
 }
 
-func AllowSCTPBasedOnPodSelector(name string, podSelectorLables map[string]string, portNum *intstr.IntOrString) *networkingv1.NetworkPolicy{
+func AllowSCTPBasedOnPodSelector(name string, podSelectorLables map[string]string, portNum *intstr.IntOrString) *networkingv1.NetworkPolicy {
 	protocolSCTP := v1.ProtocolSCTP
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
