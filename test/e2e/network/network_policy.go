@@ -112,7 +112,7 @@ func validateOrFailFuncInner(k8s *netpol.Kubernetes, f *framework.Framework, ns 
 	}
 	ginkgo.By("Validating reachability matrix...")
 
-	netpol.Validate(k8s, reachability, fromPort, toPort)
+	netpol.Validate(k8s, reachability, fromPort, toPort, "tcp")
 	if !quiet {
 		reachability.PrintSummary(true, true, true)
 	}

@@ -78,7 +78,7 @@ func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error
 // Probe execs into a pod and checks its connectivity to another pod.  Of course it assumes
 // that the target pod is serving on the input port, and also that wget is installed.  For perf it uses
 // spider rather then actually getting the full contents.
-func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2 string, fromPort, toPort int) (bool, error, string) {
+func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2, protocol string, fromPort, toPort int) (bool, error, string) {
 	fromPods, err := k.GetPods(ns1, "pod", pod1)
 	if err != nil {
 		return false, errors.WithMessagef(err, "unable to get pods from ns %s", ns1), ""
@@ -109,10 +109,18 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2 string, fromPort, toPort int) (b
 		// 3 tries, timeout is 1 second
 		// it uses the identical port for send and receive traffic.  TODO possibly support different ports.
 
-		fmt.Sprintf("for i in $(seq 1 3); do ncat -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort),
+		// fmt.Sprintf("for i in $(seq 1 3); do ncat -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort),
+	}
+	switch protocol {
+	// case "sctp":
+	// 	fmt.Sprintf("for i in $(seq 1 3); do ncat --sctp -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort),
+	case "tcp":
+		cmd = append(cmd, fmt.Sprintf("for i in $(seq 1 3); do ncat -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort))
+	case "udp":
+		cmd = append(cmd, fmt.Sprintf("for i in $(seq 1 3); do ncat -u -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort))
 	}
 	// HACK: inferring container name as c80, c81, etc, for simplicity.
-	containerName := fmt.Sprintf("c%v", toPort)
+	containerName := fmt.Sprintf("c%v-%v", toPort, protocol)
 	theCommand := fmt.Sprintf("kubectl exec %s -c %s -n %s -- %s", fromPod.Name, containerName, fromPod.Namespace, strings.Join(cmd, " "))
 	stdout, stderr, err := k.ExecuteRemoteCommand(fromPod, containerName, cmd)
 	if err != nil {
