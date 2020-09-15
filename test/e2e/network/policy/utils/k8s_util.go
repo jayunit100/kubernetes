@@ -115,9 +115,9 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2, protocol string, fromPort, toPo
 	// case "sctp":
 	// 	fmt.Sprintf("for i in $(seq 1 3); do ncat --sctp -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort),
 	case "tcp":
-		cmd = append(cmd, fmt.Sprintf("for i in $(seq 1 3); do ncat -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort))
+		cmd = append(cmd, fmt.Sprintf("'for i in $(seq 1 3); do ncat -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1'", fromPort, toIP, toPort))
 	case "udp":
-		cmd = append(cmd, fmt.Sprintf("for i in $(seq 1 3); do ncat -u -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort))
+		cmd = append(cmd, fmt.Sprintf("'for i in $(seq 1 3); do ncat -u -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1'", fromPort, toIP, toPort))
 	}
 	// HACK: inferring container name as c80, c81, etc, for simplicity.
 	containerName := fmt.Sprintf("c%v-%v", toPort, protocol)
@@ -329,7 +329,7 @@ func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *v1net.Networ
 }
 
 // Bootstrap creates a namespace
-func (k8s *Kubernetes) Bootstrap(namespaces []string, pods []string) error {
+func (k8s *Kubernetes) Bootstrap(namespaces []string, pods []string, allPods []PodString) error {
 	for _, ns := range namespaces {
 		_, err := k8s.CreateOrUpdateNamespace(ns, map[string]string{"ns": ns})
 		if err != nil {

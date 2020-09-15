@@ -240,7 +240,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			scenario = NewScenario()
 			if k8s == nil {
 				k8s, _ = netpol.NewKubernetes()
-				k8s.Bootstrap(scenario.namespaces, scenario.pods)
+				k8s.Bootstrap(scenario.namespaces, scenario.pods, scenario.allPods)
 				//TODO Adding the following line will show the error thus cause the failure. Discuss why
 				//framework.ExpectNoError(err, "Error occurs when bootstraping k8s")
 
@@ -250,8 +250,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				}
 			}
 			if !backgroundInit {
-				//TODO make 20 networkpolicies per node rather then 200.
-				p := netpol.GetRandom(201)
+				p := netpol.GetRandom(21)
 				for i := 0; i < 200; i++ {
 					_, e := f.ClientSet.NetworkingV1().NetworkPolicies("default").Create(context.TODO(), p[i], metav1.CreateOptions{})
 					if e != nil {
