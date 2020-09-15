@@ -96,11 +96,13 @@ func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int,
 	// TODO: find better metrics, this is only for POC.
 	oneProbe := func(podFrom, podTo PodString) {
 		//		log.Infof("Probing: %s -> %s", podFrom, podTo)
-		connected, err, command := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), "tcp", fromPort, toPort)
+		connected, err, command := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), protocol, fromPort, toPort)
 		resultsCh <- &probeResult{podFrom, podTo, connected, err, command}
 	}
 	for _, pod1 := range allPods {
 		for _, pod2 := range allPods {
+			// TODO: temp hack concurrent map write
+			time.Sleep(50 * time.Millisecond)
 			go oneProbe(pod1, pod2)
 			time.Sleep(50 * time.Millisecond)
 		}
@@ -117,9 +119,9 @@ func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int,
 			log.Infof("Validation of ", r.podFrom, r.podTo, " FAILED !!! \n")
 			log.Infof("error %v ", r.err)
 			if expected {
-				log.Infof("Whitelisted pod connection was BLOCKED --- run '", r.command, "' to reproduce.")
+				log.Infof("Whitelisted pod connection was BLOCKED --- run %v ", r.command)
 			} else {
-				log.Infof("Blacklisted pod connection was ALLOWED --- run '", r.command, "' to reproduce.")
+				log.Infof("Blacklisted pod connection was ALLOWED --- run %v", r.command)
 			}
 		}
 	}

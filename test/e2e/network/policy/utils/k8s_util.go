@@ -115,9 +115,10 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2, protocol string, fromPort, toPo
 	// case "sctp":
 	// 	fmt.Sprintf("for i in $(seq 1 3); do ncat --sctp -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort),
 	case "tcp":
-		cmd = append(cmd, fmt.Sprintf("'for i in $(seq 1 3); do ncat -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1'", fromPort, toIP, toPort))
+		// TODO add a retry if necessary
+		cmd = append(cmd, fmt.Sprintf("ncat -p %d -v -z -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
 	case "udp":
-		cmd = append(cmd, fmt.Sprintf("'for i in $(seq 1 3); do ncat -u -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1'", fromPort, toIP, toPort))
+		cmd = append(cmd, fmt.Sprintf("ncat -u -p %d -v -z -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
 	}
 	// HACK: inferring container name as c80, c81, etc, for simplicity.
 	containerName := fmt.Sprintf("c%v-%v", toPort, protocol)
@@ -125,7 +126,7 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2, protocol string, fromPort, toPo
 	stdout, stderr, err := k.ExecuteRemoteCommand(fromPod, containerName, cmd)
 	if err != nil {
 		// log this error as trace since may be an expected failure
-		log.Tracef("%s/%s -> %s/%s: error when running command: err - %v /// stdout - %s /// stderr - %s", ns1, pod1, ns2, pod2, err, stdout, stderr)
+		log.Infof("%s/%s -> %s/%s: error when running command: err - %v /// stdout - %s /// stderr - %s", ns1, pod1, ns2, pod2, err, stdout, stderr)
 		// do not return an error
 		return false, nil, theCommand
 	}

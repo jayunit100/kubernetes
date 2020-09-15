@@ -83,7 +83,7 @@ func cleanPoliciesAndValidate(f *framework.Framework, k8s *netpol.Kubernetes, sc
 	err := k8s.CleanNetworkPolicies(scenario.namespaces)
 	framework.ExpectNoError(err, "Error occurred while cleaning network policy")
 	reachability := netpol.NewReachability(scenario.allPods, true)
-	validateOrFailFuncInner(k8s, f, "x", 82, 80, nil, reachability, false, scenario, true)
+	validateOrFailFuncInner(k8s, f, "x", 83, 80, nil, reachability, false, scenario, false)
 }
 
 func validateOrFailFunc(k8s *netpol.Kubernetes, f *framework.Framework, ns string, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
@@ -117,6 +117,7 @@ func validateOrFailFuncInner(k8s *netpol.Kubernetes, f *framework.Framework, ns 
 		reachability.PrintSummary(true, true, true)
 	}
 	if _, wrong, _ := reachability.Summary(); wrong != 0 {
+		reachability.PrintSummary(true, true, true)
 		framework.Failf("Had more then one wrong result in the reachability matrix.\n")
 	} else {
 		fmt.Println("VALIDATION SUCCESSFUL")
@@ -251,7 +252,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}
 			if !backgroundInit {
 				p := netpol.GetRandom(21)
-				for i := 0; i < 200; i++ {
+				for i := 0; i < 20; i++ {
 					_, e := f.ClientSet.NetworkingV1().NetworkPolicies("default").Create(context.TODO(), p[i], metav1.CreateOptions{})
 					if e != nil {
 						fmt.Println(fmt.Sprintf("%v", e))
