@@ -976,13 +976,10 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			egressPolicyAllowToB := netpol.GetPolicyWithEgressRuleOnlyPodSelector("x", "a", "b")
 
 			reachability = netpol.NewReachability(scenario.allPods, true)
-			// Using for each?
-			for _, nn := range []string{"x", "y", "z"} {
-				for _, pp := range []string{"a", "b", "c"} {
-					reachability.Expect("x/a", netpol.NewPod(nn, pp), false)
-				}
-			}
-			reachability.Expect("x/a", "x/a", true)
+			scenario.forEach(func(from, to netpol.PodString) {
+				reachability.Expect("x/a", to, false)
+			})
+			reachability.AllowLoopback()
 			reachability.Expect("x/a", "x/b", true)
 
 			validateOrFailFunc(k8s, f, "x", 82, 80, egressPolicyAllowToB, reachability, true, scenario)
