@@ -604,7 +604,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// pod selector will cause this policy to target the ENTIRE namespace.....
 			ginkgo.By("Blocking all ports other then 81 in the entire namespace")
 			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
-				Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81"},
+				Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81-tcp"},
 			}}
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
@@ -630,7 +630,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			}
 			policy := netpol.GetAllowBasedOnNamespaceSelector("allow-client-a-via-ns-selector-80", map[string]string{"pod": "a"}, allowedLabels)
 			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
-				Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+				Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80-tcp"},
 			}}
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
@@ -673,7 +673,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					},
 					Ports: []networkingv1.NetworkPolicyPort{
 						{
-							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80-tcp"},
 						},
 					},
 				},
@@ -815,7 +815,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				{
 					Ports: []networkingv1.NetworkPolicyPort{
 						{
-							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80-tcp"},
 						},
 					},
 				},
@@ -849,7 +849,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policy := netpol.GetPolicyWithEgressrule("x", "allow-to-ns-y-pod-a", map[string]string{"pod": "a"}, allowedNamespaces, allowedPods)
 			policy.Spec.Egress[0].Ports = []networkingv1.NetworkPolicyPort{
 				{
-					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+					Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80-tcp"},
 				},
 			}
 			reachability := netpol.NewReachability(scenario.allPods, true)
@@ -877,7 +877,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				{
 					Ports: []networkingv1.NetworkPolicyPort{
 						{
-							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80-tcp"},
 						},
 					},
 				},
@@ -909,7 +909,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				{
 					Ports: []networkingv1.NetworkPolicyPort{
 						{
-							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80"},
+							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80-tcp"},
 						},
 					},
 				},
