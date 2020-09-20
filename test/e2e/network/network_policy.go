@@ -948,11 +948,11 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			})
 			validateOrFailFunc(k8s, f, "x", 82, 80, policy, reachability, true, scenario)
 
-			//err := k8s.CleanNetworkPolicies(scenario.namespaces)
-			//			//time.Sleep(1 * time.Second)
-			//			//if err != nil {
-			//			//	ginkgo.Fail(fmt.Sprintf("%v", err))
-			//			//}
+			err := k8s.CleanNetworkPolicies(scenario.namespaces)
+			time.Sleep(3 * time.Second)
+			if err != nil {
+				ginkgo.Fail(fmt.Sprintf("%v", err))
+			}
 			reachability = netpol.NewReachability(scenario.allPods, true)
 			validateOrFailFunc(k8s, f, "x", 82, 80, nil, reachability, false, scenario)
 		})
