@@ -1101,6 +1101,33 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			//TODO check SCTP is not module is not avalible at time of testing
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 81, policy, reachability, true, scenario)
 		})
+		ginkgo.It("should not allow access by TCP when a policy specifies only UDP [Feature:NetworkPolicy] [Feature:UDP]", func() {
+
+			policy := netpol.AllowProtocolBasedOnPodSelector(
+				"allow-only-udp-ingress-on-port-81",
+				"udp",
+				map[string]string{"pod": "a"}, &intstr.IntOrString{IntVal: 81},
+			)
+			ginkgo.By("Creating a network policy for the server which allows traffic only via UDP on port 81.")
+
+			// Probing with TCP, so all traffic should be dropped.
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			reachability.ExpectAllIngress("x/a", false)
+			validateOrFailFunc(k8s, f, "x", "tcp", 82, 81, policy, reachability, true, scenario)
+		})
+		ginkgo.It("should not allow access by UDP when a policy specifies only TCP [Feature:NetworkPolicy] [Feature:TCP]", func() {
+
+			policy := netpol.AllowProtocolBasedOnPodSelector(
+				"allow-only-tcp-ingress-on-port-80",
+				"tcp",
+				map[string]string{"pod": "a"}, &intstr.IntOrString{IntVal: 80},
+			)
+			ginkgo.By("Creating a network policy for the server which allows traffic only via TCP on port 80.")
+
+			reachability := netpol.NewReachability(scenario.allPods, true)
+			reachability.ExpectAllIngress("x/a", false)
+			validateOrFailFunc(k8s, f, "x", "udp", 82, 80, policy, reachability, true, scenario)
+		})
 
 	})
 	// ginkgo.Context("NetworkPolicy UDP between server and client", func() {
