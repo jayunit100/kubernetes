@@ -93,10 +93,9 @@ func validateOrFailFunc(k8s *netpol.Kubernetes, f *framework.Framework, ns, prot
 
 func validateOrFailFuncInner(k8s *netpol.Kubernetes, f *framework.Framework, ns, protocol string, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
 	reachability *netpol.Reachability, cleanPreviousPolicies bool, scenario *Scenario, quiet bool) {
-	if cleanPreviousPolicies == true {
+	if cleanPreviousPolicies {
 		err := k8s.CleanNetworkPolicies(scenario.namespaces)
 		framework.ExpectNoError(err, "Error occurred while cleaning network policy")
-
 	}
 
 	if policy != nil {
@@ -122,7 +121,6 @@ func validateOrFailFuncInner(k8s *netpol.Kubernetes, f *framework.Framework, ns,
 	} else {
 		fmt.Println("VALIDATION SUCCESSFUL")
 	}
-
 }
 
 func nsLabelCleaner(f *framework.Framework, ns string) {
@@ -141,7 +139,6 @@ func podLabelCleaner(f *framework.Framework, ns string, pod string) {
 	_, err = f.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), selectedPod, metav1.UpdateOptions{})
 	framework.ExpectNoError(err, "Failing to update pod %v labels in namespace %v", pod, ns)
 	time.Sleep(10 * time.Second)
-
 }
 
 func nsLabelUpdater(f *framework.Framework, ns string, newNsLabel map[string]string) {
@@ -160,72 +157,6 @@ func podLabelUpdater(f *framework.Framework, ns string, pod string, newPodLabel 
 	_, err = f.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), selectedPod, metav1.UpdateOptions{})
 	framework.ExpectNoError(err, "Failing to update pod %v labels in namespace %v", pod, ns)
 	time.Sleep(10 * time.Second)
-
-}
-
-/**
-
-KUBERNETES_SERVICE_HOST=127.0.0.1
-KUBERNETES_SERVICE_PORT=32768
-./_output/local/bin/linux/amd64/e2e.test \
---provider=local \
---ginkgo.focus="NetworkPolicy" \
---kubeconfig=/home/ubuntu/.kube/config
-
-*/
-
-/**
-
-
-cat << EOF > calico-conf.yaml
-kind: Cluster
-apiVersion: kind.sigs.k8s.io/v1alpha3
-networking:
-  disableDefaultCNI: true # disable kindnet
-  podSubnet: 192.168.0.0/16 # set to Calico's default subnet
-nodes:
-- role: control-plane
-- role: worker
-- role: worker
-EOF
-
-function install_k8s() {
-    if kind delete cluster --name calico-test; then
-        echo "deleted old kind cluster, creating a new one..."
-    fi
-    kind create cluster --name calico-test --config calico-conf.yaml
-    export KUBECONFIG="$(kind get kubeconfig-path --name=calico-test)"
-    for i in "cni-plugin" "node" "pod2daemon" "kube-controllers"; do
-        echo "...$i"
-    done
-    chmod 755 ~/.kube/kind-config-kind
-    export KUBECONFIG="$(kind get kubeconfig-path --name=calico-test)"
-    until kubectl cluster-info;  do
-        echo "`date`waiting for cluster..."
-        sleep 2
-    done
-}
-
-function install_calico() {
-    kubectl get pods
-    kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
-    kubectl -n kube-system set env daemonset/calico-node FELIX_IGNORELOOSERPF=true
-    kubectl -n kube-system set env daemonset/calico-node FELIX_XDPENABLED=false
-    sleep 5 ; kubectl -n kube-system get pods | grep calico-node
-    echo "will wait for calico to start running now... "
-    while true ; do
-        kubectl -n kube-system get pods
-        sleep 3
-    done
-}
-
-install_k8s
-install_calico
-
-*/
-
-func log(s string) {
-	fmt.Println(s)
 }
 
 var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
@@ -1101,8 +1032,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			//TODO check SCTP is not module is not avalible at time of testing
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 81, policy, reachability, true, scenario)
 		})
-		ginkgo.It("should not allow access by TCP when a policy specifies only UDP [Feature:NetworkPolicy] [Feature:UDP]", func() {
 
+		ginkgo.It("should not allow access by TCP when a policy specifies only UDP [Feature:NetworkPolicy] [Feature:UDP]", func() {
 			policy := netpol.AllowProtocolBasedOnPodSelector(
 				"allow-only-udp-ingress-on-port-81",
 				"udp",
@@ -1116,8 +1047,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.AllowLoopback()
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 81, policy, reachability, true, scenario)
 		})
-		ginkgo.It("should not allow access by UDP when a policy specifies only TCP [Feature:NetworkPolicy] [Feature:TCP]", func() {
 
+		ginkgo.It("should not allow access by UDP when a policy specifies only TCP [Feature:NetworkPolicy] [Feature:TCP]", func() {
 			policy := netpol.AllowProtocolBasedOnPodSelector(
 				"allow-only-tcp-ingress-on-port-80",
 				"tcp",
