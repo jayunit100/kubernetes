@@ -112,13 +112,13 @@ func validateOrFailFuncInner(k8s *netpol.Kubernetes, f *framework.Framework, ns,
 	ginkgo.By("Validating reachability matrix...")
 
 	netpol.Validate(k8s, reachability, fromPort, toPort, protocol)
-	if !quiet {
-		reachability.PrintSummary(true, true, true)
-	}
 	if _, wrong, _ := reachability.Summary(); wrong != 0 {
 		reachability.PrintSummary(true, true, true)
-		framework.Failf("Had more then one wrong result in the reachability matrix.\n")
+		framework.Failf("Had more than 0 wrong results in the reachability matrix")
 	} else {
+		if !quiet {
+			reachability.PrintSummary(true, true, true)
+		}
 		fmt.Println("VALIDATION SUCCESSFUL")
 	}
 }
