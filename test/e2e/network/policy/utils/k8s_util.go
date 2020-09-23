@@ -125,6 +125,8 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2, protocol string, fromPort, toPo
 		cmd = append(cmd, fmt.Sprintf("ncat -p %d -v -z -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
 	case "udp":
 		cmd = append(cmd, fmt.Sprintf("ncat -u -p %d -v -z -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
+	default:
+		panic(errors.Errorf("protocol %s not supported", protocol))
 	}
 	// HACK: inferring container name as c80, c81, etc, for simplicity.
 	containerName := fmt.Sprintf("c%v-%v", toPort, protocol)

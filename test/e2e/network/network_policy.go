@@ -19,6 +19,7 @@ package network
 import (
 	"context"
 	"fmt"
+	v1 "k8s.io/api/core/v1"
 	"time"
 
 	"github.com/onsi/ginkgo"
@@ -1054,7 +1055,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		ginkgo.It("should not allow access by UDP when a policy specifies only TCP [Feature:NetworkPolicy] [Feature:TCP]", func() {
 			policy := netpol.AllowProtocolBasedOnPodSelector(
 				"allow-only-tcp-ingress-on-port-80",
-				"tcp",
+				v1.ProtocolTCP,
 				map[string]string{"pod": "a"}, &intstr.IntOrString{IntVal: 80},
 			)
 			ginkgo.By("Creating a network policy for the server which allows traffic only via TCP on port 80.")

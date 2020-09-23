@@ -486,17 +486,8 @@ func AllowSCTPBasedOnPodSelector(name string, podSelectorLabels map[string]strin
 	return policy
 }
 
-// AllowProtocolBasedOnPodSelector is a base network policy template which distinguises between the types of v1.Protocol available in v1 core
-func AllowProtocolBasedOnPodSelector(name, protocol string, podSelectorLables map[string]string, portNum *intstr.IntOrString) *networkingv1.NetworkPolicy {
-	var protoSpec v1.Protocol
-	switch protocol {
-	case "sctp":
-		protoSpec = v1.ProtocolSCTP
-	case "tcp":
-		protoSpec = v1.ProtocolTCP
-	case "udp":
-		protoSpec = v1.ProtocolUDP
-	}
+// AllowProtocolBasedOnPodSelector is a base network policy template which distinguishes between the types of v1.Protocol available in v1 core
+func AllowProtocolBasedOnPodSelector(name string, protocol v1.Protocol, podSelectorLabels map[string]string, portNum *intstr.IntOrString) *networkingv1.NetworkPolicy {
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -504,13 +495,13 @@ func AllowProtocolBasedOnPodSelector(name, protocol string, podSelectorLables ma
 		Spec: networkingv1.NetworkPolicySpec{
 			// Apply to server
 			PodSelector: metav1.LabelSelector{
-				MatchLabels: podSelectorLables,
+				MatchLabels: podSelectorLabels,
 			},
 			// Allow traffic only via protoSpec on port
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				Ports: []networkingv1.NetworkPolicyPort{{
 					Port:     portNum,
-					Protocol: &protoSpec,
+					Protocol: &protocol,
 				}},
 			}},
 		},
