@@ -24,7 +24,7 @@ import (
 )
 
 type Kubernetes struct {
-	mutex     sync.Mutex
+	mutex     *sync.Mutex
 	podCache  map[string][]v1.Pod
 	ClientSet *kubernetes.Clientset
 }
@@ -36,7 +36,7 @@ func NewKubernetes() (*Kubernetes, error) {
 		return nil, errors.WithMessagef(err, "unable to instantiate kube client")
 	}
 	return &Kubernetes{
-		mutex:     sync.Mutex{},
+		mutex:     &sync.Mutex{},
 		podCache:  map[string][]v1.Pod{},
 		ClientSet: clientSet,
 	}, nil
