@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"k8s.io/client-go/rest"
 
@@ -23,6 +24,7 @@ import (
 )
 
 type Kubernetes struct {
+	mutex     sync.Mutex
 	podCache  map[string][]v1.Pod
 	ClientSet *kubernetes.Clientset
 }
@@ -34,6 +36,7 @@ func NewKubernetes() (*Kubernetes, error) {
 		return nil, errors.WithMessagef(err, "unable to instantiate kube client")
 	}
 	return &Kubernetes{
+		mutex:     sync.Mutex{},
 		podCache:  map[string][]v1.Pod{},
 		ClientSet: clientSet,
 	}, nil
@@ -63,6 +66,7 @@ func (k *Kubernetes) getPodsUncached(ns string, key, val string) ([]v1.Pod, erro
 
 // GetPods returns an array of all pods in the given namespace having a k/v label pair.
 func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error) {
+
 	if p, ok := k.podCache[fmt.Sprintf("%v_%v_%v", ns, key, val)]; ok {
 		return p, nil
 	}
@@ -71,7 +75,9 @@ func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error
 	if err != nil {
 		return nil, errors.WithMessage(err, "unable to list pods")
 	}
+	k.mutex.Lock()
 	k.podCache[fmt.Sprintf("%v_%v_%v", ns, key, val)] = v1PodList
+	k.mutex.Unlock()
 	return v1PodList, nil
 }
 
@@ -308,7 +314,9 @@ func (k *Kubernetes) CleanNetworkPolicies(namespaces []string) error {
 }
 func (k *Kubernetes) ClearCache() {
 	log.Info("Clearing pod cache...")
+	k.mutex.Lock()
 	k.podCache = map[string][]v1.Pod{}
+	k.mutex.Unlock()
 }
 
 // CreateOrUpdateNetworkPolicy is a convenience function for updating/creating netpols. Updating is important since
