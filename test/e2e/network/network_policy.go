@@ -1029,6 +1029,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// Probing with TCP, so all traffic should be dropped.
 			reachability := netpol.NewReachability(scenario.allPods, true)
 			reachability.ExpectAllIngress("x/a", false)
+			reachability.AllowLoopback()
 			//TODO check SCTP is not module is not avalible at time of testing
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 81, policy, reachability, true, scenario)
 		})
