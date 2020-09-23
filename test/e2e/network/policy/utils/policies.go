@@ -83,23 +83,23 @@ func waitForPodInNamespace(k8s *Kubernetes, ns string, pod string) error {
 }
 
 type ProbeJob struct {
-	PodFrom PodString
-	PodTo PodString
+	PodFrom  PodString
+	PodTo    PodString
 	FromPort int
-	ToPort int
+	ToPort   int
 	Protocol string
 }
 
 type ProbeJobResults struct {
-	Job *ProbeJob
+	Job         *ProbeJob
 	IsConnected bool
-	Err error
-	Command string
+	Err         error
+	Command     string
 }
 
 func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int, protocol string) {
 	k8s.ClearCache()
-	numberOfWorkers := 10
+	numberOfWorkers := 30
 	size := len(allPods) * len(allPods)
 	jobs := make(chan *ProbeJob, size)
 	results := make(chan *ProbeJobResults, size)
@@ -140,7 +140,7 @@ func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int,
 	}
 }
 
-func probeWorker(k8s *Kubernetes, jobs <-chan *ProbeJob, results chan <-*ProbeJobResults) {
+func probeWorker(k8s *Kubernetes, jobs <-chan *ProbeJob, results chan<- *ProbeJobResults) {
 	for job := range jobs {
 		podFrom := job.PodFrom
 		podTo := job.PodTo
