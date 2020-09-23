@@ -19,7 +19,6 @@ package network
 import (
 	"context"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"time"
 
 	"github.com/onsi/ginkgo"
@@ -1050,20 +1049,6 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability.ExpectAllIngress("x/a", false)
 			reachability.AllowLoopback()
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 81, policy, reachability, true, scenario)
-		})
-
-		ginkgo.It("should not allow access by UDP when a policy specifies only TCP [Feature:NetworkPolicy] [Feature:TCP]", func() {
-			policy := netpol.AllowProtocolBasedOnPodSelector(
-				"allow-only-tcp-ingress-on-port-80",
-				v1.ProtocolTCP,
-				map[string]string{"pod": "a"}, &intstr.IntOrString{IntVal: 80},
-			)
-			ginkgo.By("Creating a network policy for the server which allows traffic only via TCP on port 80.")
-
-			reachability := netpol.NewReachability(scenario.allPods, true)
-			reachability.ExpectAllIngress("x/a", false)
-			reachability.AllowLoopback()
-			validateOrFailFunc(k8s, f, "x", "udp", 82, 80, policy, reachability, true, scenario)
 		})
 
 	})
