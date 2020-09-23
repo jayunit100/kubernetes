@@ -83,49 +83,27 @@ func waitForPodInNamespace(k8s *Kubernetes, ns string, pod string) error {
 }
 
 func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int, protocol string) {
-	type probeResult struct {
-		podFrom   PodString
-		podTo     PodString
-		connected bool
-		err       error
-		command   string
-	}
 	k8s.ClearCache()
-	numProbes := len(allPods) * len(allPods)
-	resultsCh := make(chan *probeResult, numProbes)
 	// TODO: find better metrics, this is only for POC.
-	oneProbe := func(podFrom, podTo PodString) {
-		//		log.Infof("Probing: %s -> %s", podFrom, podTo)
-		connected, err, command := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), protocol, fromPort, toPort)
-		resultsCh <- &probeResult{podFrom, podTo, connected, err, command}
-	}
-	for _, pod1 := range allPods {
-		for _, pod2 := range allPods {
-			// TODO: temp hack concurrent map write
-			time.Sleep(50 * time.Millisecond)
-			go oneProbe(pod1, pod2)
-			time.Sleep(50 * time.Millisecond)
-		}
-	}
-	for i := 0; i < numProbes; i++ {
-		r := <-resultsCh
-		//		log.Infof("Received result %v!", r.podFrom, r.podTo, r.connected, r.err)
-		if r.err != nil {
-			log.Infof("unable to perform probe %s -> %s: %v", r.podFrom, r.podTo, r.err)
-		}
-		reachability.Observe(r.podFrom, r.podTo, r.connected)
-		expected := reachability.Expected.Get(r.podFrom.String(), r.podTo.String())
-		if r.connected != expected {
-			log.Infof("Validation of %s -> %s FAILED !!!", r.podFrom, r.podTo)
-			log.Infof("error %v ", r.err)
-			if expected {
-				log.Infof("Whitelisted pod connection was BLOCKED --- run '%v'", r.command)
-			} else {
-				log.Infof("Blacklisted pod connection was ALLOWED --- run '%v'", r.command)
+	for _, podFrom := range allPods {
+		for _, podTo := range allPods {
+			connected, err, command := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), protocol, fromPort, toPort)
+			if err != nil {
+				log.Infof("unable to perform probe %s -> %s: %v", podFrom, podTo, err)
+			}
+			reachability.Observe(podFrom, podTo, connected)
+			expected := reachability.Expected.Get(podFrom.String(), podTo.String())
+			if connected != expected {
+				log.Infof("Validation of %s -> %s FAILED !!!", podFrom, podTo)
+				log.Infof("error %v ", err)
+				if expected {
+					log.Infof("Whitelisted pod connection was BLOCKED --- run '%v'", command)
+				} else {
+					log.Infof("Blacklisted pod connection was ALLOWED --- run '%v'", command)
+				}
 			}
 		}
 	}
-
 }
 
 // GetDefaultDenyPolicy returns a default deny policy named 'name'.
