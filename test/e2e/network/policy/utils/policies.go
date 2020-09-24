@@ -31,7 +31,7 @@ func init() {
 	podIPs = make(map[string]string, len(pods)*len(namespaces))
 	for _, podName := range pods {
 		for _, ns := range namespaces {
-			allPods = append(allPods, NewPod(ns, podName))
+			allPods = append(allPods, NewPodString(ns, podName))
 		}
 	}
 }

@@ -9,7 +9,7 @@ import (
 
 type PodString string
 
-func NewPod(namespace string, podName string) PodString {
+func NewPodString(namespace string, podName string) PodString {
 	return PodString(fmt.Sprintf("%s/%s", namespace, podName))
 }
 

@@ -19,6 +19,7 @@ package network
 import (
 	"context"
 	"fmt"
+	v1 "k8s.io/api/core/v1"
 	"time"
 
 	"github.com/onsi/ginkgo"
@@ -39,44 +40,49 @@ connections from one of the clients. The test then asserts that the clients
 failed or successfully connected as expected.
 */
 
+var (
+	netpolTestPods       = []string{"a", "b", "c"}
+	netpolTestNamespaces = []string{"x", "y", "z"}
+)
+
+func getAllPods() []netpol.PodString {
+	var allPods []netpol.PodString
+	for _, podName := range netpolTestPods {
+		for _, ns := range netpolTestNamespaces {
+			allPods = append(allPods, netpol.NewPodString(ns, podName))
+		}
+	}
+	return allPods
+}
+
 type Scenario struct {
 	pods       []string
 	namespaces []string
 	p80        int
 	p81        int
 	allPods    []netpol.PodString
-	podIPs     map[string]string
-	polices    []networkingv1.NetworkPolicy
+	//policies   []networkingv1.NetworkPolicy
 }
 
 // forEach is a convenient function for iterating through all combinations
 // of to->from pods in the scenario.
 func (s *Scenario) forEach(process func(netpol.PodString, netpol.PodString)) {
-	for _, n := range s.namespaces {
-		for _, p := range s.pods {
-			for _, nn := range s.namespaces {
-				for _, pp := range s.pods {
-					process(netpol.PodString(n+"/"+p), netpol.PodString(nn+"/"+pp))
-				}
-			}
+	for _, from := range s.allPods {
+		for _, to := range s.allPods {
+			process(from, to)
 		}
 	}
 }
 
 // NewScenario creates a new test scenario.
 func NewScenario() *Scenario {
-	s := &Scenario{}
-	s.p80 = 80
-	s.p81 = 81
-	s.pods = []string{"a", "b", "c"}
-	s.namespaces = []string{"x", "y", "z"}
-	s.podIPs = make(map[string]string, len(s.pods)*len(s.namespaces))
-	for _, podName := range s.pods {
-		for _, ns := range s.namespaces {
-			s.allPods = append(s.allPods, netpol.NewPod(ns, podName))
-		}
+	return &Scenario{
+		pods:       netpolTestPods,
+		namespaces: netpolTestNamespaces,
+		p80:        80,
+		p81:        81,
+		allPods:    getAllPods(),
 	}
-	return s
 }
 
 func cleanPoliciesAndValidate(f *framework.Framework, k8s *netpol.Kubernetes, scenario *Scenario) {
@@ -163,35 +169,31 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	f := framework.NewDefaultFramework("network-policy")
 
 	var k8s *netpol.Kubernetes
-	var scenario *Scenario
 	backgroundInit := false
-	var reachability *netpol.Reachability
+	scenario := NewScenario()
 	ginkgo.BeforeEach(func() {
-		func() {
-			// The code in here only runs once bc it checks if things are nil
-			scenario = NewScenario()
-			if k8s == nil {
-				k8s, _ = netpol.NewKubernetes()
-				k8s.Bootstrap(scenario.namespaces, scenario.pods, scenario.allPods)
-				//TODO Adding the following line will show the error thus cause the failure. Discuss why
-				//framework.ExpectNoError(err, "Error occurs when bootstraping k8s")
+		// The code in here only runs once bc it checks if things are nil
+		if k8s == nil {
+			k8s, _ = netpol.NewKubernetes()
+			k8s.Bootstrap(netpolTestNamespaces, netpolTestPods, getAllPods())
+			//TODO Adding the following line will show the error thus cause the failure. Discuss why
+			//framework.ExpectNoError(err, "Error occurs when bootstraping k8s")
 
-				//TODO move to different location for unit test
-				if netpol.PodString("x/a") != netpol.NewPod("x", "a") {
-					framework.Failf("Namespace, pod representation doesn't match PodString type")
+			//TODO move to different location for unit test
+			if netpol.PodString("x/a") != netpol.NewPodString("x", "a") {
+				framework.Failf("Namespace, pod representation doesn't match PodString type")
+			}
+		}
+		if !backgroundInit {
+			p := netpol.GetRandomIngressPolicies(21)
+			for i := 0; i < 20; i++ {
+				_, e := f.ClientSet.NetworkingV1().NetworkPolicies("default").Create(context.TODO(), p[i], metav1.CreateOptions{})
+				if e != nil {
+					fmt.Printf("%v\n", e)
 				}
 			}
-			if !backgroundInit {
-				p := netpol.GetRandomIngressPolicies(21)
-				for i := 0; i < 20; i++ {
-					_, e := f.ClientSet.NetworkingV1().NetworkPolicies("default").Create(context.TODO(), p[i], metav1.CreateOptions{})
-					if e != nil {
-						fmt.Println(fmt.Sprintf("%v", e))
-					}
-				}
-				backgroundInit = true
-			}
-		}()
+			backgroundInit = true
+		}
 	})
 
 	ginkgo.Context("NetworkPolicy between server and client", func() {
@@ -203,7 +205,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:NetworkPolicy]", func() {
 			policy := netpol.GetDefaultDenyIngressPolicy("deny-ingress")
 
-			reachability = netpol.NewReachability(scenario.allPods, true)
+			reachability := netpol.NewReachability(scenario.allPods, true)
 
 			reachability.ExpectAllIngress(netpol.PodString("x/a"), false)
 			reachability.ExpectAllIngress(netpol.PodString("x/b"), false)
@@ -494,10 +496,11 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				},
 			}}
 
-			// 1) Make sure now that port 81 works ok for the y namespace THEN 2) Verify that port 80 doesnt work for any namespace (other then loopback)
-
-			ginkgo.By("Verifying that all traffic to another port, 81, is works.")
+			// 1) Make sure now that port 81 works ok for the y namespace
+			ginkgo.By("Verifying that all traffic to another port, 81, is allowed.")
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 81, policy, reachabilityALLOW, true, scenario)
+
+			// 2) Verify that port 80 doesnt work for any namespace (other then loopback)
 			ginkgo.By("Verifying that all traffic to another port, 80, is blocked.")
 			reachabilityDENY := netpol.NewReachability(scenario.allPods, true)
 			reachabilityDENY.ExpectAllIngress("x/a", false)
@@ -569,7 +572,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// disallow all traffic from the x or z namespaces
 			for _, nn := range []string{"x", "z"} {
 				for _, pp := range []string{"a", "b", "c"} {
-					reachability.Expect(netpol.NewPod(nn, pp), "x/a", false)
+					reachability.Expect(netpol.NewPodString(nn, pp), "x/a", false)
 				}
 			}
 			reachability.AllowLoopback()
@@ -944,7 +947,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// using foreach?
 			for _, nn := range []string{"x", "y", "z"} {
 				for _, pp := range []string{"a", "b", "c"} {
-					reachability.Expect("x/a", netpol.NewPod(nn, pp), false)
+					reachability.Expect("x/a", netpol.NewPodString(nn, pp), false)
 				}
 			}
 			reachability.Expect("x/a", "x/a", true)
@@ -1006,7 +1009,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			reachability_2 := netpol.NewReachability(scenario.allPods, true)
 			for _, nn := range []string{"x", "y", "z"} {
 				for _, pp := range []string{"a", "b", "c"} {
-					reachability_2.Expect("x/a", netpol.NewPod(nn, pp), false)
+					reachability_2.Expect("x/a", netpol.NewPodString(nn, pp), false)
 				}
 			}
 			reachability_2.Expect("x/a", "x/b", true)
@@ -1039,7 +1042,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		ginkgo.It("should not allow access by TCP when a policy specifies only UDP [Feature:NetworkPolicy] [Feature:UDP]", func() {
 			policy := netpol.AllowProtocolBasedOnPodSelector(
 				"allow-only-udp-ingress-on-port-81",
-				"udp",
+				v1.ProtocolUDP,
 				map[string]string{"pod": "a"}, &intstr.IntOrString{IntVal: 81},
 			)
 			ginkgo.By("Creating a network policy for the server which allows traffic only via UDP on port 81.")
