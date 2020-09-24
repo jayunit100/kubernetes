@@ -395,7 +395,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policy.Spec.Ingress[0].From[0].PodSelector = allowedPod
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			reachability.ExpectPeer(&netpol.Peer{Namespace: "x"}, &netpol.Peer{Namespace:"x", Pod:"a"}, false)
+			reachability.ExpectPeer(&netpol.Peer{Namespace: "x"}, &netpol.Peer{Namespace: "x", Pod: "a"}, false)
 			reachability.Expect("y/a", "x/a", false)
 			reachability.Expect("z/a", "x/a", false)
 			reachability.AllowLoopback()
@@ -438,9 +438,9 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			// allow all traffic from the x,y,z namespaces
 			reachabilityALLOW := netpol.NewReachability(scenario.allPods, true)
-			reachabilityALLOW.ExpectPeer(&netpol.Peer{Namespace: "x"}, &netpol.Peer{Namespace:"x", Pod: "a"}, false)
-			reachabilityALLOW.ExpectPeer(&netpol.Peer{Namespace: "y"}, &netpol.Peer{Namespace:"x", Pod: "a"}, true)
-			reachabilityALLOW.ExpectPeer(&netpol.Peer{Namespace: "z"}, &netpol.Peer{Namespace:"x", Pod: "a"}, false)
+			reachabilityALLOW.ExpectPeer(&netpol.Peer{Namespace: "x"}, &netpol.Peer{Namespace: "x", Pod: "a"}, false)
+			reachabilityALLOW.ExpectPeer(&netpol.Peer{Namespace: "y"}, &netpol.Peer{Namespace: "x", Pod: "a"}, true)
+			reachabilityALLOW.ExpectPeer(&netpol.Peer{Namespace: "z"}, &netpol.Peer{Namespace: "x", Pod: "a"}, false)
 			reachabilityALLOW.AllowLoopback()
 
 			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
@@ -500,7 +500,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			// disallow all traffic from the x or z namespaces
 			reachabilityPort80 := netpol.NewReachability(scenario.allPods, true)
-			reachabilityPort80.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace:"x"}, false)
+			reachabilityPort80.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
 			reachabilityPort80.AllowLoopback()
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 80, nil, reachabilityPort80, false, scenario)
 		})
@@ -586,7 +586,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// part 2) update the policy to deny all, empty...
 			policy.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{}
 			reachability = netpol.NewReachability(scenario.allPods, true)
-			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace:"x"}, false)
+			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
 			reachability.AllowLoopback()
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 81, policy, reachability, false, scenario)
 		})
@@ -601,7 +601,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			// part 2) update the policy to deny all, empty...
 			policy.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{}
 			reachability = netpol.NewReachability(scenario.allPods, true)
-			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace:"x"}, false)
+			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
 			reachability.AllowLoopback()
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 81, policy, reachability, false, scenario)
 		})
@@ -808,8 +808,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			ginkgo.By("Creating a network policy for the server which denies all traffic.")
 			policy := netpol.GetDefaultALLDenyPolicy("deny-all")
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			reachability.ExpectPeer(&netpol.Peer{Namespace:"x"}, &netpol.Peer{}, false)
-			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace:"x"}, false)
+			reachability.ExpectPeer(&netpol.Peer{Namespace: "x"}, &netpol.Peer{}, false)
+			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
 			reachability.AllowLoopback()
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 80, policy, reachability, true, scenario)
 
