@@ -37,10 +37,10 @@ func (pod PodString) PodName() string {
 
 type Peer struct {
 	Namespace string
-	Pod string
+	Pod       string
 }
 
-func (p *Peer)Matches(pod PodString) bool {
+func (p *Peer) Matches(pod PodString) bool {
 	return (p.Namespace == "" || p.Namespace == pod.Namespace()) && (p.Pod == "" || p.Pod == pod.PodName())
 }
 
@@ -92,7 +92,7 @@ func (r *Reachability) ExpectAllEgress(pod PodString, connected bool) {
 	}
 }
 
-func (r *Reachability)ExpectPeer(from *Peer, to *Peer, connected bool) {
+func (r *Reachability) ExpectPeer(from *Peer, to *Peer, connected bool) {
 	for _, fromPod := range r.Pods {
 		if from.Matches(fromPod) {
 			for _, toPod := range r.Pods {
