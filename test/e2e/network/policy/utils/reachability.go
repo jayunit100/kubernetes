@@ -35,11 +35,14 @@ func (pod PodString) PodName() string {
 	return podName
 }
 
-//type Connectivity struct {
-//	From        PodString
-//	To          PodString
-//	IsConnected bool
-//}
+type Peer struct {
+	Namespace string
+	Pod string
+}
+
+func (p *Peer)Matches(pod PodString) bool {
+	return (p.Namespace == "" || p.Namespace == pod.Namespace()) && (p.Pod == "" || p.Pod == pod.PodName())
+}
 
 type Reachability struct {
 	Expected *TruthTable
@@ -61,20 +64,6 @@ func NewReachability(pods []PodString, defaultExpectation bool) *Reachability {
 	return r
 }
 
-//// ExpectConn is an experimental way to describe connectivity with named fields
-//func (r *Reachability) ExpectConn(spec *Connectivity) {
-//	if spec.From == "" && spec.To == "" {
-//		panic("at most one of From and To may be empty, but both are empty")
-//	}
-//	if spec.From == "" {
-//		r.ExpectAllIngress(spec.To, spec.IsConnected)
-//	} else if spec.To == "" {
-//		r.ExpectAllEgress(spec.From, spec.IsConnected)
-//	} else {
-//		r.Expect(spec.From, spec.To, spec.IsConnected)
-//	}
-//}
-
 // AllowLoopback is a convenience func to access Expected and re-enabl
 // all loopback to true.  in general call it after doing other logical
 // stuff in loops since loopback logic follows no policy.
@@ -84,8 +73,8 @@ func (r *Reachability) AllowLoopback() {
 	}
 }
 
-func (r *Reachability) Expect(pod1 PodString, pod2 PodString, isConnected bool) {
-	r.Expected.Set(string(pod1), string(pod2), isConnected)
+func (r *Reachability) Expect(from PodString, to PodString, isConnected bool) {
+	r.Expected.Set(string(from), string(to), isConnected)
 }
 
 // ExpectAllIngress defines that any traffic going into the pod will be allowed/denied (true/false)
@@ -101,6 +90,18 @@ func (r *Reachability) ExpectAllEgress(pod PodString, connected bool) {
 	r.Expected.SetAllFrom(string(pod), connected)
 	if !connected {
 		log.Infof("Blacklisting all traffic *from* %s", pod)
+	}
+}
+
+func (r *Reachability)ExpectPeer(from *Peer, to *Peer, connected bool) {
+	for _, fromPod := range r.Pods {
+		if from.Matches(fromPod) {
+			for _, toPod := range r.Pods {
+				if to.Matches(toPod) {
+					r.Expected.Set(string(fromPod), string(toPod), connected)
+				}
+			}
+		}
 	}
 }
 

@@ -417,18 +417,9 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			policy.Spec.Ingress[0].From[0].PodSelector = allowedPod
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			scenario.forEach(func(from, to netpol.PodString) {
-				if to == "x/a" {
-					if from.Namespace() == "z" || from.Namespace() == "y" {
-						if from.PodName() == "a" {
-							reachability.Expect(from, to, false)
-						}
-					}
-					if from.Namespace() == "x" {
-						reachability.Expect(from, to, false)
-					}
-				}
-			})
+			reachability.ExpectPeer(&netpol.Peer{Namespace: "x"}, &netpol.Peer{Namespace:"x", Pod:"a"}, false)
+			reachability.Expect("y/a", "x/a", false)
+			reachability.Expect("z/a", "x/a", false)
 			reachability.AllowLoopback()
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 80, policy, reachability, false, scenario)
 		})
@@ -449,13 +440,8 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				map[string]string{"pod": "a"}, allowedNamespaces, allowedPods)
 
 			reachability := netpol.NewReachability(scenario.allPods, true)
-			scenario.forEach(func(from, to netpol.PodString) {
-				if to == "x/a" {
-					if from != "y/a" {
-						reachability.Expect(from, to, false)
-					}
-				}
-			})
+			reachability.ExpectAllIngress("x/a", false)
+			reachability.Expect("y/a", "x/a", true)
 			reachability.AllowLoopback()
 
 			validateOrFailFunc(k8s, f, "x", "tcp", 82, 80, policy, reachability, false, scenario)
@@ -474,20 +460,9 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 			// allow all traffic from the x,y,z namespaces
 			reachabilityALLOW := netpol.NewReachability(scenario.allPods, true)
-
-			scenario.forEach(func(from netpol.PodString, to netpol.PodString) {
-				if to == "x/a" {
-					if from.Namespace() == "y" {
-						reachabilityALLOW.Expect(from, to, true)
-					}
-					if from.Namespace() == "z" {
-						reachabilityALLOW.Expect(from, to, false)
-					}
-					if from.Namespace() == "x" {
-						reachabilityALLOW.Expect(from, to, false)
-					}
-				}
-			})
+			reachabilityALLOW.ExpectPeer(&netpol.Peer{Namespace: "x"}, &netpol.Peer{Namespace:"x", Pod: "a"}, false)
+			reachabilityALLOW.ExpectPeer(&netpol.Peer{Namespace: "y"}, &netpol.Peer{Namespace:"x", Pod: "a"}, true)
+			reachabilityALLOW.ExpectPeer(&netpol.Peer{Namespace: "z"}, &netpol.Peer{Namespace:"x", Pod: "a"}, false)
 			reachabilityALLOW.AllowLoopback()
 
 			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
