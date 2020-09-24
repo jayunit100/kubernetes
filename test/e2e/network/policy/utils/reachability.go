@@ -60,7 +60,6 @@ func NewReachability(pods []PodString, defaultExpectation bool) *Reachability {
 		Observed: NewTruthTable(items, nil),
 		Pods:     pods,
 	}
-	r.AllowLoopback()
 	return r
 }
 
