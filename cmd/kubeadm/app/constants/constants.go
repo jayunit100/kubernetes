@@ -185,6 +185,10 @@ const (
 	TLSBootstrapTimeout = 5 * time.Minute
 	// TLSBootstrapRetryInterval specifies how long kubeadm should wait before retrying the TLS Bootstrap check
 	TLSBootstrapRetryInterval = 5 * time.Second
+	// APICallWithWriteTimeout specifies how long kubeadm should wait for api calls with at least one write
+	APICallWithWriteTimeout = 40 * time.Second
+	// APICallWithReadTimeout specifies how long kubeadm should wait for api calls with only reads
+	APICallWithReadTimeout = 15 * time.Second
 	// PullImageRetry specifies how many times ContainerRuntime retries when pulling image failed
 	PullImageRetry = 5
 
@@ -245,10 +249,6 @@ const (
 	// This file should exist under KubeletRunDirectory
 	KubeletConfigurationFileName = "config.yaml"
 
-	// DynamicKubeletConfigurationDirectoryName specifies the directory which stores the dynamic configuration checkpoints for the kubelet
-	// This directory should exist under KubeletRunDirectory
-	DynamicKubeletConfigurationDirectoryName = "dynamic-config"
-
 	// KubeletEnvFileName is a file "kubeadm init" writes at runtime. Using that interface, kubeadm can customize certain
 	// kubelet flags conditionally based on the environment at runtime. Also, parameters given to the configuration file
 	// might be passed through this file. "kubeadm init" writes one variable, with the name ${KubeletEnvFileVariableName}.
@@ -265,7 +265,7 @@ const (
 	MinExternalEtcdVersion = "3.2.18"
 
 	// DefaultEtcdVersion indicates the default etcd version that kubeadm uses
-	DefaultEtcdVersion = "3.4.7-0"
+	DefaultEtcdVersion = "3.4.13-0"
 
 	// Etcd defines variable used internally when referring to etcd component
 	Etcd = "etcd"
@@ -325,23 +325,11 @@ const (
 	// KubeDNSDnsMasqNannyImageName specifies the name of the image for the dnsmasq container in the kube-dns add-on
 	KubeDNSDnsMasqNannyImageName = "k8s-dns-dnsmasq-nanny"
 
-	// AuditPolicyDir is the directory that will contain the audit policy
-	AuditPolicyDir = "audit"
-	// AuditPolicyFile is the name of the audit policy file itself
-	AuditPolicyFile = "audit.yaml"
-	// StaticPodAuditPolicyLogDir is the name of the directory in the static pod that will have the audit logs
-	StaticPodAuditPolicyLogDir = "/var/log/kubernetes/audit"
-
-	// LeaseEndpointReconcilerType will select a storage based reconciler
-	// Copied from pkg/master/reconcilers to avoid pulling extra dependencies
-	// TODO: Import this constant from a consts only package, that does not pull any further dependencies.
-	LeaseEndpointReconcilerType = "lease"
-
 	// KubeDNSVersion is the version of kube-dns to be deployed if it is used
 	KubeDNSVersion = "1.14.13"
 
 	// CoreDNSVersion is the version of CoreDNS to be deployed if it is used
-	CoreDNSVersion = "1.6.7"
+	CoreDNSVersion = "1.7.0"
 
 	// ClusterConfigurationKind is the string kind value for the ClusterConfiguration struct
 	ClusterConfigurationKind = "ClusterConfiguration"
@@ -362,6 +350,10 @@ const (
 	// ControlPlaneNumCPU is the number of CPUs required on control-plane
 	ControlPlaneNumCPU = 2
 
+	// ControlPlaneMem is the number of megabytes of memory required on the control-plane
+	// Below that amount of RAM running a stable control plane would be difficult.
+	ControlPlaneMem = 1700
+
 	// KubeadmCertsSecret specifies in what Secret in the kube-system namespace the certificates should be stored
 	KubeadmCertsSecret = "kubeadm-certs"
 
@@ -381,6 +373,9 @@ const (
 	// KubeAPIServerAdvertiseAddressEndpointAnnotationKey is the annotation key on every apiserver pod,
 	// describing the API endpoint (advertise address and bind port of the api server)
 	KubeAPIServerAdvertiseAddressEndpointAnnotationKey = "kubeadm.kubernetes.io/kube-apiserver.advertise-address.endpoint"
+	// ComponentConfigHashAnnotationKey holds the config map annotation key that kubeadm uses to store
+	// a SHA256 sum to check for user changes
+	ComponentConfigHashAnnotationKey = "kubeadm.kubernetes.io/component-config.hash"
 
 	// ControlPlaneTier is the value used in the tier label to identify control plane components
 	ControlPlaneTier = "control-plane"
@@ -426,13 +421,13 @@ var (
 	ControlPlaneComponents = []string{KubeAPIServer, KubeControllerManager, KubeScheduler}
 
 	// MinimumControlPlaneVersion specifies the minimum control plane version kubeadm can deploy
-	MinimumControlPlaneVersion = version.MustParseSemantic("v1.18.0")
+	MinimumControlPlaneVersion = version.MustParseSemantic("v1.19.0")
 
 	// MinimumKubeletVersion specifies the minimum version of kubelet which kubeadm supports
-	MinimumKubeletVersion = version.MustParseSemantic("v1.18.0")
+	MinimumKubeletVersion = version.MustParseSemantic("v1.19.0")
 
 	// CurrentKubernetesVersion specifies current Kubernetes version supported by kubeadm
-	CurrentKubernetesVersion = version.MustParseSemantic("v1.19.0")
+	CurrentKubernetesVersion = version.MustParseSemantic("v1.20.0")
 
 	// SupportedEtcdVersion lists officially supported etcd versions with corresponding Kubernetes releases
 	SupportedEtcdVersion = map[uint8]string{
@@ -442,8 +437,9 @@ var (
 		16: "3.3.17-0",
 		17: "3.4.3-0",
 		18: "3.4.3-0",
-		19: "3.4.7-0",
-		20: "3.4.7-0",
+		19: "3.4.9-1",
+		20: "3.4.13-0",
+		21: "3.4.13-0",
 	}
 
 	// KubeadmCertsClusterRoleName sets the name for the ClusterRole that allows
@@ -623,11 +619,6 @@ func GetAPIServerVirtualIP(svcSubnetList string, isDualStack bool) (net.IP, erro
 		return nil, errors.Wrapf(err, "unable to get the first IP address from the given CIDR: %s", svcSubnet.String())
 	}
 	return internalAPIServerVirtualIP, nil
-}
-
-// GetStaticPodAuditPolicyFile returns the path to the audit policy file within a static pod
-func GetStaticPodAuditPolicyFile() string {
-	return filepath.Join(KubernetesDir, AuditPolicyDir, AuditPolicyFile)
 }
 
 // GetDNSVersion is a handy function that returns the DNS version by DNS type

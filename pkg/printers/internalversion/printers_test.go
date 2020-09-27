@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/kubernetes/pkg/apis/apiserverinternal"
 	"k8s.io/kubernetes/pkg/apis/apps"
 	"k8s.io/kubernetes/pkg/apis/autoscaling"
 	"k8s.io/kubernetes/pkg/apis/batch"
@@ -178,11 +179,11 @@ func TestPrintEvent(t *testing.T) {
 				FirstTimestamp: metav1.Time{Time: time.Now().UTC().AddDate(0, 0, -3)},
 				Count:          1,
 				Type:           api.EventTypeWarning,
-				ObjectMeta:     metav1.ObjectMeta{Name: "event3"},
+				ObjectMeta:     metav1.ObjectMeta{Name: "event4"},
 			},
 			options: printers.GenerateOptions{Wide: true},
 			// Columns: Last Seen, Type, Reason, Object, Subobject, Message, First Seen, Count, Name
-			expected: []metav1.TableRow{{Cells: []interface{}{"3d", "Warning", "Event Reason", "deployment/Deployment Name", "spec.containers{foo}", "kubelet, Node1", "Message Data", "3d", int64(1), "event3"}}},
+			expected: []metav1.TableRow{{Cells: []interface{}{"3d", "Warning", "Event Reason", "deployment/Deployment Name", "spec.containers{foo}", "kubelet, Node1", "Message Data", "3d", int64(1), "event4"}}},
 		},
 		// Basic event, w/o FirstTimestamp and LastTimestamp set
 		{
@@ -201,11 +202,81 @@ func TestPrintEvent(t *testing.T) {
 				EventTime:  metav1.MicroTime{Time: time.Now().UTC().AddDate(0, 0, -3)},
 				Count:      1,
 				Type:       api.EventTypeWarning,
-				ObjectMeta: metav1.ObjectMeta{Name: "event3"},
+				ObjectMeta: metav1.ObjectMeta{Name: "event5"},
 			},
 			options: printers.GenerateOptions{Wide: true},
 			// Columns: Last Seen, Type, Reason, Object, Subobject, Message, First Seen, Count, Name
-			expected: []metav1.TableRow{{Cells: []interface{}{"3d", "Warning", "Event Reason", "deployment/Deployment Name", "spec.containers{foo}", "kubelet, Node1", "Message Data", "3d", int64(1), "event3"}}},
+			expected: []metav1.TableRow{{Cells: []interface{}{"3d", "Warning", "Event Reason", "deployment/Deployment Name", "spec.containers{foo}", "kubelet, Node1", "Message Data", "3d", int64(1), "event5"}}},
+		},
+		// Basic event serie, w/o FirstTimestamp, LastTimestamp and Count set
+		{
+			event: api.Event{
+				Source: api.EventSource{
+					Component: "kubelet",
+					Host:      "Node1",
+				},
+				InvolvedObject: api.ObjectReference{
+					Kind:      "Deployment",
+					Name:      "Deployment Name",
+					FieldPath: "spec.containers{foo}",
+				},
+				Series: &api.EventSeries{
+					Count:            1,
+					LastObservedTime: metav1.MicroTime{Time: time.Now().UTC().AddDate(0, 0, -2)},
+				},
+				Reason:     "Event Reason",
+				Message:    "Message Data",
+				EventTime:  metav1.MicroTime{Time: time.Now().UTC().AddDate(0, 0, -3)},
+				Type:       api.EventTypeWarning,
+				ObjectMeta: metav1.ObjectMeta{Name: "event6"},
+			},
+			options: printers.GenerateOptions{Wide: true},
+			// Columns: Last Seen, Type, Reason, Object, Subobject, Message, First Seen, Count, Name
+			expected: []metav1.TableRow{{Cells: []interface{}{"2d", "Warning", "Event Reason", "deployment/Deployment Name", "spec.containers{foo}", "kubelet, Node1", "Message Data", "3d", int64(2), "event6"}}},
+		},
+		// Singleton event, w/o FirstTimestamp, LastTimestamp and Count set
+		{
+			event: api.Event{
+				Source: api.EventSource{
+					Component: "kubelet",
+					Host:      "Node1",
+				},
+				InvolvedObject: api.ObjectReference{
+					Kind:      "Deployment",
+					Name:      "Deployment Name",
+					FieldPath: "spec.containers{foo}",
+				},
+				Reason:     "Event Reason",
+				Message:    "Message Data",
+				EventTime:  metav1.MicroTime{Time: time.Now().UTC().AddDate(0, 0, -3)},
+				Type:       api.EventTypeWarning,
+				ObjectMeta: metav1.ObjectMeta{Name: "event7"},
+			},
+			options: printers.GenerateOptions{Wide: true},
+			// Columns: Last Seen, Type, Reason, Object, Subobject, Message, First Seen, Count, Name
+			expected: []metav1.TableRow{{Cells: []interface{}{"3d", "Warning", "Event Reason", "deployment/Deployment Name", "spec.containers{foo}", "kubelet, Node1", "Message Data", "3d", int64(1), "event7"}}},
+		},
+		// Basic event, with empty Source; generate options=Wide
+		{
+			event: api.Event{
+				ReportingController: "kubelet",
+				ReportingInstance:   "test",
+				InvolvedObject: api.ObjectReference{
+					Kind:      "Deployment",
+					Name:      "Deployment Name",
+					FieldPath: "spec.containers{foo}",
+				},
+				Reason:         "Event Reason",
+				Message:        "Message Data",
+				FirstTimestamp: metav1.Time{Time: time.Now().UTC().AddDate(0, 0, -3)},
+				LastTimestamp:  metav1.Time{Time: time.Now().UTC().AddDate(0, 0, -2)},
+				Count:          6,
+				Type:           api.EventTypeWarning,
+				ObjectMeta:     metav1.ObjectMeta{Name: "event2"},
+			},
+			options: printers.GenerateOptions{Wide: true},
+			// Columns: Last Seen, Type, Reason, Object, Subobject, Source, Message, First Seen, Count, Name
+			expected: []metav1.TableRow{{Cells: []interface{}{"2d", "Warning", "Event Reason", "deployment/Deployment Name", "spec.containers{foo}", "kubelet, test", "Message Data", "3d", int64(6), "event2"}}},
 		},
 	}
 
@@ -893,9 +964,14 @@ func TestPrintIngress(t *testing.T) {
 		},
 		Spec: networking.IngressSpec{
 			IngressClassName: utilpointer.StringPtr("foo"),
-			Backend: &networking.IngressBackend{
-				ServiceName: "svc",
-				ServicePort: intstr.FromInt(93),
+			DefaultBackend: &networking.IngressBackend{
+				Service: &networking.IngressServiceBackend{
+					Name: "default-backend",
+					Port: networking.ServiceBackendPort{
+						Name:   "default-backend",
+						Number: 80,
+					},
+				},
 			},
 		},
 		Status: networking.IngressStatus{
@@ -5225,6 +5301,128 @@ func TestPrintPriorityLevelConfiguration(t *testing.T) {
 
 	for i, test := range tests {
 		rows, err := printPriorityLevelConfiguration(&test.pl, printers.GenerateOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range rows {
+			rows[i].Object.Object = nil
+		}
+		if !reflect.DeepEqual(test.expected, rows) {
+			t.Errorf("%d mismatch: %s", i, diff.ObjectReflectDiff(test.expected, rows))
+		}
+	}
+}
+
+func TestPrintStorageVersion(t *testing.T) {
+	commonEncodingVersion := "v1"
+	tests := []struct {
+		sv       apiserverinternal.StorageVersion
+		expected []metav1.TableRow
+	}{
+		{
+			sv: apiserverinternal.StorageVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "empty",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(1.9e9)},
+				},
+				Status: apiserverinternal.StorageVersionStatus{},
+			},
+			// Columns: Name, CommonEncodingVersion, StorageVersions, Age
+			expected: []metav1.TableRow{{Cells: []interface{}{"empty", "<unset>", "<unset>", "0s"}}},
+		},
+		{
+			sv: apiserverinternal.StorageVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "valid",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(1.9e9)},
+				},
+				Status: apiserverinternal.StorageVersionStatus{
+					StorageVersions: []apiserverinternal.ServerStorageVersion{
+						{
+							APIServerID:       "1",
+							EncodingVersion:   "v1",
+							DecodableVersions: []string{"v1"},
+						},
+						{
+							APIServerID:       "2",
+							EncodingVersion:   "v1",
+							DecodableVersions: []string{"v1", "v2"},
+						},
+					},
+					CommonEncodingVersion: &commonEncodingVersion,
+				},
+			},
+			// Columns: Name, CommonEncodingVersion, StorageVersions, Age
+			expected: []metav1.TableRow{{Cells: []interface{}{"valid", "v1", "1=v1,2=v1", "0s"}}},
+		},
+		{
+			sv: apiserverinternal.StorageVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "disagree",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(1.9e9)},
+				},
+				Status: apiserverinternal.StorageVersionStatus{
+					StorageVersions: []apiserverinternal.ServerStorageVersion{
+						{
+							APIServerID:       "1",
+							EncodingVersion:   "v1",
+							DecodableVersions: []string{"v1"},
+						},
+						{
+							APIServerID:       "2",
+							EncodingVersion:   "v1",
+							DecodableVersions: []string{"v1", "v2"},
+						},
+						{
+							APIServerID:       "3",
+							EncodingVersion:   "v2",
+							DecodableVersions: []string{"v2"},
+						},
+					},
+				},
+			},
+			// Columns: Name, CommonEncodingVersion, StorageVersions, Age
+			expected: []metav1.TableRow{{Cells: []interface{}{"disagree", "<unset>", "1=v1,2=v1,3=v2", "0s"}}},
+		},
+		{
+			sv: apiserverinternal.StorageVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "agreeWithMore",
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(1.9e9)},
+				},
+				Status: apiserverinternal.StorageVersionStatus{
+					StorageVersions: []apiserverinternal.ServerStorageVersion{
+						{
+							APIServerID:       "1",
+							EncodingVersion:   "v1",
+							DecodableVersions: []string{"v1"},
+						},
+						{
+							APIServerID:       "2",
+							EncodingVersion:   "v1",
+							DecodableVersions: []string{"v1", "v2"},
+						},
+						{
+							APIServerID:       "3",
+							EncodingVersion:   "v1",
+							DecodableVersions: []string{"v1", "v2"},
+						},
+						{
+							APIServerID:       "4",
+							EncodingVersion:   "v1",
+							DecodableVersions: []string{"v1", "v2", "v3alpha1"},
+						},
+					},
+					CommonEncodingVersion: &commonEncodingVersion,
+				},
+			},
+			// Columns: Name, CommonEncodingVersion, StorageVersions, Age
+			expected: []metav1.TableRow{{Cells: []interface{}{"agreeWithMore", "v1", "1=v1,2=v1,3=v1 + 1 more...", "0s"}}},
+		},
+	}
+
+	for i, test := range tests {
+		rows, err := printStorageVersion(&test.sv, printers.GenerateOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -210,18 +210,23 @@ func (h *hostpathCSIDriver) PrepareTest(f *framework.Framework) (*testsuites.Per
 	// Cleanup CSI driver and namespaces. This function needs to be idempotent and can be
 	// concurrently called from defer (or AfterEach) and AfterSuite action hooks.
 	cleanupFunc := func() {
-		framework.RemoveCleanupAction(h.cleanupHandle)
 		ginkgo.By(fmt.Sprintf("deleting the test namespace: %s", ns1))
 		// Delete the primary namespace but its okay to fail here because this namespace will
 		// also be deleted by framework.Aftereach hook
-		tryFunc(deleteNamespaceFunc(f.ClientSet, ns1, framework.DefaultNamespaceDeletionTimeout))
+		tryFunc(func() { f.DeleteNamespace(ns1) })
 
 		ginkgo.By("uninstalling csi mock driver")
 		tryFunc(cleanup)
 		tryFunc(cancelLogging)
 
 		ginkgo.By(fmt.Sprintf("deleting the driver namespace: %s", ns2))
-		tryFunc(deleteNamespaceFunc(f.ClientSet, ns2, framework.DefaultNamespaceDeletionTimeout))
+		tryFunc(func() { f.DeleteNamespace(ns2) })
+		// cleanup function has already ran and hence we don't need to run it again.
+		// We do this as very last action because in-case defer(or AfterEach) races
+		// with AfterSuite and test routine gets killed then this block still
+		// runs in AfterSuite
+		framework.RemoveCleanupAction(h.cleanupHandle)
+
 	}
 	h.cleanupHandle = framework.AddCleanupAction(cleanupFunc)
 
@@ -233,6 +238,7 @@ type mockCSIDriver struct {
 	driverInfo          testsuites.DriverInfo
 	manifests           []string
 	podInfo             *bool
+	storageCapacity     *bool
 	attachable          bool
 	attachLimit         int
 	enableTopology      bool
@@ -246,6 +252,7 @@ type CSIMockDriverOpts struct {
 	RegisterDriver      bool
 	DisableAttach       bool
 	PodInfo             *bool
+	StorageCapacity     *bool
 	AttachLimit         int
 	EnableTopology      bool
 	EnableResizing      bool
@@ -296,6 +303,7 @@ func InitMockCSIDriver(driverOpts CSIMockDriverOpts) testsuites.TestDriver {
 		},
 		manifests:           driverManifests,
 		podInfo:             driverOpts.PodInfo,
+		storageCapacity:     driverOpts.StorageCapacity,
 		enableTopology:      driverOpts.EnableTopology,
 		attachable:          !driverOpts.DisableAttach,
 		attachLimit:         driverOpts.AttachLimit,
@@ -387,6 +395,7 @@ func (m *mockCSIDriver) PrepareTest(f *framework.Framework) (*testsuites.PerTest
 		ProvisionerContainerName: "csi-provisioner",
 		NodeName:                 node.Name,
 		PodInfo:                  m.podInfo,
+		StorageCapacity:          m.storageCapacity,
 		CanAttach:                &m.attachable,
 		VolumeLifecycleModes: &[]storagev1.VolumeLifecycleMode{
 			storagev1.VolumeLifecyclePersistent,
@@ -404,11 +413,10 @@ func (m *mockCSIDriver) PrepareTest(f *framework.Framework) (*testsuites.PerTest
 	// Cleanup CSI driver and namespaces. This function needs to be idempotent and can be
 	// concurrently called from defer (or AfterEach) and AfterSuite action hooks.
 	cleanupFunc := func() {
-		framework.RemoveCleanupAction(m.cleanupHandle)
 		ginkgo.By(fmt.Sprintf("deleting the test namespace: %s", ns1))
 		// Delete the primary namespace but its okay to fail here because this namespace will
 		// also be deleted by framework.Aftereach hook
-		tryFunc(deleteNamespaceFunc(f.ClientSet, ns1, framework.DefaultNamespaceDeletionTimeout))
+		tryFunc(func() { f.DeleteNamespace(ns1) })
 
 		ginkgo.By("uninstalling csi mock driver")
 		tryFunc(func() {
@@ -421,7 +429,13 @@ func (m *mockCSIDriver) PrepareTest(f *framework.Framework) (*testsuites.PerTest
 		tryFunc(cleanup)
 		tryFunc(cancelLogging)
 		ginkgo.By(fmt.Sprintf("deleting the driver namespace: %s", ns2))
-		tryFunc(deleteNamespaceFunc(f.ClientSet, ns2, framework.DefaultNamespaceDeletionTimeout))
+		tryFunc(func() { f.DeleteNamespace(ns2) })
+		// cleanup function has already ran and hence we don't need to run it again.
+		// We do this as very last action because in-case defer(or AfterEach) races
+		// with AfterSuite and test routine gets killed then this block still
+		// runs in AfterSuite
+		framework.RemoveCleanupAction(m.cleanupHandle)
+
 	}
 
 	m.cleanupHandle = framework.AddCleanupAction(cleanupFunc)
@@ -553,25 +567,30 @@ func (g *gcePDCSIDriver) PrepareTest(f *framework.Framework) (*testsuites.PerTes
 		framework.Failf("deploying csi gce-pd driver: %v", err)
 	}
 
-	if err = waitForCSIDriverRegistrationOnAllNodes(GCEPDCSIDriverName, f.ClientSet); err != nil {
+	if err = WaitForCSIDriverRegistrationOnAllNodes(GCEPDCSIDriverName, f.ClientSet); err != nil {
 		framework.Failf("waiting for csi driver node registration on: %v", err)
 	}
 
 	// Cleanup CSI driver and namespaces. This function needs to be idempotent and can be
 	// concurrently called from defer (or AfterEach) and AfterSuite action hooks.
 	cleanupFunc := func() {
-		framework.RemoveCleanupAction(g.cleanupHandle)
 		ginkgo.By(fmt.Sprintf("deleting the test namespace: %s", ns1))
 		// Delete the primary namespace but its okay to fail here because this namespace will
 		// also be deleted by framework.Aftereach hook
-		tryFunc(deleteNamespaceFunc(f.ClientSet, ns1, framework.DefaultNamespaceDeletionTimeout))
+		tryFunc(func() { f.DeleteNamespace(ns1) })
 
 		ginkgo.By("uninstalling csi mock driver")
 		tryFunc(cleanup)
 		tryFunc(cancelLogging)
 
 		ginkgo.By(fmt.Sprintf("deleting the driver namespace: %s", ns2))
-		tryFunc(deleteNamespaceFunc(f.ClientSet, ns2, framework.DefaultNamespaceDeletionTimeout))
+		tryFunc(func() { f.DeleteNamespace(ns2) })
+		// cleanup function has already ran and hence we don't need to run it again.
+		// We do this as very last action because in-case defer(or AfterEach) races
+		// with AfterSuite and test routine gets killed then this block still
+		// runs in AfterSuite
+		framework.RemoveCleanupAction(g.cleanupHandle)
+
 	}
 	g.cleanupHandle = framework.AddCleanupAction(cleanupFunc)
 
@@ -583,23 +602,33 @@ func (g *gcePDCSIDriver) PrepareTest(f *framework.Framework) (*testsuites.PerTes
 	}, cleanupFunc
 }
 
-func waitForCSIDriverRegistrationOnAllNodes(driverName string, cs clientset.Interface) error {
+// WaitForCSIDriverRegistrationOnAllNodes waits for the CSINode object to be updated
+// with the given driver on all schedulable nodes.
+func WaitForCSIDriverRegistrationOnAllNodes(driverName string, cs clientset.Interface) error {
 	nodes, err := e2enode.GetReadySchedulableNodes(cs)
 	if err != nil {
 		return err
 	}
 	for _, node := range nodes.Items {
-		if err := waitForCSIDriverRegistrationOnNode(node.Name, driverName, cs); err != nil {
+		if err := WaitForCSIDriverRegistrationOnNode(node.Name, driverName, cs); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func waitForCSIDriverRegistrationOnNode(nodeName string, driverName string, cs clientset.Interface) error {
-	const csiNodeRegisterTimeout = 5 * time.Minute
+// WaitForCSIDriverRegistrationOnNode waits for the CSINode object generated by the node-registrar on a certain node
+func WaitForCSIDriverRegistrationOnNode(nodeName string, driverName string, cs clientset.Interface) error {
+	framework.Logf("waiting for CSIDriver %v to register on node %v", driverName, nodeName)
 
-	waitErr := wait.PollImmediate(10*time.Second, csiNodeRegisterTimeout, func() (bool, error) {
+	// About 8.6 minutes timeout
+	backoff := wait.Backoff{
+		Duration: 2 * time.Second,
+		Factor:   1.5,
+		Steps:    12,
+	}
+
+	waitErr := wait.ExponentialBackoff(backoff, func() (bool, error) {
 		csiNode, err := cs.StorageV1().CSINodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 		if err != nil && !apierrors.IsNotFound(err) {
 			return false, err
@@ -615,19 +644,6 @@ func waitForCSIDriverRegistrationOnNode(nodeName string, driverName string, cs c
 		return fmt.Errorf("error waiting for CSI driver %s registration on node %s: %v", driverName, nodeName, waitErr)
 	}
 	return nil
-}
-
-func deleteNamespaceFunc(cs clientset.Interface, ns string, timeout time.Duration) func() {
-	return func() {
-		err := cs.CoreV1().Namespaces().Delete(context.TODO(), ns, metav1.DeleteOptions{})
-		if err != nil && !apierrors.IsNotFound(err) {
-			framework.Logf("error deleting namespace %s: %v", ns, err)
-		}
-		err = framework.WaitForNamespacesDeleted(cs, []string{ns}, timeout)
-		if err != nil {
-			framework.Logf("error deleting namespace %s: %v", ns, err)
-		}
-	}
 }
 
 func tryFunc(f func()) error {

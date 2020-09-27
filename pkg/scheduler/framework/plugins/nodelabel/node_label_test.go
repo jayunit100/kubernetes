@@ -23,70 +23,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
+	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	framework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
 	"k8s.io/kubernetes/pkg/scheduler/internal/cache"
 )
-
-func TestValidateNodeLabelArgs(t *testing.T) {
-	tests := []struct {
-		name string
-		args config.NodeLabelArgs
-		err  bool
-	}{
-		{
-			name: "happy case",
-			args: config.NodeLabelArgs{
-				PresentLabels:           []string{"foo", "bar"},
-				AbsentLabels:            []string{"baz"},
-				PresentLabelsPreference: []string{"foo", "bar"},
-				AbsentLabelsPreference:  []string{"baz"},
-			},
-		},
-		{
-			name: "label presence conflict",
-			// "bar" exists in both present and absent labels therefore validation should fail.
-			args: config.NodeLabelArgs{
-				PresentLabels:           []string{"foo", "bar"},
-				AbsentLabels:            []string{"bar", "baz"},
-				PresentLabelsPreference: []string{"foo", "bar"},
-				AbsentLabelsPreference:  []string{"baz"},
-			},
-			err: true,
-		},
-		{
-			name: "label preference conflict",
-			// "bar" exists in both present and absent labels preferences therefore validation should fail.
-			args: config.NodeLabelArgs{
-				PresentLabels:           []string{"foo", "bar"},
-				AbsentLabels:            []string{"baz"},
-				PresentLabelsPreference: []string{"foo", "bar"},
-				AbsentLabelsPreference:  []string{"bar", "baz"},
-			},
-			err: true,
-		},
-		{
-			name: "both label presence and preference conflict",
-			args: config.NodeLabelArgs{
-				PresentLabels:           []string{"foo", "bar"},
-				AbsentLabels:            []string{"bar", "baz"},
-				PresentLabelsPreference: []string{"foo", "bar"},
-				AbsentLabelsPreference:  []string{"bar", "baz"},
-			},
-			err: true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			_, err := New(&test.args, nil)
-			if test.err && err == nil {
-				t.Fatal("Plugin initialization should fail.")
-			}
-			if !test.err && err != nil {
-				t.Fatalf("Plugin initialization shouldn't fail: %v", err)
-			}
-		})
-	}
-}
 
 func TestNodeLabelFilter(t *testing.T) {
 	label := map[string]string{"foo": "any value", "bar": "any value"}
@@ -297,7 +237,7 @@ func TestNodeLabelScore(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			state := framework.NewCycleState()
 			node := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "machine1", Labels: map[string]string{"foo": "", "bar": ""}}}
-			fh, _ := framework.NewFramework(nil, nil, nil, framework.WithSnapshotSharedLister(cache.NewSnapshot(nil, []*v1.Node{node})))
+			fh, _ := runtime.NewFramework(nil, nil, nil, runtime.WithSnapshotSharedLister(cache.NewSnapshot(nil, []*v1.Node{node})))
 			p, err := New(&test.args, fh)
 			if err != nil {
 				t.Fatalf("Failed to create plugin: %+v", err)
@@ -331,7 +271,7 @@ func TestNodeLabelFilterWithoutNode(t *testing.T) {
 
 func TestNodeLabelScoreWithoutNode(t *testing.T) {
 	t.Run("node does not exist", func(t *testing.T) {
-		fh, _ := framework.NewFramework(nil, nil, nil, framework.WithSnapshotSharedLister(cache.NewEmptySnapshot()))
+		fh, _ := runtime.NewFramework(nil, nil, nil, runtime.WithSnapshotSharedLister(cache.NewEmptySnapshot()))
 		p, err := New(&config.NodeLabelArgs{}, fh)
 		if err != nil {
 			t.Fatalf("Failed to create plugin: %+v", err)
@@ -341,5 +281,4 @@ func TestNodeLabelScoreWithoutNode(t *testing.T) {
 			t.Errorf("Status mismatch. got: %v, want: %v", status.Code(), framework.Error)
 		}
 	})
-
 }

@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"k8s.io/klog/v2"
+	"k8s.io/mount-utils"
 	"k8s.io/utils/keymutex"
-	"k8s.io/utils/mount"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -161,7 +161,7 @@ func (attacher *vsphereVMDKAttacher) WaitForAttach(spec *volume.Spec, devicePath
 	}
 
 	if devicePath == "" {
-		return "", fmt.Errorf("WaitForAttach failed for VMDK %q: devicePath is empty.", volumeSource.VolumePath)
+		return "", fmt.Errorf("WaitForAttach failed for VMDK %q: devicePath is empty", volumeSource.VolumePath)
 	}
 
 	ticker := time.NewTicker(checkSleepDuration)
@@ -184,7 +184,7 @@ func (attacher *vsphereVMDKAttacher) WaitForAttach(spec *volume.Spec, devicePath
 				return path, nil
 			}
 		case <-timer.C:
-			return "", fmt.Errorf("Could not find attached VMDK %q. Timeout waiting for mount paths to be created.", volumeSource.VolumePath)
+			return "", fmt.Errorf("could not find attached VMDK %q. Timeout waiting for mount paths to be created", volumeSource.VolumePath)
 		}
 	}
 }

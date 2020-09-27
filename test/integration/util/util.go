@@ -73,21 +73,19 @@ func StartApiserver() (string, ShutdownFunc) {
 }
 
 // StartScheduler configures and starts a scheduler given a handle to the clientSet interface
-// and event broadcaster. It returns the running scheduler and the shutdown function to stop it.
+// and event broadcaster. It returns the running scheduler, podInformer and the shutdown function to stop it.
 func StartScheduler(clientSet clientset.Interface) (*scheduler.Scheduler, coreinformers.PodInformer, ShutdownFunc) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	informerFactory := informers.NewSharedInformerFactory(clientSet, 0)
-	podInformer := informerFactory.Core().V1().Pods()
+	informerFactory := scheduler.NewInformerFactory(clientSet, 0)
 	evtBroadcaster := events.NewBroadcaster(&events.EventSinkImpl{
-		Interface: clientSet.EventsV1beta1().Events("")})
+		Interface: clientSet.EventsV1()})
 
 	evtBroadcaster.StartRecordingToSink(ctx.Done())
 
 	sched, err := scheduler.New(
 		clientSet,
 		informerFactory,
-		podInformer,
 		profile.NewRecorderFactory(evtBroadcaster),
 		ctx.Done())
 	if err != nil {
@@ -95,6 +93,7 @@ func StartScheduler(clientSet clientset.Interface) (*scheduler.Scheduler, corein
 	}
 
 	informerFactory.Start(ctx.Done())
+	informerFactory.WaitForCacheSync(ctx.Done())
 	go sched.Run(ctx)
 
 	shutdownFunc := func() {
@@ -102,7 +101,7 @@ func StartScheduler(clientSet clientset.Interface) (*scheduler.Scheduler, corein
 		cancel()
 		klog.Infof("destroyed scheduler")
 	}
-	return sched, podInformer, shutdownFunc
+	return sched, informerFactory.Core().V1().Pods(), shutdownFunc
 }
 
 // StartFakePVController is a simplified pv controller logic that sets PVC VolumeName and annotation for each PV binding.
@@ -219,9 +218,25 @@ func AddTaintToNode(cs clientset.Interface, nodeName string, taint v1.Taint) err
 	if err != nil {
 		return err
 	}
-	copy := node.DeepCopy()
-	copy.Spec.Taints = append(copy.Spec.Taints, taint)
-	_, err = cs.CoreV1().Nodes().Update(context.TODO(), copy, metav1.UpdateOptions{})
+	node.Spec.Taints = append(node.Spec.Taints, taint)
+	_, err = cs.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
+	return err
+}
+
+// RemoveTaintOffNode removes a specific taint from a node
+func RemoveTaintOffNode(cs clientset.Interface, nodeName string, taint v1.Taint) error {
+	node, err := cs.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	var taints []v1.Taint
+	for _, t := range node.Spec.Taints {
+		if !t.MatchTaint(&taint) {
+			taints = append(taints, t)
+		}
+	}
+	node.Spec.Taints = taints
+	_, err = cs.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
 	return err
 }
 
@@ -340,7 +355,7 @@ func InitTestMaster(t *testing.T, nsPrefix string, admission admission.Interface
 // WaitForSchedulerCacheCleanup waits for cleanup of scheduler's cache to complete
 func WaitForSchedulerCacheCleanup(sched *scheduler.Scheduler, t *testing.T) {
 	schedulerCacheIsEmpty := func() (bool, error) {
-		dump := sched.Cache().Dump()
+		dump := sched.SchedulerCache.Dump()
 
 		return len(dump.Nodes) == 0 && len(dump.AssumedPods) == 0, nil
 	}
@@ -355,11 +370,10 @@ func WaitForSchedulerCacheCleanup(sched *scheduler.Scheduler, t *testing.T) {
 func InitTestScheduler(
 	t *testing.T,
 	testCtx *TestContext,
-	setPodInformer bool,
 	policy *schedulerapi.Policy,
 ) *TestContext {
 	// Pod preemption is enabled by default scheduler configuration.
-	return InitTestSchedulerWithOptions(t, testCtx, setPodInformer, policy, time.Second)
+	return InitTestSchedulerWithOptions(t, testCtx, policy, time.Second)
 }
 
 // InitTestSchedulerWithOptions initializes a test environment and creates a scheduler with default
@@ -367,35 +381,24 @@ func InitTestScheduler(
 func InitTestSchedulerWithOptions(
 	t *testing.T,
 	testCtx *TestContext,
-	setPodInformer bool,
 	policy *schedulerapi.Policy,
 	resyncPeriod time.Duration,
 	opts ...scheduler.Option,
 ) *TestContext {
 	// 1. Create scheduler
-	testCtx.InformerFactory = informers.NewSharedInformerFactory(testCtx.ClientSet, resyncPeriod)
+	testCtx.InformerFactory = scheduler.NewInformerFactory(testCtx.ClientSet, resyncPeriod)
 
-	var podInformer coreinformers.PodInformer
-
-	// create independent pod informer if required
-	if setPodInformer {
-		podInformer = scheduler.NewPodInformer(testCtx.ClientSet, 12*time.Hour)
-	} else {
-		podInformer = testCtx.InformerFactory.Core().V1().Pods()
-	}
 	var err error
 	eventBroadcaster := events.NewBroadcaster(&events.EventSinkImpl{
-		Interface: testCtx.ClientSet.EventsV1beta1().Events(""),
+		Interface: testCtx.ClientSet.EventsV1(),
 	})
 
 	if policy != nil {
 		opts = append(opts, scheduler.WithAlgorithmSource(CreateAlgorithmSourceFromPolicy(policy, testCtx.ClientSet)))
 	}
-	opts = append([]scheduler.Option{scheduler.WithBindTimeoutSeconds(600)}, opts...)
 	testCtx.Scheduler, err = scheduler.New(
 		testCtx.ClientSet,
 		testCtx.InformerFactory,
-		podInformer,
 		profile.NewRecorderFactory(eventBroadcaster),
 		testCtx.Ctx.Done(),
 		opts...,
@@ -403,12 +406,6 @@ func InitTestSchedulerWithOptions(
 
 	if err != nil {
 		t.Fatalf("Couldn't create scheduler: %v", err)
-	}
-
-	// set setPodInformer if provided.
-	if setPodInformer {
-		go podInformer.Informer().Run(testCtx.Scheduler.StopEverything)
-		cache.WaitForNamedCacheSync("scheduler", testCtx.Scheduler.StopEverything, podInformer.Informer().HasSynced)
 	}
 
 	stopCh := make(chan struct{})

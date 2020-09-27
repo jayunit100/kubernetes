@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/pkg/controller/volume/scheduling"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
 )
 
@@ -63,14 +63,14 @@ const (
 	// scheduler skip preemption.
 	// The accompanying status message should explain why the pod is unschedulable.
 	Unschedulable
-	// UnschedulableAndUnresolvable is used when a (pre-)filter plugin finds a pod unschedulable and
+	// UnschedulableAndUnresolvable is used when a PreFilter plugin finds a pod unschedulable and
 	// preemption would not change anything. Plugins should return Unschedulable if it is possible
 	// that the pod can get scheduled with preemption.
 	// The accompanying status message should explain why the pod is unschedulable.
 	UnschedulableAndUnresolvable
-	// Wait is used when a permit plugin finds a pod scheduling should wait.
+	// Wait is used when a Permit plugin finds a pod scheduling should wait.
 	Wait
-	// Skip is used when a bind plugin chooses to skip binding.
+	// Skip is used when a Bind plugin chooses to skip binding.
 	Skip
 )
 
@@ -92,12 +92,14 @@ const (
 	MaxTotalScore int64 = math.MaxInt64
 )
 
-// Status indicates the result of running a plugin. It consists of a code and a
-// message. When the status code is not `Success`, the reasons should explain why.
+// Status indicates the result of running a plugin. It consists of a code, a
+// message and (optionally) an error. When the status code is not `Success`,
+// the reasons should explain why.
 // NOTE: A nil Status is also considered as Success.
 type Status struct {
 	code    Code
 	reasons []string
+	err     error
 }
 
 // Code returns code of the Status.
@@ -143,14 +145,30 @@ func (s *Status) AsError() error {
 	if s.IsSuccess() {
 		return nil
 	}
+	if s.err != nil {
+		return s.err
+	}
 	return errors.New(s.Message())
 }
 
 // NewStatus makes a Status out of the given arguments and returns its pointer.
 func NewStatus(code Code, reasons ...string) *Status {
-	return &Status{
+	s := &Status{
 		code:    code,
 		reasons: reasons,
+	}
+	if code == Error {
+		s.err = errors.New(s.Message())
+	}
+	return s
+}
+
+// AsStatus wraps an error in a Status.
+func AsStatus(err error) *Status {
+	return &Status{
+		code:    Error,
+		reasons: []string{err.Error()},
+		err:     err,
 	}
 }
 
@@ -166,10 +184,10 @@ func (p PluginToStatus) Merge() *Status {
 	}
 
 	finalStatus := NewStatus(Success)
-	var hasError, hasUnschedulableAndUnresolvable, hasUnschedulable bool
+	var hasUnschedulableAndUnresolvable, hasUnschedulable bool
 	for _, s := range p {
 		if s.Code() == Error {
-			hasError = true
+			finalStatus.err = s.AsError()
 		} else if s.Code() == UnschedulableAndUnresolvable {
 			hasUnschedulableAndUnresolvable = true
 		} else if s.Code() == Unschedulable {
@@ -181,7 +199,7 @@ func (p PluginToStatus) Merge() *Status {
 		}
 	}
 
-	if hasError {
+	if finalStatus.err != nil {
 		finalStatus.code = Error
 	} else if hasUnschedulableAndUnresolvable {
 		finalStatus.code = UnschedulableAndUnresolvable
@@ -195,9 +213,9 @@ func (p PluginToStatus) Merge() *Status {
 type WaitingPod interface {
 	// GetPod returns a reference to the waiting pod.
 	GetPod() *v1.Pod
-	// GetPendingPlugins returns a list of pending permit plugin's name.
+	// GetPendingPlugins returns a list of pending Permit plugin's name.
 	GetPendingPlugins() []string
-	// Allow declares the waiting pod is allowed to be scheduled by plugin pluginName.
+	// Allow declares the waiting pod is allowed to be scheduled by the plugin named as "pluginName".
 	// If this is the last remaining plugin to allow, then a success signal is delivered
 	// to unblock the pod.
 	Allow(pluginName string)
@@ -234,7 +252,7 @@ type PreFilterExtensions interface {
 	RemovePod(ctx context.Context, state *CycleState, podToSchedule *v1.Pod, podToRemove *v1.Pod, nodeInfo *NodeInfo) *Status
 }
 
-// PreFilterPlugin is an interface that must be implemented by "prefilter" plugins.
+// PreFilterPlugin is an interface that must be implemented by "PreFilter" plugins.
 // These plugins are called at the beginning of the scheduling cycle.
 type PreFilterPlugin interface {
 	Plugin
@@ -262,8 +280,7 @@ type FilterPlugin interface {
 	// Filter is called by the scheduling framework.
 	// All FilterPlugins should return "Success" to declare that
 	// the given node fits the pod. If Filter doesn't return "Success",
-	// please refer scheduler/algorithm/predicates/error.go
-	// to set error message.
+	// it will return "Unschedulable", "UnschedulableAndUnresolvable" or "Error".
 	// For the node being evaluated, Filter plugins should look at the passed
 	// nodeInfo reference for this particular node's information (e.g., pods
 	// considered to be running on the node) instead of looking it up in the
@@ -274,7 +291,24 @@ type FilterPlugin interface {
 	Filter(ctx context.Context, state *CycleState, pod *v1.Pod, nodeInfo *NodeInfo) *Status
 }
 
-// PreScorePlugin is an interface for Pre-score plugin. Pre-score is an
+// PostFilterPlugin is an interface for "PostFilter" plugins. These plugins are called
+// after a pod cannot be scheduled.
+type PostFilterPlugin interface {
+	Plugin
+	// PostFilter is called by the scheduling framework.
+	// A PostFilter plugin should return one of the following statuses:
+	// - Unschedulable: the plugin gets executed successfully but the pod cannot be made schedulable.
+	// - Success: the plugin gets executed successfully and the pod can be made schedulable.
+	// - Error: the plugin aborts due to some internal error.
+	//
+	// Informational plugins should be configured ahead of other ones, and always return Unschedulable status.
+	// Optionally, a non-nil PostFilterResult may be returned along with a Success status. For example,
+	// a preemption plugin may choose to return nominatedNodeName, so that framework can reuse that to update the
+	// preemptor pod's .spec.status.nominatedNodeName field.
+	PostFilter(ctx context.Context, state *CycleState, pod *v1.Pod, filteredNodeStatusMap NodeToStatusMap) (*PostFilterResult, *Status)
+}
+
+// PreScorePlugin is an interface for "PreScore" plugin. PreScore is an
 // informational extension point. Plugins will be called with a list of nodes
 // that passed the filtering phase. A plugin may use this data to update internal
 // state or to generate logs/metrics.
@@ -294,7 +328,7 @@ type ScoreExtensions interface {
 	NormalizeScore(ctx context.Context, state *CycleState, p *v1.Pod, scores NodeScoreList) *Status
 }
 
-// ScorePlugin is an interface that must be implemented by "score" plugins to rank
+// ScorePlugin is an interface that must be implemented by "Score" plugins to rank
 // nodes that passed the filtering phase.
 type ScorePlugin interface {
 	Plugin
@@ -307,20 +341,27 @@ type ScorePlugin interface {
 	ScoreExtensions() ScoreExtensions
 }
 
-// ReservePlugin is an interface for Reserve plugins. These plugins are called
-// at the reservation point. These are meant to update the state of the plugin.
-// This concept used to be called 'assume' in the original scheduler.
-// These plugins should return only Success or Error in Status.code. However,
-// the scheduler accepts other valid codes as well. Anything other than Success
-// will lead to rejection of the pod.
+// ReservePlugin is an interface for plugins with Reserve and Unreserve
+// methods. These are meant to update the state of the plugin. This concept
+// used to be called 'assume' in the original scheduler. These plugins should
+// return only Success or Error in Status.code. However, the scheduler accepts
+// other valid codes as well. Anything other than Success will lead to
+// rejection of the pod.
 type ReservePlugin interface {
 	Plugin
 	// Reserve is called by the scheduling framework when the scheduler cache is
-	// updated.
+	// updated. If this method returns a failed Status, the scheduler will call
+	// the Unreserve method for all enabled ReservePlugins.
 	Reserve(ctx context.Context, state *CycleState, p *v1.Pod, nodeName string) *Status
+	// Unreserve is called by the scheduling framework when a reserved pod was
+	// rejected, an error occurred during reservation of subsequent plugins, or
+	// in a later phase. The Unreserve method implementation must be idempotent
+	// and may be called by the scheduler even if the corresponding Reserve
+	// method for the same plugin was not called.
+	Unreserve(ctx context.Context, state *CycleState, p *v1.Pod, nodeName string)
 }
 
-// PreBindPlugin is an interface that must be implemented by "prebind" plugins.
+// PreBindPlugin is an interface that must be implemented by "PreBind" plugins.
 // These plugins are called before a pod being scheduled.
 type PreBindPlugin interface {
 	Plugin
@@ -329,7 +370,7 @@ type PreBindPlugin interface {
 	PreBind(ctx context.Context, state *CycleState, p *v1.Pod, nodeName string) *Status
 }
 
-// PostBindPlugin is an interface that must be implemented by "postbind" plugins.
+// PostBindPlugin is an interface that must be implemented by "PostBind" plugins.
 // These plugins are called after a pod is successfully bound to a node.
 type PostBindPlugin interface {
 	Plugin
@@ -340,18 +381,7 @@ type PostBindPlugin interface {
 	PostBind(ctx context.Context, state *CycleState, p *v1.Pod, nodeName string)
 }
 
-// UnreservePlugin is an interface for Unreserve plugins. This is an informational
-// extension point. If a pod was reserved and then rejected in a later phase, then
-// un-reserve plugins will be notified. Un-reserve plugins should clean up state
-// associated with the reserved Pod.
-type UnreservePlugin interface {
-	Plugin
-	// Unreserve is called by the scheduling framework when a reserved pod was
-	// rejected in a later phase.
-	Unreserve(ctx context.Context, state *CycleState, p *v1.Pod, nodeName string)
-}
-
-// PermitPlugin is an interface that must be implemented by "permit" plugins.
+// PermitPlugin is an interface that must be implemented by "Permit" plugins.
 // These plugins are called before a pod is bound to a node.
 type PermitPlugin interface {
 	Plugin
@@ -364,7 +394,7 @@ type PermitPlugin interface {
 	Permit(ctx context.Context, state *CycleState, p *v1.Pod, nodeName string) (*Status, time.Duration)
 }
 
-// BindPlugin is an interface that must be implemented by "bind" plugins. Bind
+// BindPlugin is an interface that must be implemented by "Bind" plugins. Bind
 // plugins are used to bind a pod to a Node.
 type BindPlugin interface {
 	Plugin
@@ -384,13 +414,13 @@ type Framework interface {
 	// QueueSortFunc returns the function to sort pods in scheduling queue
 	QueueSortFunc() LessFunc
 
-	// RunPreFilterPlugins runs the set of configured prefilter plugins. It returns
+	// RunPreFilterPlugins runs the set of configured PreFilter plugins. It returns
 	// *Status and its code is set to non-success if any of the plugins returns
 	// anything but Success. If a non-success status is returned, then the scheduling
 	// cycle is aborted.
 	RunPreFilterPlugins(ctx context.Context, state *CycleState, pod *v1.Pod) *Status
 
-	// RunFilterPlugins runs the set of configured filter plugins for pod on
+	// RunFilterPlugins runs the set of configured Filter plugins for pod on
 	// the given node. Note that for the node being evaluated, the passed nodeInfo
 	// reference could be different from the one in NodeInfoSnapshot map (e.g., pods
 	// considered to be running on the node could be different). For example, during
@@ -398,6 +428,12 @@ type Framework interface {
 	// removed from it to evaluate the possibility of preempting them to
 	// schedule the target pod.
 	RunFilterPlugins(ctx context.Context, state *CycleState, pod *v1.Pod, nodeInfo *NodeInfo) PluginToStatus
+
+	// RunPostFilterPlugins runs the set of configured PostFilter plugins.
+	// PostFilter plugins can either be informational, in which case should be configured
+	// to execute first and return Unschedulable status, or ones that try to change the
+	// cluster state to make the pod potentially schedulable in a future scheduling cycle.
+	RunPostFilterPlugins(ctx context.Context, state *CycleState, pod *v1.Pod, filteredNodeStatusMap NodeToStatusMap) (*PostFilterResult, *Status)
 
 	// RunPreFilterExtensionAddPod calls the AddPod interface for the set of configured
 	// PreFilter plugins. It returns directly if any of the plugins return any
@@ -409,56 +445,61 @@ type Framework interface {
 	// status other than Success.
 	RunPreFilterExtensionRemovePod(ctx context.Context, state *CycleState, podToSchedule *v1.Pod, podToAdd *v1.Pod, nodeInfo *NodeInfo) *Status
 
-	// RunPreScorePlugins runs the set of configured pre-score plugins. If any
+	// RunPreScorePlugins runs the set of configured PreScore plugins. If any
 	// of these plugins returns any status other than "Success", the given pod is rejected.
 	RunPreScorePlugins(ctx context.Context, state *CycleState, pod *v1.Pod, nodes []*v1.Node) *Status
 
-	// RunScorePlugins runs the set of configured scoring plugins. It returns a map that
-	// stores for each scoring plugin name the corresponding NodeScoreList(s).
+	// RunScorePlugins runs the set of configured Score plugins. It returns a map that
+	// stores for each Score plugin name the corresponding NodeScoreList(s).
 	// It also returns *Status, which is set to non-success if any of the plugins returns
 	// a non-success status.
 	RunScorePlugins(ctx context.Context, state *CycleState, pod *v1.Pod, nodes []*v1.Node) (PluginToNodeScores, *Status)
 
-	// RunPreBindPlugins runs the set of configured prebind plugins. It returns
+	// RunPreBindPlugins runs the set of configured PreBind plugins. It returns
 	// *Status and its code is set to non-success if any of the plugins returns
 	// anything but Success. If the Status code is "Unschedulable", it is
 	// considered as a scheduling check failure, otherwise, it is considered as an
 	// internal error. In either case the pod is not going to be bound.
 	RunPreBindPlugins(ctx context.Context, state *CycleState, pod *v1.Pod, nodeName string) *Status
 
-	// RunPostBindPlugins runs the set of configured postbind plugins.
+	// RunPostBindPlugins runs the set of configured PostBind plugins.
 	RunPostBindPlugins(ctx context.Context, state *CycleState, pod *v1.Pod, nodeName string)
 
-	// RunReservePlugins runs the set of configured reserve plugins. If any of these
-	// plugins returns an error, it does not continue running the remaining ones and
-	// returns the error. In such case, pod will not be scheduled.
-	RunReservePlugins(ctx context.Context, state *CycleState, pod *v1.Pod, nodeName string) *Status
+	// RunReservePluginsReserve runs the Reserve method of the set of
+	// configured Reserve plugins. If any of these calls returns an error, it
+	// does not continue running the remaining ones and returns the error. In
+	// such case, pod will not be scheduled.
+	RunReservePluginsReserve(ctx context.Context, state *CycleState, pod *v1.Pod, nodeName string) *Status
 
-	// RunUnreservePlugins runs the set of configured unreserve plugins.
-	RunUnreservePlugins(ctx context.Context, state *CycleState, pod *v1.Pod, nodeName string)
+	// RunReservePluginsUnreserve runs the Unreserve method of the set of
+	// configured Reserve plugins.
+	RunReservePluginsUnreserve(ctx context.Context, state *CycleState, pod *v1.Pod, nodeName string)
 
-	// RunPermitPlugins runs the set of configured permit plugins. If any of these
+	// RunPermitPlugins runs the set of configured Permit plugins. If any of these
 	// plugins returns a status other than "Success" or "Wait", it does not continue
 	// running the remaining plugins and returns an error. Otherwise, if any of the
 	// plugins returns "Wait", then this function will create and add waiting pod
 	// to a map of currently waiting pods and return status with "Wait" code.
-	// Pod will remain waiting pod for the minimum duration returned by the permit plugins.
+	// Pod will remain waiting pod for the minimum duration returned by the Permit plugins.
 	RunPermitPlugins(ctx context.Context, state *CycleState, pod *v1.Pod, nodeName string) *Status
 
 	// WaitOnPermit will block, if the pod is a waiting pod, until the waiting pod is rejected or allowed.
 	WaitOnPermit(ctx context.Context, pod *v1.Pod) *Status
 
-	// RunBindPlugins runs the set of configured bind plugins. A bind plugin may choose
-	// whether or not to handle the given Pod. If a bind plugin chooses to skip the
+	// RunBindPlugins runs the set of configured Bind plugins. A Bind plugin may choose
+	// whether or not to handle the given Pod. If a Bind plugin chooses to skip the
 	// binding, it should return code=5("skip") status. Otherwise, it should return "Error"
 	// or "Success". If none of the plugins handled binding, RunBindPlugins returns
 	// code=5("skip") status.
 	RunBindPlugins(ctx context.Context, state *CycleState, pod *v1.Pod, nodeName string) *Status
 
-	// HasFilterPlugins returns true if at least one filter plugin is defined.
+	// HasFilterPlugins returns true if at least one Filter plugin is defined.
 	HasFilterPlugins() bool
 
-	// HasScorePlugins returns true if at least one score plugin is defined.
+	// HasPostFilterPlugins returns true if at least one PostFilter plugin is defined.
+	HasPostFilterPlugins() bool
+
+	// HasScorePlugins returns true if at least one Score plugin is defined.
 	HasScorePlugins() bool
 
 	// ListPlugins returns a map of extension point name to list of configured Plugins.
@@ -490,15 +531,28 @@ type FrameworkHandle interface {
 	// ClientSet returns a kubernetes clientSet.
 	ClientSet() clientset.Interface
 
+	// EventRecorder returns an event recorder.
+	EventRecorder() events.EventRecorder
+
 	SharedInformerFactory() informers.SharedInformerFactory
 
-	// VolumeBinder returns the volume binder used by scheduler.
-	VolumeBinder() scheduling.SchedulerVolumeBinder
+	// TODO: unroll the wrapped interfaces to FrameworkHandle.
+	PreemptHandle() PreemptHandle
+}
+
+// PostFilterResult wraps needed info for scheduler framework to act upon PostFilter phase.
+type PostFilterResult struct {
+	NominatedNodeName string
 }
 
 // PreemptHandle incorporates all needed logic to run preemption logic.
 type PreemptHandle interface {
+	// PodNominator abstracts operations to maintain nominated Pods.
 	PodNominator
+	// PluginsRunner abstracts operations to run some plugins.
+	PluginsRunner
+	// Extenders returns registered scheduler extenders.
+	Extenders() []Extender
 }
 
 // PodNominator abstracts operations to maintain nominated Pods.
@@ -510,4 +564,18 @@ type PodNominator interface {
 	DeleteNominatedPodIfExists(pod *v1.Pod)
 	// UpdateNominatedPod updates the <oldPod> with <newPod>.
 	UpdateNominatedPod(oldPod, newPod *v1.Pod)
+	// NominatedPodsForNode returns nominatedPods on the given node.
+	NominatedPodsForNode(nodeName string) []*v1.Pod
+}
+
+// PluginsRunner abstracts operations to run some plugins.
+// This is used by preemption PostFilter plugins when evaluating the feasibility of
+// scheduling the pod on nodes when certain running pods get evicted.
+type PluginsRunner interface {
+	// RunFilterPlugins runs the set of configured filter plugins for pod on the given node.
+	RunFilterPlugins(context.Context, *CycleState, *v1.Pod, *NodeInfo) PluginToStatus
+	// RunPreFilterExtensionAddPod calls the AddPod interface for the set of configured PreFilter plugins.
+	RunPreFilterExtensionAddPod(ctx context.Context, state *CycleState, podToSchedule *v1.Pod, podToAdd *v1.Pod, nodeInfo *NodeInfo) *Status
+	// RunPreFilterExtensionRemovePod calls the RemovePod interface for the set of configured PreFilter plugins.
+	RunPreFilterExtensionRemovePod(ctx context.Context, state *CycleState, podToSchedule *v1.Pod, podToRemove *v1.Pod, nodeInfo *NodeInfo) *Status
 }

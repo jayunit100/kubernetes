@@ -27,19 +27,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	policylisters "k8s.io/client-go/listers/policy/v1beta1"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
-
-	kubefeatures "k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/algorithmprovider"
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/validation"
@@ -48,7 +41,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/noderesources"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding"
+	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	framework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
 	internalcache "k8s.io/kubernetes/pkg/scheduler/internal/cache"
 	cachedebugger "k8s.io/kubernetes/pkg/scheduler/internal/cache/debugger"
@@ -70,15 +63,10 @@ type Configurator struct {
 
 	informerFactory informers.SharedInformerFactory
 
-	podInformer coreinformers.PodInformer
-
 	// Close this to stop all reflectors
 	StopEverything <-chan struct{}
 
 	schedulerCache internalcache.Cache
-
-	// Disable pod preemption or not.
-	disablePreemption bool
 
 	// Always check all predicates even if the middle of one predicate fails.
 	alwaysCheckAllPredicates bool
@@ -86,30 +74,28 @@ type Configurator struct {
 	// percentageOfNodesToScore specifies percentage of all nodes to score in each scheduling cycle.
 	percentageOfNodesToScore int32
 
-	bindTimeoutSeconds int64
-
 	podInitialBackoffSeconds int64
 
 	podMaxBackoffSeconds int64
 
 	profiles          []schedulerapi.KubeSchedulerProfile
-	registry          framework.Registry
+	registry          frameworkruntime.Registry
 	nodeInfoSnapshot  *internalcache.Snapshot
 	extenders         []schedulerapi.Extender
 	frameworkCapturer FrameworkCapturer
 }
 
-func (c *Configurator) buildFramework(p schedulerapi.KubeSchedulerProfile, opts ...framework.Option) (framework.Framework, error) {
+func (c *Configurator) buildFramework(p schedulerapi.KubeSchedulerProfile, opts ...frameworkruntime.Option) (framework.Framework, error) {
 	if c.frameworkCapturer != nil {
 		c.frameworkCapturer(p)
 	}
-	opts = append([]framework.Option{
-		framework.WithClientSet(c.client),
-		framework.WithInformerFactory(c.informerFactory),
-		framework.WithSnapshotSharedLister(c.nodeInfoSnapshot),
-		framework.WithRunAllFilters(c.alwaysCheckAllPredicates),
+	opts = append([]frameworkruntime.Option{
+		frameworkruntime.WithClientSet(c.client),
+		frameworkruntime.WithInformerFactory(c.informerFactory),
+		frameworkruntime.WithSnapshotSharedLister(c.nodeInfoSnapshot),
+		frameworkruntime.WithRunAllFilters(c.alwaysCheckAllPredicates),
 	}, opts...)
-	return framework.NewFramework(
+	return frameworkruntime.NewFramework(
 		c.registry,
 		p.Plugins,
 		p.PluginConfig,
@@ -145,7 +131,7 @@ func (c *Configurator) create() (*Scheduler, error) {
 	}
 
 	// If there are any extended resources found from the Extenders, append them to the pluginConfig for each profile.
-	// This should only have an effect on ComponentConfig v1alpha2, where it is possible to configure Extenders and
+	// This should only have an effect on ComponentConfig v1beta1, where it is possible to configure Extenders and
 	// plugin args (and in which case the extender ignored resources take precedence).
 	// For earlier versions, using both policy and custom plugin config is disallowed, so this should be the only
 	// plugin config for this plugin.
@@ -165,7 +151,7 @@ func (c *Configurator) create() (*Scheduler, error) {
 	// The nominator will be passed all the way to framework instantiation.
 	nominator := internalqueue.NewPodNominator()
 	profiles, err := profile.NewMap(c.profiles, c.buildFramework, c.recorderFactory,
-		framework.WithPodNominator(nominator))
+		frameworkruntime.WithPodNominator(nominator))
 	if err != nil {
 		return nil, fmt.Errorf("initializing profiles: %v", err)
 	}
@@ -184,7 +170,7 @@ func (c *Configurator) create() (*Scheduler, error) {
 	// Setup cache debugger.
 	debugger := cachedebugger.New(
 		c.informerFactory.Core().V1().Nodes().Lister(),
-		c.podInformer.Lister(),
+		c.informerFactory.Core().V1().Pods().Lister(),
 		c.schedulerCache,
 		podQueue,
 	)
@@ -192,12 +178,8 @@ func (c *Configurator) create() (*Scheduler, error) {
 
 	algo := core.NewGenericScheduler(
 		c.schedulerCache,
-		podQueue,
 		c.nodeInfoSnapshot,
 		extenders,
-		c.informerFactory.Core().V1().PersistentVolumeClaims().Lister(),
-		GetPodDisruptionBudgetLister(c.informerFactory),
-		c.disablePreemption,
 		c.percentageOfNodesToScore,
 	)
 
@@ -210,26 +192,6 @@ func (c *Configurator) create() (*Scheduler, error) {
 		StopEverything:  c.StopEverything,
 		SchedulingQueue: podQueue,
 	}, nil
-}
-
-func maybeAppendVolumeBindingArgs(plugins *schedulerapi.Plugins, pcs []schedulerapi.PluginConfig, config schedulerapi.PluginConfig) []schedulerapi.PluginConfig {
-	enabled := false
-	for _, p := range plugins.PreBind.Enabled {
-		if p.Name == volumebinding.Name {
-			enabled = true
-		}
-	}
-	if !enabled {
-		// skip if VolumeBinding is not enabled
-		return pcs
-	}
-	// append if not exist
-	for _, pc := range pcs {
-		if pc.Name == config.Name {
-			return pcs
-		}
-	}
-	return append(pcs, config)
 }
 
 // createFromProvider creates a scheduler from the name of a registered algorithm provider.
@@ -247,12 +209,6 @@ func (c *Configurator) createFromProvider(providerName string) (*Scheduler, erro
 		plugins.Append(defaultPlugins)
 		plugins.Apply(prof.Plugins)
 		prof.Plugins = plugins
-		prof.PluginConfig = maybeAppendVolumeBindingArgs(prof.Plugins, prof.PluginConfig, schedulerapi.PluginConfig{
-			Name: volumebinding.Name,
-			Args: &schedulerapi.VolumeBindingArgs{
-				BindTimeoutSeconds: c.bindTimeoutSeconds,
-			},
-		})
 	}
 	return c.create()
 }
@@ -348,12 +304,6 @@ func (c *Configurator) createFromConfig(policy schedulerapi.Policy) (*Scheduler,
 
 		// PluginConfig is ignored when using Policy.
 		prof.PluginConfig = defPluginConfig
-		prof.PluginConfig = maybeAppendVolumeBindingArgs(prof.Plugins, prof.PluginConfig, schedulerapi.PluginConfig{
-			Name: volumebinding.Name,
-			Args: &schedulerapi.VolumeBindingArgs{
-				BindTimeoutSeconds: c.bindTimeoutSeconds,
-			},
-		})
 	}
 
 	return c.create()
@@ -452,37 +402,14 @@ func getPredicateConfigs(keys sets.String, lr *frameworkplugins.LegacyRegistry, 
 	return &plugins, pluginConfig, nil
 }
 
-type podInformer struct {
-	informer cache.SharedIndexInformer
-}
-
-func (i *podInformer) Informer() cache.SharedIndexInformer {
-	return i.informer
-}
-
-func (i *podInformer) Lister() corelisters.PodLister {
-	return corelisters.NewPodLister(i.informer.GetIndexer())
-}
-
-// NewPodInformer creates a shared index informer that returns only non-terminal pods.
-func NewPodInformer(client clientset.Interface, resyncPeriod time.Duration) coreinformers.PodInformer {
-	selector := fields.ParseSelectorOrDie(
-		"status.phase!=" + string(v1.PodSucceeded) +
-			",status.phase!=" + string(v1.PodFailed))
-	lw := cache.NewListWatchFromClient(client.CoreV1().RESTClient(), string(v1.ResourcePods), metav1.NamespaceAll, selector)
-	return &podInformer{
-		informer: cache.NewSharedIndexInformer(lw, &v1.Pod{}, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}),
-	}
-}
-
 // MakeDefaultErrorFunc construct a function to handle pod scheduler error
 func MakeDefaultErrorFunc(client clientset.Interface, podLister corelisters.PodLister, podQueue internalqueue.SchedulingQueue, schedulerCache internalcache.Cache) func(*framework.QueuedPodInfo, error) {
 	return func(podInfo *framework.QueuedPodInfo, err error) {
 		pod := podInfo.Pod
 		if err == core.ErrNoNodesAvailable {
-			klog.V(2).Infof("Unable to schedule %v/%v: no nodes are registered to the cluster; waiting", pod.Namespace, pod.Name)
+			klog.V(2).InfoS("Unable to schedule pod; no nodes are registered to the cluster; waiting", "pod", klog.KObj(pod))
 		} else if _, ok := err.(*core.FitError); ok {
-			klog.V(2).Infof("Unable to schedule %v/%v: no fit: %v; waiting", pod.Namespace, pod.Name, err)
+			klog.V(2).InfoS("Unable to schedule pod; no fit; waiting", "pod", klog.KObj(pod), "err", err)
 		} else if apierrors.IsNotFound(err) {
 			klog.V(2).Infof("Unable to schedule %v/%v: possibly due to node not found: %v; waiting", pod.Namespace, pod.Name, err)
 			if errStatus, ok := err.(apierrors.APIStatus); ok && errStatus.Status().Details.Kind == "node" {
@@ -498,7 +425,7 @@ func MakeDefaultErrorFunc(client clientset.Interface, podLister corelisters.PodL
 				}
 			}
 		} else {
-			klog.Errorf("Error scheduling %v/%v: %v; retrying", pod.Namespace, pod.Name, err)
+			klog.ErrorS(err, "Error scheduling pod; retrying", "pod", klog.KObj(pod))
 		}
 
 		// Check if the Pod exists in informer cache.
@@ -513,12 +440,4 @@ func MakeDefaultErrorFunc(client clientset.Interface, podLister corelisters.PodL
 			klog.Error(err)
 		}
 	}
-}
-
-// GetPodDisruptionBudgetLister returns pdb lister from the given informer factory. Returns nil if PodDisruptionBudget feature is disabled.
-func GetPodDisruptionBudgetLister(informerFactory informers.SharedInformerFactory) policylisters.PodDisruptionBudgetLister {
-	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.PodDisruptionBudget) {
-		return informerFactory.Policy().V1beta1().PodDisruptionBudgets().Lister()
-	}
-	return nil
 }

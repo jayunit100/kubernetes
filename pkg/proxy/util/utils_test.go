@@ -18,13 +18,13 @@ package util
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"reflect"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	fake "k8s.io/kubernetes/pkg/proxy/util/testing"
 )
@@ -163,10 +163,42 @@ func TestIsProxyableHostname(t *testing.T) {
 	}
 }
 
+func TestIsAllowedHost(t *testing.T) {
+	testCases := []struct {
+		ip     string
+		denied []string
+		want   error
+	}{
+		{"8.8.8.8", []string{}, nil},
+		{"169.254.169.254", []string{"169.0.0.0/8"}, ErrAddressNotAllowed},
+		{"169.254.169.254", []string{"fce8::/15", "169.254.169.0/24"}, ErrAddressNotAllowed},
+		{"fce9:beef::", []string{"fce8::/15", "169.254.169.0/24"}, ErrAddressNotAllowed},
+		{"127.0.0.1", []string{"127.0.0.1/32"}, ErrAddressNotAllowed},
+		{"34.107.204.206", []string{"fce8::/15"}, nil},
+		{"fce9:beef::", []string{"127.0.0.1/32"}, nil},
+		{"34.107.204.206", []string{"127.0.0.1/32"}, nil},
+		{"127.0.0.1", []string{}, nil},
+	}
+
+	for i := range testCases {
+		var denyList []*net.IPNet
+		for _, cidrStr := range testCases[i].denied {
+			_, ipNet, err := net.ParseCIDR(cidrStr)
+			if err != nil {
+				t.Fatalf("bad IP for test case: %v: %v", cidrStr, err)
+			}
+			denyList = append(denyList, ipNet)
+		}
+		got := IsAllowedHost(net.ParseIP(testCases[i].ip), denyList)
+		if testCases[i].want != got {
+			t.Errorf("case %d: expected %v, got %v", i, testCases[i].want, got)
+		}
+	}
+}
+
 func TestShouldSkipService(t *testing.T) {
 	testCases := []struct {
 		service    *v1.Service
-		svcName    types.NamespacedName
 		shouldSkip bool
 	}{
 		{
@@ -177,7 +209,6 @@ func TestShouldSkipService(t *testing.T) {
 					ClusterIP: v1.ClusterIPNone,
 				},
 			},
-			svcName:    types.NamespacedName{Namespace: "foo", Name: "bar"},
 			shouldSkip: true,
 		},
 		{
@@ -188,7 +219,6 @@ func TestShouldSkipService(t *testing.T) {
 					ClusterIP: "",
 				},
 			},
-			svcName:    types.NamespacedName{Namespace: "foo", Name: "bar"},
 			shouldSkip: true,
 		},
 		{
@@ -200,7 +230,6 @@ func TestShouldSkipService(t *testing.T) {
 					Type:      v1.ServiceTypeExternalName,
 				},
 			},
-			svcName:    types.NamespacedName{Namespace: "foo", Name: "bar"},
 			shouldSkip: true,
 		},
 		{
@@ -212,7 +241,6 @@ func TestShouldSkipService(t *testing.T) {
 					Type:      v1.ServiceTypeClusterIP,
 				},
 			},
-			svcName:    types.NamespacedName{Namespace: "foo", Name: "bar"},
 			shouldSkip: false,
 		},
 		{
@@ -224,7 +252,6 @@ func TestShouldSkipService(t *testing.T) {
 					Type:      v1.ServiceTypeNodePort,
 				},
 			},
-			svcName:    types.NamespacedName{Namespace: "foo", Name: "bar"},
 			shouldSkip: false,
 		},
 		{
@@ -236,13 +263,12 @@ func TestShouldSkipService(t *testing.T) {
 					Type:      v1.ServiceTypeLoadBalancer,
 				},
 			},
-			svcName:    types.NamespacedName{Namespace: "foo", Name: "bar"},
 			shouldSkip: false,
 		},
 	}
 
 	for i := range testCases {
-		skip := ShouldSkipService(testCases[i].svcName, testCases[i].service)
+		skip := ShouldSkipService(testCases[i].service)
 		if skip != testCases[i].shouldSkip {
 			t.Errorf("case %d: expect %v, got %v", i, testCases[i].shouldSkip, skip)
 		}
@@ -260,6 +286,7 @@ func TestGetNodeAddressses(t *testing.T) {
 		nw            *fake.FakeNetwork
 		itfAddrsPairs []InterfaceAddrsPair
 		expected      sets.String
+		expectedErr   error
 	}{
 		{ // case 0
 			cidrs: []string{"10.20.30.0/24"},
@@ -375,7 +402,8 @@ func TestGetNodeAddressses(t *testing.T) {
 					addrs: []net.Addr{fake.AddrStruct{Val: "127.0.0.1/8"}},
 				},
 			},
-			expected: sets.NewString(),
+			expected:    nil,
+			expectedErr: fmt.Errorf("no addresses found for cidrs %v", []string{"10.20.30.0/24", "100.200.201.0/24"}),
 		},
 		{ // case 8
 			cidrs: []string{},
@@ -455,9 +483,10 @@ func TestGetNodeAddressses(t *testing.T) {
 			testCases[i].nw.AddInterfaceAddr(&pair.itf, pair.addrs)
 		}
 		addrList, err := GetNodeAddresses(testCases[i].cidrs, testCases[i].nw)
-		if err != nil {
+		if !reflect.DeepEqual(err, testCases[i].expectedErr) {
 			t.Errorf("case [%d], unexpected error: %v", i, err)
 		}
+
 		if !addrList.Equal(testCases[i].expected) {
 			t.Errorf("case [%d], unexpected mismatch, expected: %v, got: %v", i, testCases[i].expected, addrList)
 		}

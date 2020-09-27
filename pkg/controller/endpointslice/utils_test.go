@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -28,12 +27,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/cache"
-	endpointutil "k8s.io/kubernetes/pkg/controller/util/endpoint"
 	utilpointer "k8s.io/utils/pointer"
 )
 
@@ -255,61 +253,6 @@ func TestPodToEndpoint(t *testing.T) {
 	}
 }
 
-func TestPodChangedWithPodEndpointChanged(t *testing.T) {
-	podStore := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
-	ns := "test"
-	podStore.Add(newPod(1, ns, true, 1))
-	pods := podStore.List()
-	if len(pods) != 1 {
-		t.Errorf("podStore size: expected: %d, got: %d", 1, len(pods))
-		return
-	}
-	oldPod := pods[0].(*v1.Pod)
-	newPod := oldPod.DeepCopy()
-
-	if podChangedHelper(oldPod, newPod, podEndpointChanged) {
-		t.Errorf("Expected pod to be unchanged for copied pod")
-	}
-
-	newPod.Spec.NodeName = "changed"
-	if !podChangedHelper(oldPod, newPod, podEndpointChanged) {
-		t.Errorf("Expected pod to be changed for pod with NodeName changed")
-	}
-	newPod.Spec.NodeName = oldPod.Spec.NodeName
-
-	newPod.ObjectMeta.ResourceVersion = "changed"
-	if podChangedHelper(oldPod, newPod, podEndpointChanged) {
-		t.Errorf("Expected pod to be unchanged for pod with only ResourceVersion changed")
-	}
-	newPod.ObjectMeta.ResourceVersion = oldPod.ObjectMeta.ResourceVersion
-
-	newPod.Status.PodIPs = []v1.PodIP{{IP: "1.2.3.1"}}
-	if !podChangedHelper(oldPod, newPod, podEndpointChanged) {
-		t.Errorf("Expected pod to be changed with pod IP address change")
-	}
-	newPod.Status.PodIPs = oldPod.Status.PodIPs
-
-	newPod.ObjectMeta.Name = "wrong-name"
-	if !podChangedHelper(oldPod, newPod, podEndpointChanged) {
-		t.Errorf("Expected pod to be changed with pod name change")
-	}
-	newPod.ObjectMeta.Name = oldPod.ObjectMeta.Name
-
-	saveConditions := oldPod.Status.Conditions
-	oldPod.Status.Conditions = nil
-	if !podChangedHelper(oldPod, newPod, podEndpointChanged) {
-		t.Errorf("Expected pod to be changed with pod readiness change")
-	}
-	oldPod.Status.Conditions = saveConditions
-
-	now := metav1.NewTime(time.Now().UTC())
-	newPod.ObjectMeta.DeletionTimestamp = &now
-	if !podChangedHelper(oldPod, newPod, podEndpointChanged) {
-		t.Errorf("Expected pod to be changed with DeletionTimestamp change")
-	}
-	newPod.ObjectMeta.DeletionTimestamp = oldPod.ObjectMeta.DeletionTimestamp.DeepCopy()
-}
-
 func TestServiceControllerKey(t *testing.T) {
 	testCases := map[string]struct {
 		endpointSlice *discovery.EndpointSlice
@@ -513,7 +456,11 @@ func newServiceAndEndpointMeta(name, namespace string) (v1.Service, endpointMeta
 	}
 
 	svc := v1.Service{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			UID:       types.UID(namespace + "-" + name),
+		},
 		Spec: v1.ServiceSpec{
 			Ports: []v1.ServicePort{{
 				TargetPort: portNameIntStr,
@@ -535,18 +482,17 @@ func newServiceAndEndpointMeta(name, namespace string) (v1.Service, endpointMeta
 }
 
 func newEmptyEndpointSlice(n int, namespace string, endpointMeta endpointMeta, svc v1.Service) *discovery.EndpointSlice {
+	gvk := schema.GroupVersionKind{Version: "v1", Kind: "Service"}
+	ownerRef := metav1.NewControllerRef(&svc, gvk)
+
 	return &discovery.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s.%d", svc.Name, n),
-			Namespace: namespace,
+			Name:            fmt.Sprintf("%s-%d", svc.Name, n),
+			Namespace:       namespace,
+			OwnerReferences: []metav1.OwnerReference{*ownerRef},
 		},
 		Ports:       endpointMeta.Ports,
 		AddressType: endpointMeta.AddressType,
 		Endpoints:   []discovery.Endpoint{},
 	}
-}
-
-func podChangedHelper(oldPod, newPod *v1.Pod, endpointChanged endpointutil.EndpointsMatch) bool {
-	podChanged, _ := endpointutil.PodChanged(oldPod, newPod, podEndpointChanged)
-	return podChanged
 }

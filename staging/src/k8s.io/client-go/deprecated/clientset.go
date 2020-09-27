@@ -26,7 +26,6 @@ import (
 	appsv1 "k8s.io/client-go/deprecated/typed/apps/v1"
 	appsv1beta1 "k8s.io/client-go/deprecated/typed/apps/v1beta1"
 	appsv1beta2 "k8s.io/client-go/deprecated/typed/apps/v1beta2"
-	auditregistrationv1alpha1 "k8s.io/client-go/deprecated/typed/auditregistration/v1alpha1"
 	authenticationv1 "k8s.io/client-go/deprecated/typed/authentication/v1"
 	authenticationv1beta1 "k8s.io/client-go/deprecated/typed/authentication/v1beta1"
 	authorizationv1 "k8s.io/client-go/deprecated/typed/authorization/v1"
@@ -57,7 +56,6 @@ import (
 	schedulingv1 "k8s.io/client-go/deprecated/typed/scheduling/v1"
 	schedulingv1alpha1 "k8s.io/client-go/deprecated/typed/scheduling/v1alpha1"
 	schedulingv1beta1 "k8s.io/client-go/deprecated/typed/scheduling/v1beta1"
-	settingsv1alpha1 "k8s.io/client-go/deprecated/typed/settings/v1alpha1"
 	storagev1 "k8s.io/client-go/deprecated/typed/storage/v1"
 	storagev1alpha1 "k8s.io/client-go/deprecated/typed/storage/v1alpha1"
 	storagev1beta1 "k8s.io/client-go/deprecated/typed/storage/v1beta1"
@@ -73,7 +71,6 @@ type Interface interface {
 	AppsV1() appsv1.AppsV1Interface
 	AppsV1beta1() appsv1beta1.AppsV1beta1Interface
 	AppsV1beta2() appsv1beta2.AppsV1beta2Interface
-	AuditregistrationV1alpha1() auditregistrationv1alpha1.AuditregistrationV1alpha1Interface
 	AuthenticationV1() authenticationv1.AuthenticationV1Interface
 	AuthenticationV1beta1() authenticationv1beta1.AuthenticationV1beta1Interface
 	AuthorizationV1() authorizationv1.AuthorizationV1Interface
@@ -104,7 +101,6 @@ type Interface interface {
 	SchedulingV1alpha1() schedulingv1alpha1.SchedulingV1alpha1Interface
 	SchedulingV1beta1() schedulingv1beta1.SchedulingV1beta1Interface
 	SchedulingV1() schedulingv1.SchedulingV1Interface
-	SettingsV1alpha1() settingsv1alpha1.SettingsV1alpha1Interface
 	StorageV1beta1() storagev1beta1.StorageV1beta1Interface
 	StorageV1() storagev1.StorageV1Interface
 	StorageV1alpha1() storagev1alpha1.StorageV1alpha1Interface
@@ -119,7 +115,6 @@ type Clientset struct {
 	appsV1                       *appsv1.AppsV1Client
 	appsV1beta1                  *appsv1beta1.AppsV1beta1Client
 	appsV1beta2                  *appsv1beta2.AppsV1beta2Client
-	auditregistrationV1alpha1    *auditregistrationv1alpha1.AuditregistrationV1alpha1Client
 	authenticationV1             *authenticationv1.AuthenticationV1Client
 	authenticationV1beta1        *authenticationv1beta1.AuthenticationV1beta1Client
 	authorizationV1              *authorizationv1.AuthorizationV1Client
@@ -150,7 +145,6 @@ type Clientset struct {
 	schedulingV1alpha1           *schedulingv1alpha1.SchedulingV1alpha1Client
 	schedulingV1beta1            *schedulingv1beta1.SchedulingV1beta1Client
 	schedulingV1                 *schedulingv1.SchedulingV1Client
-	settingsV1alpha1             *settingsv1alpha1.SettingsV1alpha1Client
 	storageV1beta1               *storagev1beta1.StorageV1beta1Client
 	storageV1                    *storagev1.StorageV1Client
 	storageV1alpha1              *storagev1alpha1.StorageV1alpha1Client
@@ -179,11 +173,6 @@ func (c *Clientset) AppsV1beta1() appsv1beta1.AppsV1beta1Interface {
 // AppsV1beta2 retrieves the AppsV1beta2Client
 func (c *Clientset) AppsV1beta2() appsv1beta2.AppsV1beta2Interface {
 	return c.appsV1beta2
-}
-
-// AuditregistrationV1alpha1 retrieves the AuditregistrationV1alpha1Client
-func (c *Clientset) AuditregistrationV1alpha1() auditregistrationv1alpha1.AuditregistrationV1alpha1Interface {
-	return c.auditregistrationV1alpha1
 }
 
 // AuthenticationV1 retrieves the AuthenticationV1Client
@@ -336,11 +325,6 @@ func (c *Clientset) SchedulingV1() schedulingv1.SchedulingV1Interface {
 	return c.schedulingV1
 }
 
-// SettingsV1alpha1 retrieves the SettingsV1alpha1Client
-func (c *Clientset) SettingsV1alpha1() settingsv1alpha1.SettingsV1alpha1Interface {
-	return c.settingsV1alpha1
-}
-
 // StorageV1beta1 retrieves the StorageV1beta1Client
 func (c *Clientset) StorageV1beta1() storagev1beta1.StorageV1beta1Interface {
 	return c.storageV1beta1
@@ -394,10 +378,6 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 		return nil, err
 	}
 	cs.appsV1beta2, err = appsv1beta2.NewForConfig(&configShallowCopy)
-	if err != nil {
-		return nil, err
-	}
-	cs.auditregistrationV1alpha1, err = auditregistrationv1alpha1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -521,10 +501,6 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
-	cs.settingsV1alpha1, err = settingsv1alpha1.NewForConfig(&configShallowCopy)
-	if err != nil {
-		return nil, err
-	}
 	cs.storageV1beta1, err = storagev1beta1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
@@ -554,7 +530,6 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 	cs.appsV1 = appsv1.NewForConfigOrDie(c)
 	cs.appsV1beta1 = appsv1beta1.NewForConfigOrDie(c)
 	cs.appsV1beta2 = appsv1beta2.NewForConfigOrDie(c)
-	cs.auditregistrationV1alpha1 = auditregistrationv1alpha1.NewForConfigOrDie(c)
 	cs.authenticationV1 = authenticationv1.NewForConfigOrDie(c)
 	cs.authenticationV1beta1 = authenticationv1beta1.NewForConfigOrDie(c)
 	cs.authorizationV1 = authorizationv1.NewForConfigOrDie(c)
@@ -585,7 +560,6 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 	cs.schedulingV1alpha1 = schedulingv1alpha1.NewForConfigOrDie(c)
 	cs.schedulingV1beta1 = schedulingv1beta1.NewForConfigOrDie(c)
 	cs.schedulingV1 = schedulingv1.NewForConfigOrDie(c)
-	cs.settingsV1alpha1 = settingsv1alpha1.NewForConfigOrDie(c)
 	cs.storageV1beta1 = storagev1beta1.NewForConfigOrDie(c)
 	cs.storageV1 = storagev1.NewForConfigOrDie(c)
 	cs.storageV1alpha1 = storagev1alpha1.NewForConfigOrDie(c)
@@ -602,7 +576,6 @@ func New(c rest.Interface) *Clientset {
 	cs.appsV1 = appsv1.New(c)
 	cs.appsV1beta1 = appsv1beta1.New(c)
 	cs.appsV1beta2 = appsv1beta2.New(c)
-	cs.auditregistrationV1alpha1 = auditregistrationv1alpha1.New(c)
 	cs.authenticationV1 = authenticationv1.New(c)
 	cs.authenticationV1beta1 = authenticationv1beta1.New(c)
 	cs.authorizationV1 = authorizationv1.New(c)
@@ -633,7 +606,6 @@ func New(c rest.Interface) *Clientset {
 	cs.schedulingV1alpha1 = schedulingv1alpha1.New(c)
 	cs.schedulingV1beta1 = schedulingv1beta1.New(c)
 	cs.schedulingV1 = schedulingv1.New(c)
-	cs.settingsV1alpha1 = settingsv1alpha1.New(c)
 	cs.storageV1beta1 = storagev1beta1.New(c)
 	cs.storageV1 = storagev1.New(c)
 	cs.storageV1alpha1 = storagev1alpha1.New(c)

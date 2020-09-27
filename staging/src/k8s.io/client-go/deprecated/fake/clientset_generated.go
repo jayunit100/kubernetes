@@ -32,8 +32,6 @@ import (
 	fakeappsv1beta1 "k8s.io/client-go/deprecated/typed/apps/v1beta1/fake"
 	appsv1beta2 "k8s.io/client-go/deprecated/typed/apps/v1beta2"
 	fakeappsv1beta2 "k8s.io/client-go/deprecated/typed/apps/v1beta2/fake"
-	auditregistrationv1alpha1 "k8s.io/client-go/deprecated/typed/auditregistration/v1alpha1"
-	fakeauditregistrationv1alpha1 "k8s.io/client-go/deprecated/typed/auditregistration/v1alpha1/fake"
 	authenticationv1 "k8s.io/client-go/deprecated/typed/authentication/v1"
 	fakeauthenticationv1 "k8s.io/client-go/deprecated/typed/authentication/v1/fake"
 	authenticationv1beta1 "k8s.io/client-go/deprecated/typed/authentication/v1beta1"
@@ -94,8 +92,6 @@ import (
 	fakeschedulingv1alpha1 "k8s.io/client-go/deprecated/typed/scheduling/v1alpha1/fake"
 	schedulingv1beta1 "k8s.io/client-go/deprecated/typed/scheduling/v1beta1"
 	fakeschedulingv1beta1 "k8s.io/client-go/deprecated/typed/scheduling/v1beta1/fake"
-	settingsv1alpha1 "k8s.io/client-go/deprecated/typed/settings/v1alpha1"
-	fakesettingsv1alpha1 "k8s.io/client-go/deprecated/typed/settings/v1alpha1/fake"
 	storagev1 "k8s.io/client-go/deprecated/typed/storage/v1"
 	fakestoragev1 "k8s.io/client-go/deprecated/typed/storage/v1/fake"
 	storagev1alpha1 "k8s.io/client-go/deprecated/typed/storage/v1alpha1"
@@ -177,11 +173,6 @@ func (c *Clientset) AppsV1beta1() appsv1beta1.AppsV1beta1Interface {
 // AppsV1beta2 retrieves the AppsV1beta2Client
 func (c *Clientset) AppsV1beta2() appsv1beta2.AppsV1beta2Interface {
 	return &fakeappsv1beta2.FakeAppsV1beta2{Fake: &c.Fake}
-}
-
-// AuditregistrationV1alpha1 retrieves the AuditregistrationV1alpha1Client
-func (c *Clientset) AuditregistrationV1alpha1() auditregistrationv1alpha1.AuditregistrationV1alpha1Interface {
-	return &fakeauditregistrationv1alpha1.FakeAuditregistrationV1alpha1{Fake: &c.Fake}
 }
 
 // AuthenticationV1 retrieves the AuthenticationV1Client
@@ -332,11 +323,6 @@ func (c *Clientset) SchedulingV1beta1() schedulingv1beta1.SchedulingV1beta1Inter
 // SchedulingV1 retrieves the SchedulingV1Client
 func (c *Clientset) SchedulingV1() schedulingv1.SchedulingV1Interface {
 	return &fakeschedulingv1.FakeSchedulingV1{Fake: &c.Fake}
-}
-
-// SettingsV1alpha1 retrieves the SettingsV1alpha1Client
-func (c *Clientset) SettingsV1alpha1() settingsv1alpha1.SettingsV1alpha1Interface {
-	return &fakesettingsv1alpha1.FakeSettingsV1alpha1{Fake: &c.Fake}
 }
 
 // StorageV1beta1 retrieves the StorageV1beta1Client

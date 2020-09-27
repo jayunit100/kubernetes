@@ -51,6 +51,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/dynamic"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	restclient "k8s.io/client-go/rest"
@@ -133,6 +134,9 @@ const (
 	// SnapshotCreateTimeout is how long for snapshot to create snapshotContent.
 	SnapshotCreateTimeout = 5 * time.Minute
 
+	// SnapshotDeleteTimeout is how long for snapshot to delete snapshotContent.
+	SnapshotDeleteTimeout = 5 * time.Minute
+
 	// Minimal number of nodes for the cluster to be considered large.
 	largeClusterThreshold = 100
 
@@ -199,6 +203,16 @@ func NodeOSDistroIs(supportedNodeOsDistros ...string) bool {
 	return false
 }
 
+// NodeOSArchIs returns true if the node OS arch is included in the supportedNodeOsArchs. Otherwise false.
+func NodeOSArchIs(supportedNodeOsArchs ...string) bool {
+	for _, arch := range supportedNodeOsArchs {
+		if strings.EqualFold(arch, TestContext.NodeOSArch) {
+			return true
+		}
+	}
+	return false
+}
+
 // DeleteNamespaces deletes all namespaces that match the given delete and skip filters.
 // Filter is by simple strings.Contains; first skip filter, then delete filter.
 // Returns the list of deleted namespaces or an error.
@@ -210,11 +224,9 @@ func DeleteNamespaces(c clientset.Interface, deleteFilter, skipFilter []string) 
 	var wg sync.WaitGroup
 OUTER:
 	for _, item := range nsList.Items {
-		if skipFilter != nil {
-			for _, pattern := range skipFilter {
-				if strings.Contains(item.Name, pattern) {
-					continue OUTER
-				}
+		for _, pattern := range skipFilter {
+			if strings.Contains(item.Name, pattern) {
+				continue OUTER
 			}
 		}
 		if deleteFilter != nil {
@@ -588,13 +600,19 @@ func isTimeout(err error) bool {
 
 // Exec runs the kubectl executable.
 func (b KubectlBuilder) Exec() (string, error) {
+	stdout, _, err := b.ExecWithFullOutput()
+	return stdout, err
+}
+
+// ExecWithFullOutput runs the kubectl executable, and returns the stdout and stderr.
+func (b KubectlBuilder) ExecWithFullOutput() (string, string, error) {
 	var stdout, stderr bytes.Buffer
 	cmd := b.cmd
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 
 	Logf("Running '%s %s'", cmd.Path, strings.Join(cmd.Args[1:], " ")) // skip arg[0] as it is printed separately
 	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("error starting %v:\nCommand stdout:\n%v\nstderr:\n%v\nerror:\n%v", cmd, cmd.Stdout, cmd.Stderr, err)
+		return "", "", fmt.Errorf("error starting %v:\nCommand stdout:\n%v\nstderr:\n%v\nerror:\n%v", cmd, cmd.Stdout, cmd.Stderr, err)
 	}
 	errCh := make(chan error, 1)
 	go func() {
@@ -608,18 +626,18 @@ func (b KubectlBuilder) Exec() (string, error) {
 				rc = int(ee.Sys().(syscall.WaitStatus).ExitStatus())
 				Logf("rc: %d", rc)
 			}
-			return stdout.String(), uexec.CodeExitError{
+			return stdout.String(), stderr.String(), uexec.CodeExitError{
 				Err:  fmt.Errorf("error running %v:\nCommand stdout:\n%v\nstderr:\n%v\nerror:\n%v", cmd, cmd.Stdout, cmd.Stderr, err),
 				Code: rc,
 			}
 		}
 	case <-b.timeout:
 		b.cmd.Process.Kill()
-		return "", fmt.Errorf("timed out waiting for command %v:\nCommand stdout:\n%v\nstderr:\n%v", cmd, cmd.Stdout, cmd.Stderr)
+		return "", "", fmt.Errorf("timed out waiting for command %v:\nCommand stdout:\n%v\nstderr:\n%v", cmd, cmd.Stdout, cmd.Stderr)
 	}
 	Logf("stderr: %q", stderr.String())
 	Logf("stdout: %q", stdout.String())
-	return stdout.String(), nil
+	return stdout.String(), stderr.String(), nil
 }
 
 // RunKubectlOrDie is a convenience wrapper over kubectlBuilder
@@ -630,6 +648,12 @@ func RunKubectlOrDie(namespace string, args ...string) string {
 // RunKubectl is a convenience wrapper over kubectlBuilder
 func RunKubectl(namespace string, args ...string) (string, error) {
 	return NewKubectlCommand(namespace, args...).Exec()
+}
+
+// RunKubectlWithFullOutput is a convenience wrapper over kubectlBuilder
+// It will also return the command's stderr.
+func RunKubectlWithFullOutput(namespace string, args ...string) (string, string, error) {
+	return NewKubectlCommand(namespace, args...).ExecWithFullOutput()
 }
 
 // RunKubectlOrDieInput is a convenience wrapper over kubectlBuilder that takes input to stdin
@@ -1040,7 +1064,13 @@ func NodeHasTaint(c clientset.Interface, nodeName string, taint *v1.Taint) (bool
 // RunHostCmd runs the given cmd in the context of the given pod using `kubectl exec`
 // inside of a shell.
 func RunHostCmd(ns, name, cmd string) (string, error) {
-	return RunKubectl(ns, "exec", fmt.Sprintf("--namespace=%v", ns), name, "--", "/bin/sh", "-x", "-c", cmd)
+	return RunKubectl(ns, "exec", name, "--", "/bin/sh", "-x", "-c", cmd)
+}
+
+// RunHostCmdWithFullOutput runs the given cmd in the context of the given pod using `kubectl exec`
+// inside of a shell. It will also return the command's stderr.
+func RunHostCmdWithFullOutput(ns, name, cmd string) (string, string, error) {
+	return RunKubectlWithFullOutput(ns, "exec", name, "--", "/bin/sh", "-x", "-c", cmd)
 }
 
 // RunHostCmdOrDie calls RunHostCmd and dies on error.
@@ -1118,7 +1148,7 @@ func AllNodesReady(c clientset.Interface, timeout time.Duration) error {
 // LookForStringInLog looks for the given string in the log of a specific pod container
 func LookForStringInLog(ns, podName, container, expectedString string, timeout time.Duration) (result string, err error) {
 	return lookForString(expectedString, timeout, func() string {
-		return RunKubectlOrDie(ns, "logs", podName, container, fmt.Sprintf("--namespace=%v", ns))
+		return RunKubectlOrDie(ns, "logs", podName, container)
 	})
 }
 
@@ -1244,7 +1274,7 @@ func GetAllMasterAddresses(c clientset.Interface) []string {
 // CreateEmptyFileOnPod creates empty file at given path on the pod.
 // TODO(alejandrox1): move to subpkg pod once kubectl methods have been refactored.
 func CreateEmptyFileOnPod(namespace string, podName string, filePath string) error {
-	_, err := RunKubectl(namespace, "exec", fmt.Sprintf("--namespace=%s", namespace), podName, "--", "/bin/sh", "-c", fmt.Sprintf("touch %s", filePath))
+	_, err := RunKubectl(namespace, "exec", podName, "--", "/bin/sh", "-c", fmt.Sprintf("touch %s", filePath))
 	return err
 }
 
@@ -1252,10 +1282,10 @@ func CreateEmptyFileOnPod(namespace string, podName string, filePath string) err
 func DumpDebugInfo(c clientset.Interface, ns string) {
 	sl, _ := c.CoreV1().Pods(ns).List(context.TODO(), metav1.ListOptions{LabelSelector: labels.Everything().String()})
 	for _, s := range sl.Items {
-		desc, _ := RunKubectl(ns, "describe", "po", s.Name, fmt.Sprintf("--namespace=%v", ns))
+		desc, _ := RunKubectl(ns, "describe", "po", s.Name)
 		Logf("\nOutput of kubectl describe %v:\n%v", s.Name, desc)
 
-		l, _ := RunKubectl(ns, "logs", s.Name, fmt.Sprintf("--namespace=%v", ns), "--tail=100")
+		l, _ := RunKubectl(ns, "logs", s.Name, "--tail=100")
 		Logf("\nLast 100 log lines of %v:\n%v", s.Name, l)
 	}
 }
@@ -1283,4 +1313,73 @@ func taintExists(taints []v1.Taint, taintToFind *v1.Taint) bool {
 		}
 	}
 	return false
+}
+
+// WatchEventSequenceVerifier ...
+// manages a watch for a given resource, ensures that events take place in a given order, retries the test on failure
+//   testContext         cancelation signal across API boundries, e.g: context.TODO()
+//   dc                  sets up a client to the API
+//   resourceType        specify the type of resource
+//   namespace           select a namespace
+//   resourceName        the name of the given resource
+//   listOptions         options used to find the resource, recommended to use listOptions.labelSelector
+//   expectedWatchEvents array of events which are expected to occur
+//   scenario            the test itself
+//   retryCleanup        a function to run which ensures that there are no dangling resources upon test failure
+// this tooling relies on the test to return the events as they occur
+// the entire scenario must be run to ensure that the desired watch events arrive in order (allowing for interweaving of watch events)
+//   if an expected watch event is missing we elect to clean up and run the entire scenario again
+// we try the scenario three times to allow the sequencing to fail a couple of times
+func WatchEventSequenceVerifier(ctx context.Context, dc dynamic.Interface, resourceType schema.GroupVersionResource, namespace string, resourceName string, listOptions metav1.ListOptions, expectedWatchEvents []watch.Event, scenario func(*watchtools.RetryWatcher) []watch.Event, retryCleanup func() error) {
+	listWatcher := &cache.ListWatch{
+		WatchFunc: func(listOptions metav1.ListOptions) (watch.Interface, error) {
+			return dc.Resource(resourceType).Namespace(namespace).Watch(ctx, listOptions)
+		},
+	}
+
+	retries := 3
+retriesLoop:
+	for try := 1; try <= retries; try++ {
+		initResource, err := dc.Resource(resourceType).Namespace(namespace).List(ctx, listOptions)
+		ExpectNoError(err, "Failed to fetch initial resource")
+
+		resourceWatch, err := watchtools.NewRetryWatcher(initResource.GetResourceVersion(), listWatcher)
+		ExpectNoError(err, "Failed to create a resource watch of %v in namespace %v", resourceType.Resource, namespace)
+
+		// NOTE the test may need access to the events to see what's going on, such as a change in status
+		actualWatchEvents := scenario(resourceWatch)
+		errs := sets.NewString()
+		ExpectEqual(len(expectedWatchEvents) <= len(actualWatchEvents), true, "Error: actual watch events amount (%d) must be greater than or equal to expected watch events amount (%d)", len(actualWatchEvents), len(expectedWatchEvents))
+
+		totalValidWatchEvents := 0
+		foundEventIndexes := map[int]*int{}
+
+		for watchEventIndex, expectedWatchEvent := range expectedWatchEvents {
+			foundExpectedWatchEvent := false
+		actualWatchEventsLoop:
+			for actualWatchEventIndex, actualWatchEvent := range actualWatchEvents {
+				if foundEventIndexes[actualWatchEventIndex] != nil {
+					continue actualWatchEventsLoop
+				}
+				if actualWatchEvent.Type == expectedWatchEvent.Type {
+					foundExpectedWatchEvent = true
+					foundEventIndexes[actualWatchEventIndex] = &watchEventIndex
+					break actualWatchEventsLoop
+				}
+			}
+			if foundExpectedWatchEvent == false {
+				errs.Insert(fmt.Sprintf("Watch event %v not found", expectedWatchEvent.Type))
+			}
+			totalValidWatchEvents++
+		}
+		err = retryCleanup()
+		ExpectNoError(err, "Error occurred when cleaning up resources")
+		if errs.Len() > 0 && try < retries {
+			fmt.Println("invariants violated:\n", strings.Join(errs.List(), "\n - "))
+			continue retriesLoop
+		}
+		ExpectEqual(errs.Len() > 0, false, strings.Join(errs.List(), "\n - "))
+		ExpectEqual(totalValidWatchEvents, len(expectedWatchEvents), "Error: there must be an equal amount of total valid watch events (%d) and expected watch events (%d)", totalValidWatchEvents, len(expectedWatchEvents))
+		break retriesLoop
+	}
 }

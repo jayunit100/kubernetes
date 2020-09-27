@@ -1601,8 +1601,11 @@ func newTestGenericStoreRegistry(t *testing.T, scheme *runtime.Scheme, hasCacheE
 	server, sc := etcd3testing.NewUnsecuredEtcd3TestClientServer(t)
 	strategy := &testRESTStrategy{scheme, names.SimpleNameGenerator, true, false, true}
 
+	newFunc := func() runtime.Object { return &example.Pod{} }
+	newListFunc := func() runtime.Object { return &example.PodList{} }
+
 	sc.Codec = apitesting.TestStorageCodec(codecs, examplev1.SchemeGroupVersion)
-	s, dFunc, err := factory.Create(*sc)
+	s, dFunc, err := factory.Create(*sc, newFunc)
 	if err != nil {
 		t.Fatalf("Error creating storage: %v", err)
 	}
@@ -1612,14 +1615,13 @@ func newTestGenericStoreRegistry(t *testing.T, scheme *runtime.Scheme, hasCacheE
 	}
 	if hasCacheEnabled {
 		config := cacherstorage.Config{
-			CacheCapacity:  10,
 			Storage:        s,
 			Versioner:      etcd3.APIObjectVersioner{},
 			ResourcePrefix: podPrefix,
 			KeyFunc:        func(obj runtime.Object) (string, error) { return storage.NoNamespaceKeyFunc(podPrefix, obj) },
 			GetAttrsFunc:   getPodAttrs,
-			NewFunc:        func() runtime.Object { return &example.Pod{} },
-			NewListFunc:    func() runtime.Object { return &example.PodList{} },
+			NewFunc:        newFunc,
+			NewListFunc:    newListFunc,
 			Codec:          sc.Codec,
 		}
 		cacher, err := cacherstorage.NewCacherFromConfig(config)

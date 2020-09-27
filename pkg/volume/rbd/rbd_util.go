@@ -33,8 +33,8 @@ import (
 	"time"
 
 	"k8s.io/klog/v2"
+	"k8s.io/mount-utils"
 	utilexec "k8s.io/utils/exec"
-	"k8s.io/utils/mount"
 	utilpath "k8s.io/utils/path"
 
 	v1 "k8s.io/api/core/v1"
@@ -373,7 +373,7 @@ func (util *rbdUtil) AttachDisk(b rbdMounter) (string, error) {
 
 	globalPDPath := util.MakeGlobalPDName(*b.rbd)
 	if pathExists, pathErr := mount.PathExists(globalPDPath); pathErr != nil {
-		return "", fmt.Errorf("Error checking if path exists: %v", pathErr)
+		return "", fmt.Errorf("error checking if path exists: %v", pathErr)
 	} else if !pathExists {
 		if err := os.MkdirAll(globalPDPath, 0750); err != nil {
 			return "", err
@@ -459,7 +459,7 @@ func (util *rbdUtil) AttachDisk(b rbdMounter) (string, error) {
 			devicePath, mapped = waitForPath(b.Pool, b.Image, 10 /*maxRetries*/, false /*useNbdDriver*/)
 		}
 		if !mapped {
-			return "", fmt.Errorf("Could not map image %s/%s, Timeout after 10s", b.Pool, b.Image)
+			return "", fmt.Errorf("could not map image %s/%s, Timeout after 10s", b.Pool, b.Image)
 		}
 	}
 	return devicePath, nil
@@ -515,7 +515,7 @@ func (util *rbdUtil) DetachDisk(plugin *rbdPlugin, deviceMountPath string, devic
 func (util *rbdUtil) DetachBlockDisk(disk rbdDiskUnmapper, mapPath string) error {
 
 	if pathExists, pathErr := mount.PathExists(mapPath); pathErr != nil {
-		return fmt.Errorf("Error checking if path exists: %v", pathErr)
+		return fmt.Errorf("error checking if path exists: %v", pathErr)
 	} else if !pathExists {
 		klog.Warningf("Warning: Unmap skipped because path does not exist: %v", mapPath)
 		return nil
@@ -712,7 +712,7 @@ func (util *rbdUtil) rbdInfo(b *rbdMounter) (int, error) {
 	//
 	klog.V(4).Infof("rbd: info %s using mon %s, pool %s id %s key %s", b.Image, mon, b.Pool, id, secret)
 	output, err = b.exec.Command("rbd",
-		"info", b.Image, "--pool", b.Pool, "-m", mon, "--id", id, "--key="+secret, "-k=/dev/null", "--format=json").CombinedOutput()
+		"info", b.Image, "--pool", b.Pool, "-m", mon, "--id", id, "--key="+secret, "-k=/dev/null", "--format=json").Output()
 
 	if err, ok := err.(*exec.Error); ok {
 		if err.Err == exec.ErrNotFound {
@@ -803,7 +803,7 @@ func (util *rbdUtil) rbdStatus(b *rbdMounter) (bool, string, error) {
 func getRbdImageInfo(deviceMountPath string) (*rbdImageInfo, error) {
 	deviceMountedPathSeps := strings.Split(filepath.Base(deviceMountPath), "-image-")
 	if len(deviceMountedPathSeps) != 2 {
-		return nil, fmt.Errorf("Can't found devicePath for %s ", deviceMountPath)
+		return nil, fmt.Errorf("can't found devicePath for %s ", deviceMountPath)
 	}
 	return &rbdImageInfo{
 		pool: deviceMountedPathSeps[0],

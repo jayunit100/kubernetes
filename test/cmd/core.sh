@@ -105,8 +105,6 @@ run_pod_tests() {
   kube::test::describe_resource_events_assert pods false
   # Describe command should print events information when show-events=true
   kube::test::describe_resource_events_assert pods true
-  ### Validate Export ###
-  kube::test::get_object_assert 'pods/valid-pod' "{{.metadata.namespace}} {{.metadata.name}}" '<no value> valid-pod' "--export=true"
 
   ### Dump current valid-pod POD
   output_pod=$(kubectl get pod valid-pod -o yaml "${kube_flags[@]}")
@@ -305,15 +303,15 @@ run_pod_tests() {
   kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" ''
   # Command
   kubectl create -f test/fixtures/doc-yaml/admin/limitrange/valid-pod.yaml "${kube_flags[@]}"
-  kubectl create -f test/e2e/testing-manifests/kubectl/agnhost-master-pod.yaml "${kube_flags[@]}"
-  # Post-condition: valid-pod and agnhost-master PODs are created
-  kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" 'agnhost-master:valid-pod:'
+  kubectl create -f test/e2e/testing-manifests/kubectl/agnhost-primary-pod.yaml "${kube_flags[@]}"
+  # Post-condition: valid-pod and agnhost-primary PODs are created
+  kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" 'agnhost-primary:valid-pod:'
 
   ### Delete multiple PODs at once
-  # Pre-condition: valid-pod and agnhost-master PODs exist
-  kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" 'agnhost-master:valid-pod:'
+  # Pre-condition: valid-pod and agnhost-primary PODs exist
+  kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" 'agnhost-primary:valid-pod:'
   # Command
-  kubectl delete pods valid-pod agnhost-master "${kube_flags[@]}" --grace-period=0 --force # delete multiple pods at once
+  kubectl delete pods valid-pod agnhost-primary "${kube_flags[@]}" --grace-period=0 --force # delete multiple pods at once
   # Post-condition: no POD exists
   kube::test::get_object_assert pods "{{range.items}}{{$id_field}}:{{end}}" ''
 
@@ -852,6 +850,21 @@ run_secrets_test() {
   kube::test::get_object_assert 'secret/test-secret --namespace=test-secrets' "{{$id_field}}" 'test-secret'
   kube::test::get_object_assert 'secret/test-secret --namespace=test-secrets' "{{$secret_type}}" 'kubernetes.io/dockerconfigjson'
   grep -q '.dockerconfigjson: eyJhdXRocyI6eyJodHRwczovL2luZGV4LmRvY2tlci5pby92MS8iOnsidXNlcm5hbWUiOiJ0ZXN0LXVzZXIiLCJwYXNzd29yZCI6InRlc3QtcGFzc3dvcmQiLCJlbWFpbCI6InRlc3QtdXNlckB0ZXN0LmNvbSIsImF1dGgiOiJkR1Z6ZEMxMWMyVnlPblJsYzNRdGNHRnpjM2R2Y21RPSJ9fX0=' <<< "$(kubectl get secret/test-secret --namespace=test-secrets -o yaml "${kube_flags[@]}")"
+  # Clean-up
+  kubectl delete secret test-secret --namespace=test-secrets
+
+  ### Create a docker-registry secret in a specific namespace with docker config file
+  if [[ "${WAIT_FOR_DELETION:-}" == "true" ]]; then
+    kube::test::wait_object_assert 'secrets --namespace=test-secrets' "{{range.items}}{{$id_field}}:{{end}}" ''
+  fi
+  # Pre-condition: no SECRET exists
+  kube::test::get_object_assert 'secrets --namespace=test-secrets' "{{range.items}}{{$id_field}}:{{end}}" ''
+  # Command
+  kubectl create secret docker-registry test-secret --from-file=.dockerconfigjson=hack/testdata/dockerconfig.json --namespace=test-secrets
+  # Post-condition: secret exists and has expected values
+  kube::test::get_object_assert 'secret/test-secret --namespace=test-secrets' "{{$id_field}}" 'test-secret'
+  kube::test::get_object_assert 'secret/test-secret --namespace=test-secrets' "{{$secret_type}}" 'kubernetes.io/dockerconfigjson'
+  grep -q '.dockerconfigjson: ewogICAgImF1dGhzIjp7CiAgICAgICAgImh0dHA6Ly9mb28uZXhhbXBsZS5jb20iOnsKICAgICAgICAgICAgInVzZXJuYW1lIjoiZm9vIiwKICAgICAgICAgICAgInBhc3N3b3JkIjoiYmFyIiwKICAgICAgICAgICAgImVtYWlsIjoiZm9vQGV4YW1wbGUuY29tIgogICAgICAgIH0sCiAgICAgICAgImh0dHA6Ly9iYXIuZXhhbXBsZS5jb20iOnsKICAgICAgICAgICAgInVzZXJuYW1lIjoiYmFyIiwKICAgICAgICAgICAgInBhc3N3b3JkIjoiYmF6IiwKICAgICAgICAgICAgImVtYWlsIjoiYmFyQGV4YW1wbGUuY29tIgogICAgICAgIH0KICAgIH0KfQo=' <<< "$(kubectl get secret/test-secret --namespace=test-secrets -o yaml "${kube_flags[@]}")"
   # Clean-up
   kubectl delete secret test-secret --namespace=test-secrets
 

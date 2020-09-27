@@ -160,18 +160,24 @@ type NetworkingTestConfig struct {
 	Namespace string
 }
 
-// DialFromEndpointContainer executes a curl via kubectl exec in an endpoint container.
-func (config *NetworkingTestConfig) DialFromEndpointContainer(protocol, targetIP string, targetPort, maxTries, minTries int, expectedEps sets.String) {
-	config.DialFromContainer(protocol, echoHostname, config.EndpointPods[0].Status.PodIP, targetIP, EndpointHTTPPort, targetPort, maxTries, minTries, expectedEps)
+// NetexecDialResponse represents the response returned by the `netexec` subcommand of `agnhost`
+type NetexecDialResponse struct {
+	Responses []string `json:"responses"`
+	Errors    []string `json:"errors"`
 }
 
-// DialFromTestContainer executes a curl via kubectl exec in a test container.
-func (config *NetworkingTestConfig) DialFromTestContainer(protocol, targetIP string, targetPort, maxTries, minTries int, expectedEps sets.String) {
-	config.DialFromContainer(protocol, echoHostname, config.TestContainerPod.Status.PodIP, targetIP, testContainerHTTPPort, targetPort, maxTries, minTries, expectedEps)
+// DialFromEndpointContainer executes a curl via kubectl exec in an endpoint container.   Returns an error to be handled by the caller.
+func (config *NetworkingTestConfig) DialFromEndpointContainer(protocol, targetIP string, targetPort, maxTries, minTries int, expectedEps sets.String) error {
+	return config.DialFromContainer(protocol, echoHostname, config.EndpointPods[0].Status.PodIP, targetIP, EndpointHTTPPort, targetPort, maxTries, minTries, expectedEps)
 }
 
-// DialEchoFromTestContainer executes a curl via kubectl exec in a test container. The response is expected to match the echoMessage.
-func (config *NetworkingTestConfig) DialEchoFromTestContainer(protocol, targetIP string, targetPort, maxTries, minTries int, echoMessage string) {
+// DialFromTestContainer executes a curl via kubectl exec in a test container. Returns an error to be handled by the caller.
+func (config *NetworkingTestConfig) DialFromTestContainer(protocol, targetIP string, targetPort, maxTries, minTries int, expectedEps sets.String) error {
+	return config.DialFromContainer(protocol, echoHostname, config.TestContainerPod.Status.PodIP, targetIP, testContainerHTTPPort, targetPort, maxTries, minTries, expectedEps)
+}
+
+// DialEchoFromTestContainer executes a curl via kubectl exec in a test container. The response is expected to match the echoMessage,  Returns an error to be handled by the caller.
+func (config *NetworkingTestConfig) DialEchoFromTestContainer(protocol, targetIP string, targetPort, maxTries, minTries int, echoMessage string) error {
 	expectedResponse := sets.NewString()
 	expectedResponse.Insert(echoMessage)
 	var dialCommand string
@@ -185,7 +191,7 @@ func (config *NetworkingTestConfig) DialEchoFromTestContainer(protocol, targetIP
 	} else {
 		dialCommand = fmt.Sprintf("echo%%20%s", echoMessage)
 	}
-	config.DialFromContainer(protocol, dialCommand, config.TestContainerPod.Status.PodIP, targetIP, testContainerHTTPPort, targetPort, maxTries, minTries, expectedResponse)
+	return config.DialFromContainer(protocol, dialCommand, config.TestContainerPod.Status.PodIP, targetIP, testContainerHTTPPort, targetPort, maxTries, minTries, expectedResponse)
 }
 
 // diagnoseMissingEndpoints prints debug information about the endpoints that
@@ -212,6 +218,18 @@ func (config *NetworkingTestConfig) EndpointHostnames() sets.String {
 	return expectedEps
 }
 
+func makeCURLDialCommand(ipPort, dialCmd, protocol, targetIP string, targetPort int) string {
+	// The current versions of curl included in CentOS and RHEL distros
+	// misinterpret square brackets around IPv6 as globbing, so use the -g
+	// argument to disable globbing to handle the IPv6 case.
+	return fmt.Sprintf("curl -g -q -s 'http://%s/dial?request=%s&protocol=%s&host=%s&port=%d&tries=1'",
+		ipPort,
+		dialCmd,
+		protocol,
+		targetIP,
+		targetPort)
+}
+
 // DialFromContainer executes a curl via kubectl exec in a test container,
 // which might then translate to a tcp or udp request based on the protocol
 // argument in the url.
@@ -230,56 +248,45 @@ func (config *NetworkingTestConfig) EndpointHostnames() sets.String {
 // maxTries == minTries will confirm that we see the expected endpoints and no
 // more for maxTries. Use this if you want to eg: fail a readiness check on a
 // pod and confirm it doesn't show up as an endpoint.
-func (config *NetworkingTestConfig) DialFromContainer(protocol, dialCommand, containerIP, targetIP string, containerHTTPPort, targetPort, maxTries, minTries int, expectedResponses sets.String) {
+// Returns nil if no error, or error message if failed after trying maxTries.
+func (config *NetworkingTestConfig) DialFromContainer(protocol, dialCommand, containerIP, targetIP string, containerHTTPPort, targetPort, maxTries, minTries int, expectedResponses sets.String) error {
 	ipPort := net.JoinHostPort(containerIP, strconv.Itoa(containerHTTPPort))
-	// The current versions of curl included in CentOS and RHEL distros
-	// misinterpret square brackets around IPv6 as globbing, so use the -g
-	// argument to disable globbing to handle the IPv6 case.
-	cmd := fmt.Sprintf("curl -g -q -s 'http://%s/dial?request=%s&protocol=%s&host=%s&port=%d&tries=1'",
-		ipPort,
-		dialCommand,
-		protocol,
-		targetIP,
-		targetPort)
+	cmd := makeCURLDialCommand(ipPort, dialCommand, protocol, targetIP, targetPort)
 
 	responses := sets.NewString()
 
 	for i := 0; i < maxTries; i++ {
-		stdout, stderr, err := config.f.ExecShellInPodWithFullOutput(config.TestContainerPod.Name, cmd)
+		resp, err := config.GetResponseFromContainer(protocol, dialCommand, containerIP, targetIP, containerHTTPPort, targetPort)
 		if err != nil {
 			// A failure to kubectl exec counts as a try, not a hard fail.
 			// Also note that we will keep failing for maxTries in tests where
 			// we confirm unreachability.
-			framework.Logf("Failed to execute %q: %v, stdout: %q, stderr %q", cmd, err, stdout, stderr)
-		} else {
-			var output map[string][]string
-			if err := json.Unmarshal([]byte(stdout), &output); err != nil {
-				framework.Logf("WARNING: Failed to unmarshal curl response. Cmd %v run in %v, output: %s, err: %v",
-					cmd, config.HostTestContainerPod.Name, stdout, err)
-				continue
-			}
-
-			for _, response := range output["responses"] {
-				trimmed := strings.TrimSpace(response)
-				if trimmed != "" {
-					responses.Insert(trimmed)
-				}
+			framework.Logf("GetResponseFromContainer: %s", err)
+			continue
+		}
+		for _, response := range resp.Responses {
+			trimmed := strings.TrimSpace(response)
+			if trimmed != "" {
+				responses.Insert(trimmed)
 			}
 		}
 		framework.Logf("Waiting for responses: %v", expectedResponses.Difference(responses))
 
 		// Check against i+1 so we exit if minTries == maxTries.
 		if (responses.Equal(expectedResponses) || responses.Len() == 0 && expectedResponses.Len() == 0) && i+1 >= minTries {
-			return
+			framework.Logf("reached %v after %v/%v tries", targetIP, i, maxTries)
+			return nil
 		}
 		// TODO: get rid of this delay #36281
 		time.Sleep(hitEndpointRetryDelay)
 	}
-
 	if dialCommand == echoHostname {
 		config.diagnoseMissingEndpoints(responses)
 	}
-	framework.Failf("Failed to find expected responses:\nTries %d\nCommand %v\nretrieved %v\nexpected %v\n", maxTries, cmd, responses, expectedResponses)
+	returnMsg := fmt.Errorf("did not find expected responses... \nTries %d\nCommand %v\nretrieved %v\nexpected %v", maxTries, cmd, responses, expectedResponses)
+	framework.Logf("encountered error during dial (%v)", returnMsg)
+	return returnMsg
+
 }
 
 // GetEndpointsFromTestContainer executes a curl via kubectl exec in a test container.
@@ -294,14 +301,7 @@ func (config *NetworkingTestConfig) GetEndpointsFromTestContainer(protocol, targ
 //   we don't see any endpoints, the test fails.
 func (config *NetworkingTestConfig) GetEndpointsFromContainer(protocol, containerIP, targetIP string, containerHTTPPort, targetPort, tries int) (sets.String, error) {
 	ipPort := net.JoinHostPort(containerIP, strconv.Itoa(containerHTTPPort))
-	// The current versions of curl included in CentOS and RHEL distros
-	// misinterpret square brackets around IPv6 as globbing, so use the -g
-	// argument to disable globbing to handle the IPv6 case.
-	cmd := fmt.Sprintf("curl -g -q -s 'http://%s/dial?request=hostName&protocol=%s&host=%s&port=%d&tries=1'",
-		ipPort,
-		protocol,
-		targetIP,
-		targetPort)
+	cmd := makeCURLDialCommand(ipPort, "hostName", protocol, targetIP, targetPort)
 
 	eps := sets.NewString()
 
@@ -313,15 +313,15 @@ func (config *NetworkingTestConfig) GetEndpointsFromContainer(protocol, containe
 			// we confirm unreachability.
 			framework.Logf("Failed to execute %q: %v, stdout: %q, stderr: %q", cmd, err, stdout, stderr)
 		} else {
-			framework.Logf("Tries: %d, in try: %d, stdout: %v, stderr: %v, command run in: %#v", tries, i, stdout, stderr, config.HostTestContainerPod)
-			var output map[string][]string
+			framework.Logf("Tries: %d, in try: %d, stdout: %v, stderr: %v, command run in: %#v", tries, i, stdout, stderr, config.TestContainerPod)
+			var output NetexecDialResponse
 			if err := json.Unmarshal([]byte(stdout), &output); err != nil {
 				framework.Logf("WARNING: Failed to unmarshal curl response. Cmd %v run in %v, output: %s, err: %v",
-					cmd, config.HostTestContainerPod.Name, stdout, err)
+					cmd, config.TestContainerPod.Name, stdout, err)
 				continue
 			}
 
-			for _, hostName := range output["responses"] {
+			for _, hostName := range output.Responses {
 				trimmed := strings.TrimSpace(hostName)
 				if trimmed != "" {
 					eps.Insert(trimmed)
@@ -332,6 +332,50 @@ func (config *NetworkingTestConfig) GetEndpointsFromContainer(protocol, containe
 		}
 	}
 	return eps, nil
+}
+
+// GetResponseFromContainer executes a curl via kubectl exec in a container.
+func (config *NetworkingTestConfig) GetResponseFromContainer(protocol, dialCommand, containerIP, targetIP string, containerHTTPPort, targetPort int) (NetexecDialResponse, error) {
+	ipPort := net.JoinHostPort(containerIP, strconv.Itoa(containerHTTPPort))
+	cmd := makeCURLDialCommand(ipPort, dialCommand, protocol, targetIP, targetPort)
+
+	stdout, stderr, err := config.f.ExecShellInPodWithFullOutput(config.TestContainerPod.Name, cmd)
+	if err != nil {
+		return NetexecDialResponse{}, fmt.Errorf("failed to execute %q: %v, stdout: %q, stderr: %q", cmd, err, stdout, stderr)
+	}
+
+	var output NetexecDialResponse
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		return NetexecDialResponse{}, fmt.Errorf("failed to unmarshal curl response. Cmd %v run in %v, output: %s, err: %v",
+			cmd, config.TestContainerPod.Name, stdout, err)
+	}
+	return output, nil
+}
+
+// GetResponseFromTestContainer executes a curl via kubectl exec in a test container.
+func (config *NetworkingTestConfig) GetResponseFromTestContainer(protocol, dialCommand, targetIP string, targetPort int) (NetexecDialResponse, error) {
+	return config.GetResponseFromContainer(protocol, dialCommand, config.TestContainerPod.Status.PodIP, targetIP, testContainerHTTPPort, targetPort)
+}
+
+// GetHTTPCodeFromTestContainer executes a curl via kubectl exec in a test container and returns the status code.
+func (config *NetworkingTestConfig) GetHTTPCodeFromTestContainer(path, targetIP string, targetPort int) (int, error) {
+	cmd := fmt.Sprintf("curl -g -q -s -o /dev/null -w %%{http_code} http://%s:%d%s",
+		targetIP,
+		targetPort,
+		path)
+	stdout, stderr, err := config.f.ExecShellInPodWithFullOutput(config.TestContainerPod.Name, cmd)
+	// We only care about the status code reported by curl,
+	// and want to return any other errors, such as cannot execute command in the Pod.
+	// If curl failed to connect to host, it would exit with code 7, which makes `ExecShellInPodWithFullOutput`
+	// return a non-nil error and output "000" to stdout.
+	if err != nil && len(stdout) == 0 {
+		return 0, fmt.Errorf("failed to execute %q: %v, stderr: %q", cmd, err, stderr)
+	}
+	code, err := strconv.Atoi(stdout)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse status code returned by healthz endpoint: %w, code: %s", err, stdout)
+	}
+	return code, nil
 }
 
 // DialFromNode executes a tcp or udp request based on protocol via kubectl exec
@@ -571,11 +615,11 @@ func (config *NetworkingTestConfig) createNodePortServiceSpec(svcName string, se
 }
 
 func (config *NetworkingTestConfig) createNodePortService(selector map[string]string) {
-	config.NodePortService = config.createService(config.createNodePortServiceSpec(nodePortServiceName, selector, false))
+	config.NodePortService = config.CreateService(config.createNodePortServiceSpec(nodePortServiceName, selector, false))
 }
 
 func (config *NetworkingTestConfig) createSessionAffinityService(selector map[string]string) {
-	config.SessionAffinityService = config.createService(config.createNodePortServiceSpec(sessionAffinityServiceName, selector, true))
+	config.SessionAffinityService = config.CreateService(config.createNodePortServiceSpec(sessionAffinityServiceName, selector, true))
 }
 
 // DeleteNodePortService deletes NodePort service.
@@ -611,7 +655,8 @@ func (config *NetworkingTestConfig) createTestPods() {
 	}
 }
 
-func (config *NetworkingTestConfig) createService(serviceSpec *v1.Service) *v1.Service {
+// CreateService creates the provided service in config.Namespace and returns created service
+func (config *NetworkingTestConfig) CreateService(serviceSpec *v1.Service) *v1.Service {
 	_, err := config.getServiceClient().Create(context.TODO(), serviceSpec, metav1.CreateOptions{})
 	framework.ExpectNoError(err, fmt.Sprintf("Failed to create %s service: %v", serviceSpec.Name, err))
 
@@ -636,6 +681,7 @@ func (config *NetworkingTestConfig) setupCore(selector map[string]string) {
 
 	epCount := len(config.EndpointPods)
 	config.MaxTries = epCount*epCount + testTries
+	framework.Logf("Setting MaxTries for pod polling to %v for networking test based on endpoint count %v", config.MaxTries, epCount)
 }
 
 // setup includes setupCore and also sets up services
@@ -673,6 +719,13 @@ func (config *NetworkingTestConfig) setup(selector map[string]string) {
 	} else {
 		config.NodeIP = e2enode.FirstAddress(nodeList, v1.NodeInternalIP)
 	}
+
+	ginkgo.By("Waiting for NodePort service to expose endpoint")
+	err = framework.WaitForServiceEndpointsNum(config.f.ClientSet, config.Namespace, nodePortServiceName, len(config.EndpointPods), time.Second, wait.ForeverTestTimeout)
+	framework.ExpectNoError(err, "failed to validate endpoints for service %s in namespace: %s", nodePortServiceName, config.Namespace)
+	ginkgo.By("Waiting for Session Affinity service to expose endpoint")
+	err = framework.WaitForServiceEndpointsNum(config.f.ClientSet, config.Namespace, sessionAffinityServiceName, len(config.EndpointPods), time.Second, wait.ForeverTestTimeout)
+	framework.ExpectNoError(err, "failed to validate endpoints for service %s in namespace: %s", sessionAffinityServiceName, config.Namespace)
 }
 
 func (config *NetworkingTestConfig) createNetProxyPods(podName string, selector map[string]string) []*v1.Pod {

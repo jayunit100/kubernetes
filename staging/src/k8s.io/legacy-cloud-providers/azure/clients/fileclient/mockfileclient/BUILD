@@ -9,7 +9,11 @@ go_library(
     importmap = "k8s.io/kubernetes/vendor/k8s.io/legacy-cloud-providers/azure/clients/fileclient/mockfileclient",
     importpath = "k8s.io/legacy-cloud-providers/azure/clients/fileclient/mockfileclient",
     visibility = ["//visibility:public"],
-    deps = ["//vendor/github.com/golang/mock/gomock:go_default_library"],
+    deps = [
+        "//staging/src/k8s.io/legacy-cloud-providers/azure/clients/fileclient:go_default_library",
+        "//vendor/github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage:go_default_library",
+        "//vendor/github.com/golang/mock/gomock:go_default_library",
+    ],
 )
 
 filegroup(

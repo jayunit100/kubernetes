@@ -141,7 +141,7 @@ func TestCreateStaticPodFilesAndWrappers(t *testing.T) {
 	}
 }
 
-func TestCreateStaticPodFilesKustomize(t *testing.T) {
+func TestCreateStaticPodFilesWithPatches(t *testing.T) {
 	// Create temp folder for the test case
 	tmpdir := testutil.SetupTempDir(t)
 	defer os.RemoveAll(tmpdir)
@@ -151,30 +151,26 @@ func TestCreateStaticPodFilesKustomize(t *testing.T) {
 		KubernetesVersion: "v1.9.0",
 	}
 
-	kustomizePath := filepath.Join(tmpdir, "kustomize")
-	err := os.MkdirAll(kustomizePath, 0777)
+	patchesPath := filepath.Join(tmpdir, "patch-files")
+	err := os.MkdirAll(patchesPath, 0777)
 	if err != nil {
-		t.Fatalf("Couldn't create %s", kustomizePath)
+		t.Fatalf("Couldn't create %s", patchesPath)
 	}
 
 	patchString := dedent.Dedent(`
-    apiVersion: v1
-    kind: Pod
-    metadata:
-        name: kube-apiserver
-        namespace: kube-system
-        annotations:
-            kustomize: patch for kube-apiserver
-    `)
+	metadata:
+	  annotations:
+	    patched: "true"
+	`)
 
-	err = ioutil.WriteFile(filepath.Join(kustomizePath, "patch.yaml"), []byte(patchString), 0644)
+	err = ioutil.WriteFile(filepath.Join(patchesPath, kubeadmconstants.KubeAPIServer+".yaml"), []byte(patchString), 0644)
 	if err != nil {
 		t.Fatalf("WriteFile returned unexpected error: %v", err)
 	}
 
-	// Execute createStaticPodFunction with kustomizations
+	// Execute createStaticPodFunction with patches
 	manifestPath := filepath.Join(tmpdir, kubeadmconstants.ManifestsSubDirName)
-	err = CreateStaticPodFiles(manifestPath, kustomizePath, cfg, &kubeadmapi.APIEndpoint{}, kubeadmconstants.KubeAPIServer)
+	err = CreateStaticPodFiles(manifestPath, patchesPath, cfg, &kubeadmapi.APIEndpoint{}, kubeadmconstants.KubeAPIServer)
 	if err != nil {
 		t.Errorf("Error executing createStaticPodFunction: %v", err)
 		return
@@ -186,8 +182,8 @@ func TestCreateStaticPodFilesKustomize(t *testing.T) {
 		return
 	}
 
-	if _, ok := pod.ObjectMeta.Annotations["kustomize"]; !ok {
-		t.Error("Kustomize did not apply patches corresponding to the resource")
+	if _, ok := pod.ObjectMeta.Annotations["patched"]; !ok {
+		t.Errorf("Patches were not applied to %s", kubeadmconstants.KubeAPIServer)
 	}
 }
 
@@ -588,6 +584,7 @@ func TestGetControllerManagerCommand(t *testing.T) {
 			},
 			expected: []string{
 				"kube-controller-manager",
+				"--port=0",
 				"--bind-address=127.0.0.1",
 				"--leader-elect=true",
 				"--kubeconfig=" + kubeadmconstants.KubernetesDir + "/controller-manager.conf",
@@ -612,6 +609,7 @@ func TestGetControllerManagerCommand(t *testing.T) {
 			},
 			expected: []string{
 				"kube-controller-manager",
+				"--port=0",
 				"--bind-address=127.0.0.1",
 				"--leader-elect=true",
 				"--kubeconfig=" + kubeadmconstants.KubernetesDir + "/controller-manager.conf",
@@ -636,6 +634,7 @@ func TestGetControllerManagerCommand(t *testing.T) {
 			},
 			expected: []string{
 				"kube-controller-manager",
+				"--port=0",
 				"--bind-address=127.0.0.1",
 				"--leader-elect=true",
 				"--kubeconfig=" + kubeadmconstants.KubernetesDir + "/controller-manager.conf",
@@ -665,6 +664,7 @@ func TestGetControllerManagerCommand(t *testing.T) {
 			},
 			expected: []string{
 				"kube-controller-manager",
+				"--port=0",
 				"--bind-address=127.0.0.1",
 				"--leader-elect=true",
 				"--kubeconfig=" + kubeadmconstants.KubernetesDir + "/controller-manager.conf",
@@ -696,6 +696,7 @@ func TestGetControllerManagerCommand(t *testing.T) {
 			},
 			expected: []string{
 				"kube-controller-manager",
+				"--port=0",
 				"--bind-address=127.0.0.1",
 				"--leader-elect=true",
 				"--kubeconfig=" + kubeadmconstants.KubernetesDir + "/controller-manager.conf",
@@ -726,6 +727,7 @@ func TestGetControllerManagerCommand(t *testing.T) {
 			},
 			expected: []string{
 				"kube-controller-manager",
+				"--port=0",
 				"--bind-address=127.0.0.1",
 				"--leader-elect=true",
 				"--kubeconfig=" + kubeadmconstants.KubernetesDir + "/controller-manager.conf",
@@ -758,6 +760,7 @@ func TestGetControllerManagerCommand(t *testing.T) {
 			},
 			expected: []string{
 				"kube-controller-manager",
+				"--port=0",
 				"--bind-address=127.0.0.1",
 				"--leader-elect=true",
 				"--kubeconfig=" + kubeadmconstants.KubernetesDir + "/controller-manager.conf",
@@ -792,6 +795,7 @@ func TestGetControllerManagerCommand(t *testing.T) {
 			},
 			expected: []string{
 				"kube-controller-manager",
+				"--port=0",
 				"--bind-address=127.0.0.1",
 				"--leader-elect=true",
 				"--kubeconfig=" + kubeadmconstants.KubernetesDir + "/controller-manager.conf",
@@ -941,6 +945,7 @@ func TestGetControllerManagerCommandExternalCA(t *testing.T) {
 			expectedArgFunc: func(tmpdir string) []string {
 				return []string{
 					"kube-controller-manager",
+					"--port=0",
 					"--bind-address=127.0.0.1",
 					"--leader-elect=true",
 					"--kubeconfig=" + kubeadmconstants.KubernetesDir + "/controller-manager.conf",
@@ -970,6 +975,7 @@ func TestGetControllerManagerCommandExternalCA(t *testing.T) {
 			expectedArgFunc: func(tmpdir string) []string {
 				return []string{
 					"kube-controller-manager",
+					"--port=0",
 					"--bind-address=127.0.0.1",
 					"--leader-elect=true",
 					"--kubeconfig=" + kubeadmconstants.KubernetesDir + "/controller-manager.conf",
@@ -1031,6 +1037,7 @@ func TestGetSchedulerCommand(t *testing.T) {
 			cfg:  &kubeadmapi.ClusterConfiguration{},
 			expected: []string{
 				"kube-scheduler",
+				"--port=0",
 				"--bind-address=127.0.0.1",
 				"--leader-elect=true",
 				"--kubeconfig=" + kubeadmconstants.KubernetesDir + "/scheduler.conf",

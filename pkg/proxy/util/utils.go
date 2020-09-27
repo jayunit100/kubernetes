@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
 
 	v1 "k8s.io/api/core/v1"
@@ -124,6 +125,16 @@ func IsProxyableHostname(ctx context.Context, resolv Resolver, hostname string) 
 	return nil
 }
 
+// IsAllowedHost checks if the given IP host address is in a network in the denied list.
+func IsAllowedHost(host net.IP, denied []*net.IPNet) error {
+	for _, ipNet := range denied {
+		if ipNet.Contains(host) {
+			return ErrAddressNotAllowed
+		}
+	}
+	return nil
+}
+
 // GetLocalAddrs returns a list of all network addresses on the local system
 func GetLocalAddrs() ([]net.IP, error) {
 	var localAddrs []net.IP
@@ -146,15 +157,15 @@ func GetLocalAddrs() ([]net.IP, error) {
 }
 
 // ShouldSkipService checks if a given service should skip proxying
-func ShouldSkipService(svcName types.NamespacedName, service *v1.Service) bool {
+func ShouldSkipService(service *v1.Service) bool {
 	// if ClusterIP is "None" or empty, skip proxying
 	if !helper.IsServiceIPSet(service) {
-		klog.V(3).Infof("Skipping service %s due to clusterIP = %q", svcName, service.Spec.ClusterIP)
+		klog.V(3).Infof("Skipping service %s in namespace %s due to clusterIP = %q", service.Name, service.Namespace, service.Spec.ClusterIP)
 		return true
 	}
 	// Even if ClusterIP is set, ServiceTypeExternalName services don't get proxied
 	if service.Spec.Type == v1.ServiceTypeExternalName {
-		klog.V(3).Infof("Skipping service %s due to Type=ExternalName", svcName)
+		klog.V(3).Infof("Skipping service %s in namespace %s due to Type=ExternalName", service.Name, service.Namespace)
 		return true
 	}
 	return false
@@ -181,29 +192,35 @@ func GetNodeAddresses(cidrs []string, nw NetworkInterfacer) (sets.String, error)
 			uniqueAddressList.Insert(cidr)
 		}
 	}
+
+	itfs, err := nw.Interfaces()
+	if err != nil {
+		return nil, fmt.Errorf("error listing all interfaces from host, error: %v", err)
+	}
+
 	// Second round of iteration to parse IPs based on cidr.
 	for _, cidr := range cidrs {
 		if IsZeroCIDR(cidr) {
 			continue
 		}
+
 		_, ipNet, _ := net.ParseCIDR(cidr)
-		itfs, err := nw.Interfaces()
-		if err != nil {
-			return nil, fmt.Errorf("error listing all interfaces from host, error: %v", err)
-		}
 		for _, itf := range itfs {
 			addrs, err := nw.Addrs(&itf)
 			if err != nil {
 				return nil, fmt.Errorf("error getting address from interface %s, error: %v", itf.Name, err)
 			}
+
 			for _, addr := range addrs {
 				if addr == nil {
 					continue
 				}
+
 				ip, _, err := net.ParseCIDR(addr.String())
 				if err != nil {
 					return nil, fmt.Errorf("error parsing CIDR for interface %s, error: %v", itf.Name, err)
 				}
+
 				if ipNet.Contains(ip) {
 					if utilnet.IsIPv6(ip) && !uniqueAddressList.Has(IPv6ZeroCIDR) {
 						uniqueAddressList.Insert(ip.String())
@@ -215,6 +232,11 @@ func GetNodeAddresses(cidrs []string, nw NetworkInterfacer) (sets.String, error)
 			}
 		}
 	}
+
+	if uniqueAddressList.Len() == 0 {
+		return nil, fmt.Errorf("no addresses found for cidrs %v", cidrs)
+	}
+
 	return uniqueAddressList, nil
 }
 
@@ -299,4 +321,58 @@ func EnsureSysctl(sysctl utilsysctl.Interface, name string, newVal int) error {
 		klog.V(1).Infof("Changed sysctl %q: %d -> %d", name, oldVal, newVal)
 	}
 	return nil
+}
+
+// DialContext is a dial function matching the signature of net.Dialer.DialContext.
+type DialContext = func(context.Context, string, string) (net.Conn, error)
+
+// FilteredDialOptions configures how a DialContext is wrapped by NewFilteredDialContext.
+type FilteredDialOptions struct {
+	// DialHostIPDenylist restricts hosts from being dialed.
+	DialHostCIDRDenylist []*net.IPNet
+	// AllowLocalLoopback controls connections to local loopback hosts (as defined by
+	// IsProxyableIP).
+	AllowLocalLoopback bool
+}
+
+// NewFilteredDialContext returns a DialContext function that filters connections based on a FilteredDialOptions.
+func NewFilteredDialContext(wrapped DialContext, resolv Resolver, opts *FilteredDialOptions) DialContext {
+	if wrapped == nil {
+		wrapped = http.DefaultTransport.(*http.Transport).DialContext
+	}
+	if opts == nil {
+		// Do no filtering
+		return wrapped
+	}
+	if resolv == nil {
+		resolv = net.DefaultResolver
+	}
+	if len(opts.DialHostCIDRDenylist) == 0 && opts.AllowLocalLoopback {
+		// Do no filtering.
+		return wrapped
+	}
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		resp, err := resolv.LookupIPAddr(ctx, address)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(resp) == 0 {
+			return nil, ErrNoAddresses
+		}
+
+		for _, host := range resp {
+			if !opts.AllowLocalLoopback {
+				if err := isProxyableIP(host.IP); err != nil {
+					return nil, err
+				}
+			}
+			if opts.DialHostCIDRDenylist != nil {
+				if err := IsAllowedHost(host.IP, opts.DialHostCIDRDenylist); err != nil {
+					return nil, err
+				}
+			}
+		}
+		return wrapped(ctx, network, address)
+	}
 }

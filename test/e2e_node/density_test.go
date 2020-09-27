@@ -33,8 +33,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
+	kubeletstatsv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
-	kubeletstatsv1alpha1 "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	kubemetrics "k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2ekubelet "k8s.io/kubernetes/test/e2e/framework/kubelet"
@@ -126,7 +126,7 @@ var _ = framework.KubeDescribe("Density [Serial] [Slow]", func() {
 				interval: 0 * time.Millisecond,
 			},
 			{
-				podsNr:   105,
+				podsNr:   90,
 				interval: 0 * time.Millisecond,
 			},
 			{
@@ -138,7 +138,7 @@ var _ = framework.KubeDescribe("Density [Serial] [Slow]", func() {
 				interval: 100 * time.Millisecond,
 			},
 			{
-				podsNr:   105,
+				podsNr:   90,
 				interval: 100 * time.Millisecond,
 			},
 			{
@@ -150,7 +150,7 @@ var _ = framework.KubeDescribe("Density [Serial] [Slow]", func() {
 				interval: 300 * time.Millisecond,
 			},
 			{
-				podsNr:   105,
+				podsNr:   90,
 				interval: 300 * time.Millisecond,
 			},
 		}
@@ -176,17 +176,17 @@ var _ = framework.KubeDescribe("Density [Serial] [Slow]", func() {
 	ginkgo.Context("create a batch of pods with higher API QPS", func() {
 		dTests := []densityTest{
 			{
-				podsNr:      105,
+				podsNr:      90,
 				interval:    0 * time.Millisecond,
 				APIQPSLimit: 60,
 			},
 			{
-				podsNr:      105,
+				podsNr:      90,
 				interval:    100 * time.Millisecond,
 				APIQPSLimit: 60,
 			},
 			{
-				podsNr:      105,
+				podsNr:      90,
 				interval:    300 * time.Millisecond,
 				APIQPSLimit: 60,
 			},

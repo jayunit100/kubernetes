@@ -38,15 +38,15 @@ import (
 	internalapi "k8s.io/cri-api/pkg/apis"
 	"k8s.io/klog/v2"
 	kubeletconfigv1beta1 "k8s.io/kubelet/config/v1beta1"
+	kubeletpodresourcesv1alpha1 "k8s.io/kubelet/pkg/apis/podresources/v1alpha1"
+	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	"k8s.io/kubernetes/pkg/features"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	"k8s.io/kubernetes/pkg/kubelet/apis/podresources"
-	kubeletpodresourcesv1alpha1 "k8s.io/kubernetes/pkg/kubelet/apis/podresources/v1alpha1"
-	kubeletstatsv1alpha1 "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
 	"k8s.io/kubernetes/pkg/kubelet/cm"
+	"k8s.io/kubernetes/pkg/kubelet/cri/remote"
 	kubeletconfigcodec "k8s.io/kubernetes/pkg/kubelet/kubeletconfig/util/codec"
 	kubeletmetrics "k8s.io/kubernetes/pkg/kubelet/metrics"
-	"k8s.io/kubernetes/pkg/kubelet/remote"
 	"k8s.io/kubernetes/pkg/kubelet/util"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2ekubelet "k8s.io/kubernetes/test/e2e/framework/kubelet"
@@ -57,9 +57,6 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
-
-// TODO(random-liu): Get this automatically from kubelet flag.
-var kubeletAddress = flag.String("kubelet-address", "http://127.0.0.1:10255", "Host and port of the kubelet")
 
 var startServices = flag.Bool("start-services", true, "If true, start local node services")
 var stopServices = flag.Bool("stop-services", true, "If true, stop local node services after running tests")
@@ -74,8 +71,12 @@ const (
 	defaultPodResourcesMaxSize = 1024 * 1024 * 16 // 16 Mb
 )
 
-func getNodeSummary() (*kubeletstatsv1alpha1.Summary, error) {
-	req, err := http.NewRequest("GET", *kubeletAddress+"/stats/summary", nil)
+func getNodeSummary() (*stats.Summary, error) {
+	kubeletConfig, err := getCurrentKubeletConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current kubelet config")
+	}
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s:%d/stats/summary", kubeletConfig.Address, kubeletConfig.ReadOnlyPort), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build http request: %v", err)
 	}
@@ -94,7 +95,7 @@ func getNodeSummary() (*kubeletstatsv1alpha1.Summary, error) {
 	}
 
 	decoder := json.NewDecoder(strings.NewReader(string(contentsBytes)))
-	summary := kubeletstatsv1alpha1.Summary{}
+	summary := stats.Summary{}
 	err = decoder.Decode(&summary)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse /stats/summary to go struct: %+v", resp)
@@ -373,16 +374,36 @@ func getCRIClient() (internalapi.RuntimeService, internalapi.ImageManagerService
 }
 
 // TODO: Find a uniform way to deal with systemctl/initctl/service operations. #34494
-func restartKubelet() {
-	stdout, err := exec.Command("sudo", "systemctl", "list-units", "kubelet*", "--state=running").CombinedOutput()
+func findRunningKubletServiceName() string {
+	stdout, err := exec.Command("sudo", "systemctl", "list-units", "*kubelet*", "--state=running").CombinedOutput()
 	framework.ExpectNoError(err)
 	regex := regexp.MustCompile("(kubelet-\\w+)")
 	matches := regex.FindStringSubmatch(string(stdout))
-	framework.ExpectNotEqual(len(matches), 0)
-	kube := matches[0]
-	framework.Logf("Get running kubelet with systemctl: %v, %v", string(stdout), kube)
-	stdout, err = exec.Command("sudo", "systemctl", "restart", kube).CombinedOutput()
+	framework.ExpectNotEqual(len(matches), 0, "Found more than one kubelet service running: %q", stdout)
+	kubeletServiceName := matches[0]
+	framework.Logf("Get running kubelet with systemctl: %v, %v", string(stdout), kubeletServiceName)
+	return kubeletServiceName
+}
+
+func restartKubelet() {
+	kubeletServiceName := findRunningKubletServiceName()
+	// reset the kubelet service start-limit-hit
+	stdout, err := exec.Command("sudo", "systemctl", "reset-failed", kubeletServiceName).CombinedOutput()
+	framework.ExpectNoError(err, "Failed to reset kubelet start-limit-hit with systemctl: %v, %v", err, stdout)
+
+	stdout, err = exec.Command("sudo", "systemctl", "restart", kubeletServiceName).CombinedOutput()
 	framework.ExpectNoError(err, "Failed to restart kubelet with systemctl: %v, %v", err, stdout)
+}
+
+// stopKubelet will kill the running kubelet, and returns a func that will restart the process again
+func stopKubelet() func() {
+	kubeletServiceName := findRunningKubletServiceName()
+	stdout, err := exec.Command("sudo", "systemctl", "kill", kubeletServiceName).CombinedOutput()
+	framework.ExpectNoError(err, "Failed to stop kubelet with systemctl: %v, %v", err, stdout)
+	return func() {
+		stdout, err := exec.Command("sudo", "systemctl", "start", kubeletServiceName).CombinedOutput()
+		framework.ExpectNoError(err, "Failed to restart kubelet with systemctl: %v, %v", err, stdout)
+	}
 }
 
 func toCgroupFsName(cgroupName cm.CgroupName) string {

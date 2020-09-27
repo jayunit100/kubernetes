@@ -17,6 +17,7 @@ limitations under the License.
 package benchmark
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -30,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
@@ -76,16 +78,19 @@ func mustSetupScheduler() (util.ShutdownFunc, coreinformers.PodInformer, clients
 	return shutdownFunc, podInformer, clientSet
 }
 
-func getScheduledPods(podInformer coreinformers.PodInformer) ([]*v1.Pod, error) {
+// Returns the list of scheduled pods in the specified namespaces.
+// Note that no namespces specified matches all namespaces.
+func getScheduledPods(podInformer coreinformers.PodInformer, namespaces ...string) ([]*v1.Pod, error) {
 	pods, err := podInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
 
+	s := sets.NewString(namespaces...)
 	scheduled := make([]*v1.Pod, 0, len(pods))
 	for i := range pods {
 		pod := pods[i]
-		if len(pod.Spec.NodeName) > 0 {
+		if len(pod.Spec.NodeName) > 0 && (len(s) == 0 || s.Has(pod.Namespace)) {
 			scheduled = append(scheduled, pod)
 		}
 	}
@@ -143,18 +148,18 @@ type metricsCollectorConfig struct {
 // metricsCollector collects metrics from legacyregistry.DefaultGatherer.Gather() endpoint.
 // Currently only Histrogram metrics are supported.
 type metricsCollector struct {
-	metricsCollectorConfig
+	*metricsCollectorConfig
 	labels map[string]string
 }
 
-func newMetricsCollector(config metricsCollectorConfig, labels map[string]string) *metricsCollector {
+func newMetricsCollector(config *metricsCollectorConfig, labels map[string]string) *metricsCollector {
 	return &metricsCollector{
 		metricsCollectorConfig: config,
 		labels:                 labels,
 	}
 }
 
-func (*metricsCollector) run(stopCh chan struct{}) {
+func (*metricsCollector) run(ctx context.Context) {
 	// metricCollector doesn't need to start before the tests, so nothing to do here.
 }
 
@@ -175,7 +180,10 @@ func collectHistogram(metric string, labels map[string]string) *DataItem {
 		klog.Error(err)
 		return nil
 	}
-
+	if hist.Histogram == nil {
+		klog.Errorf("metric %q is not a Histogram metric", metric)
+		return nil
+	}
 	if err := hist.Validate(); err != nil {
 		klog.Error(err)
 		return nil
@@ -213,27 +221,31 @@ type throughputCollector struct {
 	podInformer           coreinformers.PodInformer
 	schedulingThroughputs []float64
 	labels                map[string]string
+	namespaces            []string
 }
 
-func newThroughputCollector(podInformer coreinformers.PodInformer, labels map[string]string) *throughputCollector {
+func newThroughputCollector(podInformer coreinformers.PodInformer, labels map[string]string, namespaces []string) *throughputCollector {
 	return &throughputCollector{
 		podInformer: podInformer,
 		labels:      labels,
+		namespaces:  namespaces,
 	}
 }
 
-func (tc *throughputCollector) run(stopCh chan struct{}) {
-	podsScheduled, err := getScheduledPods(tc.podInformer)
+func (tc *throughputCollector) run(ctx context.Context) {
+	podsScheduled, err := getScheduledPods(tc.podInformer, tc.namespaces...)
 	if err != nil {
 		klog.Fatalf("%v", err)
 	}
 	lastScheduledCount := len(podsScheduled)
+	ticker := time.NewTicker(throughputSampleFrequency)
+	defer ticker.Stop()
 	for {
 		select {
-		case <-stopCh:
+		case <-ctx.Done():
 			return
-		case <-time.After(throughputSampleFrequency):
-			podsScheduled, err := getScheduledPods(tc.podInformer)
+		case <-ticker.C:
+			podsScheduled, err := getScheduledPods(tc.podInformer, tc.namespaces...)
 			if err != nil {
 				klog.Fatalf("%v", err)
 			}

@@ -32,6 +32,7 @@ import (
 	batchv1beta1client "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"k8s.io/kubectl/pkg/scheme"
+	"k8s.io/kubectl/pkg/util"
 	"k8s.io/kubectl/pkg/util/templates"
 )
 
@@ -58,12 +59,14 @@ type CreateCronJobOptions struct {
 	Command  []string
 	Restart  string
 
-	Namespace      string
-	Client         batchv1beta1client.BatchV1beta1Interface
-	DryRunStrategy cmdutil.DryRunStrategy
-	DryRunVerifier *resource.DryRunVerifier
-	Builder        *resource.Builder
-	FieldManager   string
+	Namespace        string
+	EnforceNamespace bool
+	Client           batchv1beta1client.BatchV1beta1Interface
+	DryRunStrategy   cmdutil.DryRunStrategy
+	DryRunVerifier   *resource.DryRunVerifier
+	Builder          *resource.Builder
+	FieldManager     string
+	CreateAnnotation bool
 
 	genericclioptions.IOStreams
 }
@@ -79,14 +82,14 @@ func NewCreateCronJobOptions(ioStreams genericclioptions.IOStreams) *CreateCronJ
 func NewCmdCreateCronJob(f cmdutil.Factory, ioStreams genericclioptions.IOStreams) *cobra.Command {
 	o := NewCreateCronJobOptions(ioStreams)
 	cmd := &cobra.Command{
-		Use:     "cronjob NAME --image=image --schedule='0/5 * * * ?' -- [COMMAND] [args...]",
-		Aliases: []string{"cj"},
-		Short:   cronjobLong,
-		Long:    cronjobLong,
-		Example: cronjobExample,
+		Use:                   "cronjob NAME --image=image --schedule='0/5 * * * ?' -- [COMMAND] [args...]",
+		DisableFlagsInUseLine: false,
+		Aliases:               []string{"cj"},
+		Short:                 cronjobLong,
+		Long:                  cronjobLong,
+		Example:               cronjobExample,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(o.Complete(f, cmd, args))
-			cmdutil.CheckErr(o.Validate())
 			cmdutil.CheckErr(o.Run())
 		},
 	}
@@ -97,7 +100,9 @@ func NewCmdCreateCronJob(f cmdutil.Factory, ioStreams genericclioptions.IOStream
 	cmdutil.AddValidateFlags(cmd)
 	cmdutil.AddDryRunFlag(cmd)
 	cmd.Flags().StringVar(&o.Image, "image", o.Image, "Image name to run.")
+	cmd.MarkFlagRequired("image")
 	cmd.Flags().StringVar(&o.Schedule, "schedule", o.Schedule, "A schedule in the Cron format the job should be run with.")
+	cmd.MarkFlagRequired("schedule")
 	cmd.Flags().StringVar(&o.Restart, "restart", o.Restart, "job's restart policy. supported values: OnFailure, Never")
 	cmdutil.AddFieldManagerFlagVar(cmd, &o.FieldManager, "kubectl-create")
 
@@ -126,11 +131,13 @@ func (o *CreateCronJobOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, a
 		return err
 	}
 
-	o.Namespace, _, err = f.ToRawKubeConfigLoader().Namespace()
+	o.Namespace, o.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return err
 	}
 	o.Builder = f.NewBuilder()
+
+	o.CreateAnnotation = cmdutil.GetFlagBool(cmd, cmdutil.ApplyAnnotationsFlag)
 
 	o.DryRunStrategy, err = cmdutil.GetDryRunStrategy(cmd)
 	if err != nil {
@@ -157,19 +164,12 @@ func (o *CreateCronJobOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, a
 	return nil
 }
 
-func (o *CreateCronJobOptions) Validate() error {
-	if len(o.Image) == 0 {
-		return fmt.Errorf("--image must be specified")
-	}
-	if len(o.Schedule) == 0 {
-		return fmt.Errorf("--schedule must be specified")
-	}
-	return nil
-}
-
 func (o *CreateCronJobOptions) Run() error {
-	var cronjob *batchv1beta1.CronJob
-	cronjob = o.createCronJob()
+	cronjob := o.createCronJob()
+
+	if err := util.CreateOrUpdateAnnotation(o.CreateAnnotation, cronjob, scheme.DefaultJSONEncoder()); err != nil {
+		return err
+	}
 
 	if o.DryRunStrategy != cmdutil.DryRunClient {
 		createOptions := metav1.CreateOptions{}
@@ -193,7 +193,7 @@ func (o *CreateCronJobOptions) Run() error {
 }
 
 func (o *CreateCronJobOptions) createCronJob() *batchv1beta1.CronJob {
-	return &batchv1beta1.CronJob{
+	cronjob := &batchv1beta1.CronJob{
 		TypeMeta: metav1.TypeMeta{APIVersion: batchv1beta1.SchemeGroupVersion.String(), Kind: "CronJob"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: o.Name,
@@ -221,4 +221,8 @@ func (o *CreateCronJobOptions) createCronJob() *batchv1beta1.CronJob {
 			},
 		},
 	}
+	if o.EnforceNamespace {
+		cronjob.Namespace = o.Namespace
+	}
+	return cronjob
 }

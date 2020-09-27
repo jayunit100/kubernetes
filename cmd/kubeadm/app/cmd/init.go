@@ -56,6 +56,10 @@ var (
 		  sudo cp -i {{.KubeConfigPath}} $HOME/.kube/config
 		  sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
+		Alternatively, if you are the root user, you can run:
+
+		  export KUBECONFIG=/etc/kubernetes/admin.conf
+
 		You should now deploy a pod network to the cluster.
 		Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
 		  https://kubernetes.io/docs/concepts/cluster-administration/addons/
@@ -98,7 +102,7 @@ type initOptions struct {
 	externalClusterCfg      *kubeadmapiv1beta2.ClusterConfiguration
 	uploadCerts             bool
 	skipCertificateKeyPrint bool
-	kustomizeDir            string
+	patchesDir              string
 }
 
 // compile-time assert that the local data object satisfies the phases data interface.
@@ -120,7 +124,7 @@ type initData struct {
 	outputWriter            io.Writer
 	uploadCerts             bool
 	skipCertificateKeyPrint bool
-	kustomizeDir            string
+	patchesDir              string
 }
 
 // NewCmdInit returns "kubeadm init" command.
@@ -172,9 +176,9 @@ func NewCmdInit(out io.Writer, initOptions *initOptions) *cobra.Command {
 
 	// initialize the workflow runner with the list of phases
 	initRunner.AppendPhase(phases.NewPreflightPhase())
-	initRunner.AppendPhase(phases.NewKubeletStartPhase())
 	initRunner.AppendPhase(phases.NewCertsPhase())
 	initRunner.AppendPhase(phases.NewKubeConfigPhase())
+	initRunner.AppendPhase(phases.NewKubeletStartPhase())
 	initRunner.AppendPhase(phases.NewControlPlanePhase())
 	initRunner.AppendPhase(phases.NewEtcdPhase())
 	initRunner.AppendPhase(phases.NewWaitControlPlanePhase())
@@ -276,7 +280,7 @@ func AddInitOtherFlags(flagSet *flag.FlagSet, initOptions *initOptions) {
 		&initOptions.skipCertificateKeyPrint, options.SkipCertificateKeyPrint, initOptions.skipCertificateKeyPrint,
 		"Don't print the key used to encrypt the control-plane certificates.",
 	)
-	options.AddKustomizePodsFlag(flagSet, &initOptions.kustomizeDir)
+	options.AddPatchesFlag(flagSet, &initOptions.patchesDir)
 }
 
 // newInitOptions returns a struct ready for being used for creating cmd init flags.
@@ -412,7 +416,7 @@ func newInitData(cmd *cobra.Command, args []string, options *initOptions, out io
 		outputWriter:            out,
 		uploadCerts:             options.uploadCerts,
 		skipCertificateKeyPrint: options.skipCertificateKeyPrint,
-		kustomizeDir:            options.kustomizeDir,
+		patchesDir:              options.patchesDir,
 	}, nil
 }
 
@@ -545,9 +549,9 @@ func (d *initData) Tokens() []string {
 	return tokens
 }
 
-// KustomizeDir returns the folder where kustomize patches for static pod manifest are stored
-func (d *initData) KustomizeDir() string {
-	return d.kustomizeDir
+// PatchesDir returns the folder where patches for components are stored
+func (d *initData) PatchesDir() string {
+	return d.patchesDir
 }
 
 func printJoinCommand(out io.Writer, adminKubeConfigPath, token string, i *initData) error {

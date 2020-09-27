@@ -120,6 +120,7 @@ type RunOptions struct {
 	Interactive    bool
 	LeaveStdinOpen bool
 	Port           string
+	Privileged     bool
 	Quiet          bool
 	Schedule       string
 	TTY            bool
@@ -172,6 +173,7 @@ func NewCmdRun(f cmdutil.Factory, streams genericclioptions.IOStreams) *cobra.Co
 
 func addRunFlags(cmd *cobra.Command, opt *RunOptions) {
 	cmdutil.AddDryRunFlag(cmd)
+	cmd.Flags().StringArray("annotations", []string{}, i18n.T("Annotations to apply to the pod."))
 	cmd.Flags().StringVar(&opt.Generator, "generator", opt.Generator, i18n.T("The name of the API generator to use, see http://kubernetes.io/docs/user-guide/kubectl-conventions/#generators for a list."))
 	cmd.Flags().MarkDeprecated("generator", "has no effect and will be removed in the future.")
 	cmd.Flags().StringVar(&opt.Image, "image", opt.Image, i18n.T("The image for the container to run."))
@@ -202,6 +204,7 @@ func addRunFlags(cmd *cobra.Command, opt *RunOptions) {
 	cmd.Flags().BoolVar(&opt.Quiet, "quiet", opt.Quiet, "If true, suppress prompt messages.")
 	cmd.Flags().StringVar(&opt.Schedule, "schedule", opt.Schedule, i18n.T("A schedule in the Cron format the job should be run with."))
 	cmd.Flags().MarkDeprecated("schedule", "has no effect and will be removed in the future.")
+	cmd.Flags().BoolVar(&opt.Privileged, "privileged", opt.Privileged, i18n.T("If true, run the container in privileged mode."))
 	cmdutil.AddFieldManagerFlagVar(cmd, &opt.fieldManager, "kubectl-run")
 }
 
@@ -243,7 +246,11 @@ func (o *RunOptions) Complete(f cmdutil.Factory, cmd *cobra.Command) error {
 		return printer.PrintObj(obj, o.Out)
 	}
 
-	deleteOpts := o.DeleteFlags.ToOptions(dynamicClient, o.IOStreams)
+	deleteOpts, err := o.DeleteFlags.ToOptions(dynamicClient, o.IOStreams)
+	if err != nil {
+		return err
+	}
+
 	deleteOpts.IgnoreNotFound = true
 	deleteOpts.WaitForDeletion = false
 	deleteOpts.GracePeriod = -1
@@ -278,10 +285,6 @@ func (o *RunOptions) Run(f cmdutil.Factory, cmd *cobra.Command, args []string) e
 	if o.TTY && !o.Interactive {
 		return cmdutil.UsageErrorf(cmd, "-i/--stdin is required for containers with -t/--tty=true")
 	}
-	replicas := cmdutil.GetFlagInt(cmd, "replicas")
-	if o.Interactive && replicas != 1 {
-		return cmdutil.UsageErrorf(cmd, "-i/--stdin requires that replicas is 1, found %d", replicas)
-	}
 	if o.Expose && len(o.Port) == 0 {
 		return cmdutil.UsageErrorf(cmd, "--port must be set when exposing a service")
 	}
@@ -293,9 +296,6 @@ func (o *RunOptions) Run(f cmdutil.Factory, cmd *cobra.Command, args []string) e
 	restartPolicy, err := getRestartPolicy(cmd, o.Interactive)
 	if err != nil {
 		return err
-	}
-	if restartPolicy != corev1.RestartPolicyAlways && replicas != 1 {
-		return cmdutil.UsageErrorf(cmd, "--restart=%s requires that --replicas=1, found %d", restartPolicy, replicas)
 	}
 
 	remove := cmdutil.GetFlagBool(cmd, "rm")
@@ -324,6 +324,7 @@ func (o *RunOptions) Run(f cmdutil.Factory, cmd *cobra.Command, args []string) e
 		params["args"] = args[1:]
 	}
 
+	params["annotations"] = cmdutil.GetFlagStringArray(cmd, "annotations")
 	params["env"] = cmdutil.GetFlagStringArray(cmd, "env")
 
 	var createdObjects = []*RunObject{}

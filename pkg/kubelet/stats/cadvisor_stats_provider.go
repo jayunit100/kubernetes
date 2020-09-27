@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	statsapi "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
+	statsapi "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	"k8s.io/kubernetes/pkg/kubelet/cadvisor"
 	"k8s.io/kubernetes/pkg/kubelet/cm"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
@@ -135,7 +135,7 @@ func (p *cadvisorStatsProvider) ListPodStats() ([]statsapi.PodStats, error) {
 		if vstats, found := p.resourceAnalyzer.GetPodVolumeStats(podUID); found {
 			ephemeralStats = make([]statsapi.VolumeStats, len(vstats.EphemeralVolumes))
 			copy(ephemeralStats, vstats.EphemeralVolumes)
-			podStats.VolumeStats = append(vstats.EphemeralVolumes, vstats.PersistentVolumes...)
+			podStats.VolumeStats = append(append([]statsapi.VolumeStats{}, vstats.EphemeralVolumes...), vstats.PersistentVolumes...)
 		}
 		podStats.EphemeralStorage = calcEphemeralStorage(podStats.Containers, ephemeralStats, &rootFsInfo, nil, false)
 		// Lookup the pod-level cgroup's CPU and memory stats

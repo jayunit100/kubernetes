@@ -30,6 +30,7 @@ import (
 	discovery "k8s.io/api/discovery/v1beta1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
@@ -595,6 +596,73 @@ func TestReconcileEndpointSlicesReplaceDeprecated(t *testing.T) {
 	cmc.Check(t)
 }
 
+// In this test, we want to verify that a Service recreation will result in new
+// EndpointSlices being created.
+func TestReconcileEndpointSlicesRecreation(t *testing.T) {
+	testCases := []struct {
+		name           string
+		ownedByService bool
+		expectChanges  bool
+	}{
+		{
+			name:           "slice owned by Service",
+			ownedByService: true,
+			expectChanges:  false,
+		}, {
+			name:           "slice owned by other Service UID",
+			ownedByService: false,
+			expectChanges:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := newClientset()
+			setupMetrics()
+			namespace := "test"
+
+			svc, endpointMeta := newServiceAndEndpointMeta("foo", namespace)
+			slice := newEmptyEndpointSlice(1, namespace, endpointMeta, svc)
+
+			pod := newPod(1, namespace, true, 1)
+			slice.Endpoints = append(slice.Endpoints, podToEndpoint(pod, &corev1.Node{}, &corev1.Service{Spec: corev1.ServiceSpec{}}))
+
+			if !tc.ownedByService {
+				slice.OwnerReferences[0].UID = "different"
+			}
+			existingSlices := []*discovery.EndpointSlice{slice}
+			createEndpointSlices(t, client, namespace, existingSlices)
+
+			cmc := newCacheMutationCheck(existingSlices)
+
+			numActionsBefore := len(client.Actions())
+			r := newReconciler(client, []*corev1.Node{{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}}}, defaultMaxEndpointsPerSlice)
+			reconcileHelper(t, r, &svc, []*corev1.Pod{pod}, existingSlices, time.Now())
+
+			if tc.expectChanges {
+				if len(client.Actions()) != numActionsBefore+2 {
+					t.Fatalf("Expected 2 additional actions, got %d", len(client.Actions())-numActionsBefore)
+				}
+
+				expectAction(t, client.Actions(), numActionsBefore, "create", "endpointslices")
+				expectAction(t, client.Actions(), numActionsBefore+1, "delete", "endpointslices")
+
+				fetchedSlices := fetchEndpointSlices(t, client, namespace)
+
+				if len(fetchedSlices) != 1 {
+					t.Fatalf("Expected 1 EndpointSlice to exist, got %d", len(fetchedSlices))
+				}
+			} else {
+				if len(client.Actions()) != numActionsBefore {
+					t.Errorf("Expected no additional actions, got %d", len(client.Actions())-numActionsBefore)
+				}
+			}
+			// ensure cache mutation has not occurred
+			cmc.Check(t)
+		})
+	}
+}
+
 // Named ports can map to different port numbers on different pods.
 // This test ensures that EndpointSlices are grouped correctly in that case.
 func TestReconcileEndpointSlicesNamedPorts(t *testing.T) {
@@ -742,6 +810,176 @@ func TestReconcileEndpointSlicesMetrics(t *testing.T) {
 	expectMetrics(t, expectedMetrics{desiredSlices: 1, actualSlices: 1, desiredEndpoints: 10, addedPerSync: 20, removedPerSync: 10, numCreated: 1, numUpdated: 1, numDeleted: 0})
 }
 
+// When a Service has a non-nil deletionTimestamp we want to avoid creating any
+// new EndpointSlices but continue to allow updates and deletes through. This
+// test uses 3 EndpointSlices, 1 "to-create", 1 "to-update", and 1 "to-delete".
+// Each test case exercises different combinations of calls to finalize with
+// those resources.
+func TestReconcilerFinalizeSvcDeletionTimestamp(t *testing.T) {
+	now := metav1.Now()
+
+	testCases := []struct {
+		name               string
+		deletionTimestamp  *metav1.Time
+		attemptCreate      bool
+		attemptUpdate      bool
+		attemptDelete      bool
+		expectCreatedSlice bool
+		expectUpdatedSlice bool
+		expectDeletedSlice bool
+	}{{
+		name:               "Attempt create and update, nil deletion timestamp",
+		deletionTimestamp:  nil,
+		attemptCreate:      true,
+		attemptUpdate:      true,
+		expectCreatedSlice: true,
+		expectUpdatedSlice: true,
+		expectDeletedSlice: true,
+	}, {
+		name:               "Attempt create and update, deletion timestamp set",
+		deletionTimestamp:  &now,
+		attemptCreate:      true,
+		attemptUpdate:      true,
+		expectCreatedSlice: false,
+		expectUpdatedSlice: true,
+		expectDeletedSlice: true,
+	}, {
+		// Slice scheduled for creation is transitioned to update of Slice
+		// scheduled for deletion.
+		name:               "Attempt create, update, and delete, nil deletion timestamp, recycling in action",
+		deletionTimestamp:  nil,
+		attemptCreate:      true,
+		attemptUpdate:      true,
+		attemptDelete:      true,
+		expectCreatedSlice: false,
+		expectUpdatedSlice: true,
+		expectDeletedSlice: true,
+	}, {
+		// Slice scheduled for creation is transitioned to update of Slice
+		// scheduled for deletion.
+		name:               "Attempt create, update, and delete, deletion timestamp set, recycling in action",
+		deletionTimestamp:  &now,
+		attemptCreate:      true,
+		attemptUpdate:      true,
+		attemptDelete:      true,
+		expectCreatedSlice: false,
+		expectUpdatedSlice: true,
+		expectDeletedSlice: true,
+	}, {
+		// Update and delete continue to work when deletionTimestamp is set.
+		name:               "Attempt update delete, deletion timestamp set",
+		deletionTimestamp:  &now,
+		attemptCreate:      false,
+		attemptUpdate:      true,
+		attemptDelete:      true,
+		expectCreatedSlice: false,
+		expectUpdatedSlice: true,
+		expectDeletedSlice: false,
+	}}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := newClientset()
+			setupMetrics()
+			r := newReconciler(client, []*corev1.Node{{ObjectMeta: metav1.ObjectMeta{Name: "node-1"}}}, defaultMaxEndpointsPerSlice)
+
+			namespace := "test"
+			svc, endpointMeta := newServiceAndEndpointMeta("foo", namespace)
+			svc.DeletionTimestamp = tc.deletionTimestamp
+			gvk := schema.GroupVersionKind{Version: "v1", Kind: "Service"}
+			ownerRef := metav1.NewControllerRef(&svc, gvk)
+
+			esToCreate := &discovery.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "to-create",
+					OwnerReferences: []metav1.OwnerReference{*ownerRef},
+				},
+				AddressType: endpointMeta.AddressType,
+				Ports:       endpointMeta.Ports,
+			}
+
+			// Add EndpointSlice that can be updated.
+			esToUpdate, err := client.DiscoveryV1beta1().EndpointSlices(namespace).Create(context.TODO(), &discovery.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "to-update",
+					OwnerReferences: []metav1.OwnerReference{*ownerRef},
+				},
+				AddressType: endpointMeta.AddressType,
+				Ports:       endpointMeta.Ports,
+			}, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("Expected no error creating EndpointSlice during test setup, got %v", err)
+			}
+			// Add an endpoint so we can see if this has actually been updated by
+			// finalize func.
+			esToUpdate.Endpoints = []discovery.Endpoint{{Addresses: []string{"10.2.3.4"}}}
+
+			// Add EndpointSlice that can be deleted.
+			esToDelete, err := client.DiscoveryV1beta1().EndpointSlices(namespace).Create(context.TODO(), &discovery.EndpointSlice{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "to-delete",
+					OwnerReferences: []metav1.OwnerReference{*ownerRef},
+				},
+				AddressType: endpointMeta.AddressType,
+				Ports:       endpointMeta.Ports,
+			}, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("Expected no error creating EndpointSlice during test setup, got %v", err)
+			}
+
+			slicesToCreate := []*discovery.EndpointSlice{}
+			if tc.attemptCreate {
+				slicesToCreate = append(slicesToCreate, esToCreate.DeepCopy())
+			}
+			slicesToUpdate := []*discovery.EndpointSlice{}
+			if tc.attemptUpdate {
+				slicesToUpdate = append(slicesToUpdate, esToUpdate.DeepCopy())
+			}
+			slicesToDelete := []*discovery.EndpointSlice{}
+			if tc.attemptDelete {
+				slicesToDelete = append(slicesToDelete, esToDelete.DeepCopy())
+			}
+
+			err = r.finalize(&svc, slicesToCreate, slicesToUpdate, slicesToDelete, time.Now())
+			if err != nil {
+				t.Errorf("Error calling r.finalize(): %v", err)
+			}
+
+			fetchedSlices := fetchEndpointSlices(t, client, namespace)
+
+			createdSliceFound := false
+			updatedSliceFound := false
+			deletedSliceFound := false
+			for _, epSlice := range fetchedSlices {
+				if epSlice.Name == esToCreate.Name {
+					createdSliceFound = true
+				}
+				if epSlice.Name == esToUpdate.Name {
+					updatedSliceFound = true
+					if tc.attemptUpdate && len(epSlice.Endpoints) != len(esToUpdate.Endpoints) {
+						t.Errorf("Expected EndpointSlice to be updated with %d endpoints, got %d endpoints", len(esToUpdate.Endpoints), len(epSlice.Endpoints))
+					}
+				}
+				if epSlice.Name == esToDelete.Name {
+					deletedSliceFound = true
+				}
+			}
+
+			if createdSliceFound != tc.expectCreatedSlice {
+				t.Errorf("Expected created EndpointSlice existence to be %t, got %t", tc.expectCreatedSlice, createdSliceFound)
+			}
+
+			if updatedSliceFound != tc.expectUpdatedSlice {
+				t.Errorf("Expected updated EndpointSlice existence to be %t, got %t", tc.expectUpdatedSlice, updatedSliceFound)
+			}
+
+			if deletedSliceFound != tc.expectDeletedSlice {
+				t.Errorf("Expected deleted EndpointSlice existence to be %t, got %t", tc.expectDeletedSlice, deletedSliceFound)
+			}
+		})
+	}
+}
+
 // Test Helpers
 
 func newReconciler(client *fake.Clientset, nodes []*corev1.Node, maxEndpointsPerSlice int32) *reconciler {
@@ -825,7 +1063,7 @@ func expectActions(t *testing.T, actions []k8stesting.Action, num int, verb, res
 }
 
 func expectTrackedResourceVersion(t *testing.T, tracker *endpointSliceTracker, slice *discovery.EndpointSlice, expectedRV string) {
-	rrv := tracker.relatedResourceVersions(slice)
+	rrv, _ := tracker.relatedResourceVersions(slice)
 	rv, tracked := rrv[slice.Name]
 	if !tracked {
 		t.Fatalf("Expected EndpointSlice %s to be tracked", slice.Name)

@@ -19,6 +19,7 @@ package interpodaffinity
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	v1 "k8s.io/api/core/v1"
 	framework "k8s.io/kubernetes/pkg/scheduler/framework/v1alpha1"
@@ -136,18 +137,18 @@ func (pl *InterPodAffinity) PreScore(
 	}
 
 	if pl.sharedLister == nil {
-		return framework.NewStatus(framework.Error, fmt.Sprintf("BuildTopologyPairToScore with empty shared lister"))
+		return framework.NewStatus(framework.Error, fmt.Sprintf("InterPodAffinity PreScore with empty shared lister found"))
 	}
 
 	affinity := pod.Spec.Affinity
-	hasAffinityConstraints := affinity != nil && affinity.PodAffinity != nil
-	hasAntiAffinityConstraints := affinity != nil && affinity.PodAntiAffinity != nil
+	hasPreferredAffinityConstraints := affinity != nil && affinity.PodAffinity != nil && len(affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution) > 0
+	hasPreferredAntiAffinityConstraints := affinity != nil && affinity.PodAntiAffinity != nil && len(affinity.PodAntiAffinity.PreferredDuringSchedulingIgnoredDuringExecution) > 0
 
-	// Unless the pod being scheduled has affinity terms, we only
+	// Unless the pod being scheduled has preferred affinity terms, we only
 	// need to process nodes hosting pods with affinity.
 	var allNodes []*framework.NodeInfo
 	var err error
-	if hasAffinityConstraints || hasAntiAffinityConstraints {
+	if hasPreferredAffinityConstraints || hasPreferredAntiAffinityConstraints {
 		allNodes, err = pl.sharedLister.NodeInfos().List()
 		if err != nil {
 			framework.NewStatus(framework.Error, fmt.Sprintf("get all nodes from shared lister error, err: %v", err))
@@ -159,20 +160,28 @@ func (pl *InterPodAffinity) PreScore(
 		}
 	}
 
-	state := &preScoreState{
-		topologyScore: make(map[string]map[string]int64),
-		podInfo:       framework.NewPodInfo(pod),
+	podInfo := framework.NewPodInfo(pod)
+	if podInfo.ParseError != nil {
+		// Ideally we never reach here, because errors will be caught by PreFilter
+		return framework.NewStatus(framework.Error, fmt.Sprintf("parsing pod: %+v", podInfo.ParseError))
 	}
 
+	state := &preScoreState{
+		topologyScore: make(map[string]map[string]int64),
+		podInfo:       podInfo,
+	}
+
+	topoScores := make([]scoreMap, len(allNodes))
+	index := int32(-1)
 	processNode := func(i int) {
 		nodeInfo := allNodes[i]
 		if nodeInfo.Node() == nil {
 			return
 		}
-		// Unless the pod being scheduled has affinity terms, we only
+		// Unless the pod being scheduled has preferred affinity terms, we only
 		// need to process pods with affinity in the node.
 		podsToProcess := nodeInfo.PodsWithAffinity
-		if hasAffinityConstraints || hasAntiAffinityConstraints {
+		if hasPreferredAffinityConstraints || hasPreferredAntiAffinityConstraints {
 			// We need to process all the pods.
 			podsToProcess = nodeInfo.Pods
 		}
@@ -182,12 +191,14 @@ func (pl *InterPodAffinity) PreScore(
 			pl.processExistingPod(state, existingPod, nodeInfo, pod, topoScore)
 		}
 		if len(topoScore) > 0 {
-			pl.Lock()
-			state.topologyScore.append(topoScore)
-			pl.Unlock()
+			topoScores[atomic.AddInt32(&index, 1)] = topoScore
 		}
 	}
 	parallelize.Until(context.Background(), len(allNodes), processNode)
+
+	for i := 0; i <= int(index); i++ {
+		state.topologyScore.append(topoScores[i])
+	}
 
 	cycleState.Write(preScoreStateKey, state)
 	return nil
@@ -207,8 +218,9 @@ func getPreScoreState(cycleState *framework.CycleState) (*preScoreState, error) 
 }
 
 // Score invoked at the Score extension point.
-// The "score" returned in this function is the matching number of pods on the `nodeName`,
+// The "score" returned in this function is the sum of weights got from cycleState which have its topologyKey matching with the node's labels.
 // it is normalized later.
+// Note: the returned "score" is positive for pod-affinity, and negative for pod-antiaffinity.
 func (pl *InterPodAffinity) Score(ctx context.Context, cycleState *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
 	nodeInfo, err := pl.sharedLister.NodeInfos().Get(nodeName)
 	if err != nil || nodeInfo.Node() == nil {
@@ -231,8 +243,6 @@ func (pl *InterPodAffinity) Score(ctx context.Context, cycleState *framework.Cyc
 }
 
 // NormalizeScore normalizes the score for each filteredNode.
-// The basic rule is: the bigger the score(matching number of pods) is, the smaller the
-// final normalized score will be.
 func (pl *InterPodAffinity) NormalizeScore(ctx context.Context, cycleState *framework.CycleState, pod *v1.Pod, scores framework.NodeScoreList) *framework.Status {
 	s, err := getPreScoreState(cycleState)
 	if err != nil {

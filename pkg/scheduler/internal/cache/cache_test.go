@@ -268,7 +268,7 @@ func TestExpirePod(t *testing.T) {
 			{pod: testPods[0], finishBind: true, assumedTime: now},
 		},
 		cleanupTime: now.Add(2 * ttl),
-		wNodeInfo:   framework.NewNodeInfo(),
+		wNodeInfo:   nil,
 	}, { // first one would expire, second and third would not.
 		pods: []*testExpirePodStruct{
 			{pod: testPods[0], finishBind: true, assumedTime: now},
@@ -1090,7 +1090,11 @@ func TestNodeOperators(t *testing.T) {
 			if !found {
 				t.Errorf("Failed to find node %v in internalcache.", node.Name)
 			}
-			if cache.nodeTree.numNodes != 1 || cache.nodeTree.next() != node.Name {
+			nodesList, err := cache.nodeTree.list()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cache.nodeTree.numNodes != 1 || nodesList[len(nodesList)-1] != node.Name {
 				t.Errorf("cache.nodeTree is not updated correctly after adding node: %v", node.Name)
 			}
 
@@ -1134,7 +1138,11 @@ func TestNodeOperators(t *testing.T) {
 				t.Errorf("Failed to update node in schedulertypes:\n got: %+v \nexpected: %+v", got, expected)
 			}
 			// Check nodeTree after update
-			if cache.nodeTree.numNodes != 1 || cache.nodeTree.next() != node.Name {
+			nodesList, err = cache.nodeTree.list()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cache.nodeTree.numNodes != 1 || nodesList[len(nodesList)-1] != node.Name {
 				t.Errorf("unexpected cache.nodeTree after updating node: %v", node.Name)
 			}
 
@@ -1142,11 +1150,17 @@ func TestNodeOperators(t *testing.T) {
 			if err := cache.RemoveNode(node); err != nil {
 				t.Error(err)
 			}
-			if _, err := cache.GetNodeInfo(node.Name); err == nil {
-				t.Errorf("The node %v should be removed.", node.Name)
+			if n, err := cache.getNodeInfo(node.Name); err != nil {
+				t.Errorf("The node %v should still have a ghost entry: %v", node.Name, err)
+			} else if n != nil {
+				t.Errorf("The node object for %v should be nil", node.Name)
 			}
 			// Check node is removed from nodeTree as well.
-			if cache.nodeTree.numNodes != 0 || cache.nodeTree.next() != "" {
+			nodesList, err = cache.nodeTree.list()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cache.nodeTree.numNodes != 0 || len(nodesList) != 0 {
 				t.Errorf("unexpected cache.nodeTree after removing node: %v", node.Name)
 			}
 			// Pods are still in the pods cache.
@@ -1304,7 +1318,7 @@ func TestSchedulerCache_UpdateSnapshot(t *testing.T) {
 	updateSnapshot := func() operation {
 		return func() {
 			cache.UpdateSnapshot(snapshot)
-			if err := compareCacheWithNodeInfoSnapshot(cache, snapshot); err != nil {
+			if err := compareCacheWithNodeInfoSnapshot(t, cache, snapshot); err != nil {
 				t.Error(err)
 			}
 		}
@@ -1466,7 +1480,7 @@ func TestSchedulerCache_UpdateSnapshot(t *testing.T) {
 			var i int
 			// Check that cache is in the expected state.
 			for node := cache.headNode; node != nil; node = node.next {
-				if node.info.Node().Name != test.expected[i].Name {
+				if node.info.Node() != nil && node.info.Node().Name != test.expected[i].Name {
 					t.Errorf("unexpected node. Expected: %v, got: %v, index: %v", test.expected[i].Name, node.info.Node().Name, i)
 				}
 				i++
@@ -1485,14 +1499,14 @@ func TestSchedulerCache_UpdateSnapshot(t *testing.T) {
 			if err := cache.UpdateSnapshot(snapshot); err != nil {
 				t.Error(err)
 			}
-			if err := compareCacheWithNodeInfoSnapshot(cache, snapshot); err != nil {
+			if err := compareCacheWithNodeInfoSnapshot(t, cache, snapshot); err != nil {
 				t.Error(err)
 			}
 		})
 	}
 }
 
-func compareCacheWithNodeInfoSnapshot(cache *schedulerCache, snapshot *Snapshot) error {
+func compareCacheWithNodeInfoSnapshot(t *testing.T, cache *schedulerCache, snapshot *Snapshot) error {
 	// Compare the map.
 	if len(snapshot.nodeInfoMap) != len(cache.nodes) {
 		return fmt.Errorf("unexpected number of nodes in the snapshot. Expected: %v, got: %v", len(cache.nodes), len(snapshot.nodeInfoMap))
@@ -1510,8 +1524,11 @@ func compareCacheWithNodeInfoSnapshot(cache *schedulerCache, snapshot *Snapshot)
 
 	expectedNodeInfoList := make([]*framework.NodeInfo, 0, cache.nodeTree.numNodes)
 	expectedHavePodsWithAffinityNodeInfoList := make([]*framework.NodeInfo, 0, cache.nodeTree.numNodes)
-	for i := 0; i < cache.nodeTree.numNodes; i++ {
-		nodeName := cache.nodeTree.next()
+	nodesList, err := cache.nodeTree.list()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, nodeName := range nodesList {
 		if n := snapshot.nodeInfoMap[nodeName]; n != nil {
 			expectedNodeInfoList = append(expectedNodeInfoList, n)
 			if len(n.PodsWithAffinity) > 0 {
@@ -1537,6 +1554,151 @@ func compareCacheWithNodeInfoSnapshot(cache *schedulerCache, snapshot *Snapshot)
 	}
 
 	return nil
+}
+
+func TestSchedulerCache_updateNodeInfoSnapshotList(t *testing.T) {
+	// Create a few nodes to be used in tests.
+	nodes := []*v1.Node{}
+	i := 0
+	// List of number of nodes per zone, zone 0 -> 2, zone 1 -> 6
+	for zone, nb := range []int{2, 6} {
+		for j := 0; j < nb; j++ {
+			nodes = append(nodes, &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: fmt.Sprintf("node-%d", i),
+					Labels: map[string]string{
+						v1.LabelZoneRegion:        fmt.Sprintf("region-%d", zone),
+						v1.LabelZoneFailureDomain: fmt.Sprintf("zone-%d", zone),
+					},
+				},
+			})
+			i++
+		}
+	}
+
+	var cache *schedulerCache
+	var snapshot *Snapshot
+
+	addNode := func(t *testing.T, i int) {
+		if err := cache.AddNode(nodes[i]); err != nil {
+			t.Error(err)
+		}
+		_, ok := snapshot.nodeInfoMap[nodes[i].Name]
+		if !ok {
+			snapshot.nodeInfoMap[nodes[i].Name] = cache.nodes[nodes[i].Name].info
+		}
+	}
+
+	updateSnapshot := func(t *testing.T) {
+		cache.updateNodeInfoSnapshotList(snapshot, true)
+		if err := compareCacheWithNodeInfoSnapshot(t, cache, snapshot); err != nil {
+			t.Error(err)
+		}
+	}
+
+	tests := []struct {
+		name       string
+		operations func(t *testing.T)
+		expected   []string
+	}{
+		{
+			name:       "Empty cache",
+			operations: func(t *testing.T) {},
+			expected:   []string{},
+		},
+		{
+			name: "Single node",
+			operations: func(t *testing.T) {
+				addNode(t, 0)
+			},
+			expected: []string{"node-0"},
+		},
+		{
+			name: "Two nodes",
+			operations: func(t *testing.T) {
+				addNode(t, 0)
+				updateSnapshot(t)
+				addNode(t, 1)
+			},
+			expected: []string{"node-0", "node-1"},
+		},
+		{
+			name: "bug 91601, two nodes, update the snapshot and add two nodes in different zones",
+			operations: func(t *testing.T) {
+				addNode(t, 2)
+				addNode(t, 3)
+				updateSnapshot(t)
+				addNode(t, 4)
+				addNode(t, 0)
+			},
+			expected: []string{"node-2", "node-0", "node-3", "node-4"},
+		},
+		{
+			name: "bug 91601, 6 nodes, one in a different zone",
+			operations: func(t *testing.T) {
+				addNode(t, 2)
+				addNode(t, 3)
+				addNode(t, 4)
+				addNode(t, 5)
+				updateSnapshot(t)
+				addNode(t, 6)
+				addNode(t, 0)
+			},
+			expected: []string{"node-2", "node-0", "node-3", "node-4", "node-5", "node-6"},
+		},
+		{
+			name: "bug 91601, 7 nodes, two in a different zone",
+			operations: func(t *testing.T) {
+				addNode(t, 2)
+				updateSnapshot(t)
+				addNode(t, 3)
+				addNode(t, 4)
+				updateSnapshot(t)
+				addNode(t, 5)
+				addNode(t, 6)
+				addNode(t, 0)
+				addNode(t, 1)
+			},
+			expected: []string{"node-2", "node-0", "node-3", "node-1", "node-4", "node-5", "node-6"},
+		},
+		{
+			name: "bug 91601, 7 nodes, two in a different zone, different zone order",
+			operations: func(t *testing.T) {
+				addNode(t, 2)
+				addNode(t, 1)
+				updateSnapshot(t)
+				addNode(t, 3)
+				addNode(t, 4)
+				updateSnapshot(t)
+				addNode(t, 5)
+				addNode(t, 6)
+				addNode(t, 0)
+			},
+			expected: []string{"node-2", "node-1", "node-3", "node-0", "node-4", "node-5", "node-6"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cache = newSchedulerCache(time.Second, time.Second, nil)
+			snapshot = NewEmptySnapshot()
+
+			test.operations(t)
+
+			// Always update the snapshot at the end of operations and compare it.
+			cache.updateNodeInfoSnapshotList(snapshot, true)
+			if err := compareCacheWithNodeInfoSnapshot(t, cache, snapshot); err != nil {
+				t.Error(err)
+			}
+			nodeNames := make([]string, len(snapshot.nodeInfoList))
+			for i, nodeInfo := range snapshot.nodeInfoList {
+				nodeNames[i] = nodeInfo.Node().Name
+			}
+			if !reflect.DeepEqual(nodeNames, test.expected) {
+				t.Errorf("The nodeInfoList is incorrect. Expected %v , got %v", test.expected, nodeNames)
+			}
+		})
+	}
 }
 
 func BenchmarkUpdate1kNodes30kPods(b *testing.B) {
@@ -1652,4 +1814,17 @@ func isForgottenFromCache(p *v1.Pod, c *schedulerCache) error {
 		return errors.New("still in cache")
 	}
 	return nil
+}
+
+// getNodeInfo returns cached data for the node name.
+func (cache *schedulerCache) getNodeInfo(nodeName string) (*v1.Node, error) {
+	cache.mu.RLock()
+	defer cache.mu.RUnlock()
+
+	n, ok := cache.nodes[nodeName]
+	if !ok {
+		return nil, fmt.Errorf("node %q not found in cache", nodeName)
+	}
+
+	return n.info.Node(), nil
 }

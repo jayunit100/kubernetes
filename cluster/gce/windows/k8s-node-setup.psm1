@@ -57,8 +57,8 @@ $GCE_METADATA_SERVER = "169.254.169.254"
 # exist until an initial HNS network has been created on the Windows node - see
 # Add_InitialHnsNetwork().
 $MGMT_ADAPTER_NAME = "vEthernet (Ethernet*"
-$CRICTL_VERSION = 'v1.18.0'
-$CRICTL_SHA256 = '5045bcc6d8b0e6004be123ab99ea06e5b1b2ae1e586c968fcdf85fccd4d67ae1'
+$CRICTL_VERSION = 'v1.19.0'
+$CRICTL_SHA256 = 'df60ff65ab71c5cf1d8c38f51db6f05e3d60a45d3a3293c3248c925c25375921'
 
 Import-Module -Force C:\common.psm1
 
@@ -241,6 +241,14 @@ function Set_CurrentShellEnvironmentVar {
 # Sets environment variables used by Kubernetes binaries and by other functions
 # in this module. Depends on numerous ${kube_env} keys.
 function Set-EnvironmentVars {
+  if ($kube_env.ContainsKey('WINDOWS_CONTAINER_RUNTIME')) {
+      $container_runtime = ${kube_env}['WINDOWS_CONTAINER_RUNTIME']
+      $container_runtime_endpoint = ${kube_env}['WINDOWS_CONTAINER_RUNTIME_ENDPOINT']
+  } else {
+      Log-Output "ERROR: WINDOWS_CONTAINER_RUNTIME not set in kube-env, falling back in CONTAINER_RUNTIME"
+      $container_runtime = ${kube_env}['CONTAINER_RUNTIME']
+      $container_runtime_endpoint = ${kube_env}['CONTAINER_RUNTIME_ENDPOINT']
+  }
   # Turning the kube-env values into environment variables is not required but
   # it makes debugging this script easier, and it also makes the syntax a lot
   # easier (${env:K8S_DIR} can be expanded within a string but
@@ -253,6 +261,8 @@ function Set-EnvironmentVars {
     "CNI_CONFIG_DIR" = ${kube_env}['CNI_CONFIG_DIR']
     "WINDOWS_CNI_STORAGE_PATH" = ${kube_env}['WINDOWS_CNI_STORAGE_PATH']
     "WINDOWS_CNI_VERSION" = ${kube_env}['WINDOWS_CNI_VERSION']
+    "CSI_PROXY_STORAGE_PATH" = ${kube_env}['CSI_PROXY_STORAGE_PATH']
+    "CSI_PROXY_VERSION" = ${kube_env}['CSI_PROXY_VERSION']
     "PKI_DIR" = ${kube_env}['PKI_DIR']
     "CA_FILE_PATH" = ${kube_env}['CA_FILE_PATH']
     "KUBELET_CONFIG" = ${kube_env}['KUBELET_CONFIG_FILE']
@@ -268,8 +278,8 @@ function Set-EnvironmentVars {
     "KUBELET_CERT_PATH" = ${kube_env}['PKI_DIR'] + '\kubelet.crt'
     "KUBELET_KEY_PATH" = ${kube_env}['PKI_DIR'] + '\kubelet.key'
 
-    "CONTAINER_RUNTIME" = ${kube_env}['CONTAINER_RUNTIME']
-    "CONTAINER_RUNTIME_ENDPOINT" = ${kube_env}['CONTAINER_RUNTIME_ENDPOINT']
+    "CONTAINER_RUNTIME" = $container_runtime
+    "CONTAINER_RUNTIME_ENDPOINT" = $container_runtime_endpoint
 
     'LICENSE_DIR' = 'C:\Program Files\Google\Compute Engine\THIRD_PARTY_NOTICES'
   }
@@ -384,6 +394,35 @@ function DownloadAndInstall-KubernetesBinaries {
 
   # Clean up the temporary directory
   Remove-Item -Force -Recurse $tmp_dir
+}
+
+# Downloads the csi-proxy binaries from kube-env's CSI_PROXY_STORAGE_PATH and
+# CSI_PROXY_VERSION, and then puts them in a subdirectory of $env:NODE_DIR. 
+# Note: for now the installation is skipped for non-test clusters. Will be
+# installed for all cluster after tests pass.
+# Required ${kube_env} keys:
+#   CSI_PROXY_STORAGE_PATH and CSI_PROXY_VERSION
+function DownloadAndInstall-CSIProxyBinaries {
+  if (ShouldWrite-File ${env:NODE_DIR}\csi-proxy.exe) {
+    $tmp_dir = 'C:\k8s_tmp'
+    New-Item -Force -ItemType 'directory' $tmp_dir | Out-Null
+    $filename = 'csi-proxy.exe'
+    $urls = "${env:CSI_PROXY_STORAGE_PATH}/${env:CSI_PROXY_VERSION}/$filename"
+    MustDownload-File -OutFile $tmp_dir\$filename -URLs $urls
+    Move-Item -Force $tmp_dir\$filename ${env:NODE_DIR}\$filename
+    # Clean up the temporary directory
+    Remove-Item -Force -Recurse $tmp_dir
+  }
+}
+
+function Start-CSIProxy {
+  Log-Output "Creating CSI Proxy Service"
+  $flags = "-windows-service -log_file=${env:LOGS_DIR}\csi-proxy.log -logtostderr=false"
+  & sc.exe create csiproxy binPath= "${env:NODE_DIR}\csi-proxy.exe $flags"
+  & sc.exe failure csiproxy reset= 0 actions= restart/10000
+  Log-Output "Starting CSI Proxy Service"
+  & sc.exe start csiproxy
+
 }
 
 # TODO(pjh): this is copied from
@@ -889,9 +928,9 @@ function Configure-GcePdTools {
   }
 
   Add-Content $PsHome\profile.ps1 `
-'$modulePath = "K8S_DIR\GetGcePdName.dll"
-Unblock-File $modulePath
-Import-Module -Name $modulePath'.replace('K8S_DIR', ${env:K8S_DIR})
+  '$modulePath = "K8S_DIR\GetGcePdName.dll"
+  Unblock-File $modulePath
+  Import-Module -Name $modulePath'.replace('K8S_DIR', ${env:K8S_DIR})
 }
 
 # Setup cni network. This function supports both Docker and containerd.
@@ -1096,9 +1135,20 @@ function Start-WorkerServices {
   $kubelet_args_str = ${kube_env}['KUBELET_ARGS']
   $kubelet_args = $kubelet_args_str.Split(" ")
   Log-Output "kubelet_args from metadata: ${kubelet_args}"
+
+  # To join GCE instances to AD, we need to shorten their names, as NetBIOS name
+  # must be <= 15 characters, and GKE generated names are longer than that.
+  # To perform the join in an automated way, it's preferable to apply the rename
+  # and domain join in the GCESysprep step. However, after sysprep is complete
+  # and the machine restarts, kubelet bootstrapping should not use the shortened
+  # computer name, and instead use the instance's name by using --hostname-override,
+  # otherwise kubelet and kube-proxy will not be able to run properly.
+  $instance_name = "$(Get-InstanceMetadata 'name' | Out-String)"
   $default_kubelet_args = @(`
-      "--pod-infra-container-image=${env:INFRA_CONTAINER}"
+      "--pod-infra-container-image=${env:INFRA_CONTAINER}",
+      "--hostname-override=${instance_name}"
   )
+
   $kubelet_args = ${default_kubelet_args} + ${kubelet_args}
   if (-not (Test-NodeUsesAuthPlugin ${kube_env})) {
     Log-Output 'Using bootstrap kubeconfig for authentication'
@@ -1123,8 +1173,10 @@ function Start-WorkerServices {
   # And also with various volumeMounts and "securityContext: privileged: true".
   $default_kubeproxy_args = @(`
       "--kubeconfig=${env:KUBEPROXY_KUBECONFIG}",
-      "--cluster-cidr=$(${kube_env}['CLUSTER_IP_RANGE'])"
+      "--cluster-cidr=$(${kube_env}['CLUSTER_IP_RANGE'])",
+      "--hostname-override=${instance_name}"
   )
+  
   $kubeproxy_args = ${default_kubeproxy_args} + ${kubeproxy_args}
   Log-Output "Final kubeproxy_args: ${kubeproxy_args}"
 
@@ -1206,13 +1258,16 @@ function Verify-WorkerServices {
   Log_Todo "run more verification commands."
 }
 
-# Downloads crictl.exe and installs it in $env:NODE_DIR.
+# Downloads the Windows crictl package and installs its contents (e.g.
+# crictl.exe) in $env:NODE_DIR.
 function DownloadAndInstall-Crictl {
   if (-not (ShouldWrite-File ${env:NODE_DIR}\crictl.exe)) {
     return
   }
-  $url = ('https://github.com/kubernetes-sigs/cri-tools/releases/download/' +
-          $CRICTL_VERSION + '/crictl-' + $CRICTL_VERSION + '-windows-amd64.tar.gz')
+  $CRI_TOOLS_GCS_BUCKET = 'k8s-artifacts-cri-tools'
+  $url = ('https://storage.googleapis.com/' + $CRI_TOOLS_GCS_BUCKET +
+          '/release/' + $CRICTL_VERSION + '/crictl-' + $CRICTL_VERSION +
+          '-windows-amd64.tar.gz')
   MustDownload-File `
       -URLs $url `
       -OutFile ${env:NODE_DIR}\crictl.tar.gz `
@@ -1474,7 +1529,7 @@ function Start_Containerd {
 # TODO(pjh): move the Stackdriver logging agent code below into a separate
 # module; it was put here temporarily to avoid disrupting the file layout in
 # the K8s release machinery.
-$STACKDRIVER_VERSION = 'v1-9'
+$STACKDRIVER_VERSION = 'v1-11'
 $STACKDRIVER_ROOT = 'C:\Program Files (x86)\Stackdriver'
 
 # Restarts the Stackdriver logging agent, or starts it if it is not currently
@@ -1519,6 +1574,38 @@ function Restart-LoggingAgent {
   Start-Service StackdriverLogging
 }
 
+# Check whether the logging agent is installed by whether it's registered as service
+function IsLoggingAgentInstalled {
+  $stackdriver_status = (Get-Service StackdriverLogging -ErrorAction Ignore).Status
+  return -not [string]::IsNullOrEmpty($stackdriver_status)
+}
+
+# Clean up the logging agent's registry key and root folder if they exist from a prior installation.
+# Try to uninstall it first, if it failed, remove the registry key at least, 
+# as the registry key will block the silent installation later on.
+function Cleanup-LoggingAgent {
+  # For 64 bits app, the registry path is 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
+  # for 32 bits app, it's 'HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+  # StackdriverLogging is installed as 32 bits app
+  $x32_app_reg = 'HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+  $uninstall_string = (Get-ChildItem $x32_app_reg | Get-ItemProperty | Where-Object {$_.DisplayName -match "Stackdriver"}).UninstallString
+  if (-not [string]::IsNullOrEmpty($uninstall_string)) {
+    try {
+      Start-Process -FilePath "$uninstall_string" -ArgumentList "/S" -Wait
+    } catch {
+      Log-Output "Exception happens during uninstall logging agent, so remove the registry key at least"
+      Remove-Item -Path "$x32_app_reg\GoogleStackdriverLoggingAgent\"
+    }
+  }
+
+  #  If we chose reboot after uninstallation, the root folder would be clean.
+  #  But since we couldn't reboot, so some files & folders would be left there, 
+  #  which could block the re-installation later on, so clean it up
+  if(Test-Path $STACKDRIVER_ROOT){
+    Remove-Item -Force -Recurse $STACKDRIVER_ROOT
+  }
+}
+
 # Installs the Stackdriver logging agent according to
 # https://cloud.google.com/logging/docs/agent/installation.
 # TODO(yujuhong): Update to a newer Stackdriver agent once it is released to
@@ -1535,17 +1622,18 @@ function Install-LoggingAgent {
       ("$STACKDRIVER_ROOT\LoggingAgent\Main\pos\winevtlog.pos\worker0\" +
        "storage.json")
 
-  if (Test-Path $STACKDRIVER_ROOT) {
+  if (IsLoggingAgentInstalled) {
     # Note: we should reinstall the Stackdriver agent if $REDO_STEPS is true
     # here, but we don't know how to run the installer without it prompting
     # when Stackdriver is already installed. We dumped the strings in the
     # installer binary and searched for flags to do this but found nothing. Oh
     # well.
-    Log-Output ("Skip: $STACKDRIVER_ROOT is already present, assuming that " +
-                "Stackdriver logging agent is already installed")
-    Restart-LoggingAgent
+    Log-Output ("Skip: Stackdriver logging agent is already installed")
     return
   }
+  
+  # After a crash, the StackdriverLogging service could be missing, but its files will still be present
+  Cleanup-LoggingAgent
 
   $url = ("https://storage.googleapis.com/gke-release/winnode/stackdriver/" +
           "StackdriverLogging-${STACKDRIVER_VERSION}.exe")

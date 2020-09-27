@@ -34,6 +34,7 @@ import (
 	clientgorbacv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"k8s.io/kubectl/pkg/scheme"
+	"k8s.io/kubectl/pkg/util"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
 )
@@ -127,14 +128,16 @@ type CreateRoleOptions struct {
 	Resources     []ResourceOptions
 	ResourceNames []string
 
-	DryRunStrategy cmdutil.DryRunStrategy
-	DryRunVerifier *resource.DryRunVerifier
-	OutputFormat   string
-	Namespace      string
-	Client         clientgorbacv1.RbacV1Interface
-	Mapper         meta.RESTMapper
-	PrintObj       func(obj runtime.Object) error
-	FieldManager   string
+	DryRunStrategy   cmdutil.DryRunStrategy
+	DryRunVerifier   *resource.DryRunVerifier
+	OutputFormat     string
+	Namespace        string
+	EnforceNamespace bool
+	Client           clientgorbacv1.RbacV1Interface
+	Mapper           meta.RESTMapper
+	PrintObj         func(obj runtime.Object) error
+	FieldManager     string
+	CreateAnnotation bool
 
 	genericclioptions.IOStreams
 }
@@ -253,6 +256,7 @@ func (o *CreateRoleOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args
 	}
 	o.DryRunVerifier = resource.NewDryRunVerifier(dynamicClient, discoveryClient)
 	o.OutputFormat = cmdutil.GetFlagString(cmd, "output")
+	o.CreateAnnotation = cmdutil.GetFlagBool(cmd, cmdutil.ApplyAnnotationsFlag)
 
 	cmdutil.PrintFlagsWithDryRunStrategy(o.PrintFlags, o.DryRunStrategy)
 	printer, err := o.PrintFlags.ToPrinter()
@@ -263,7 +267,7 @@ func (o *CreateRoleOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args
 		return printer.PrintObj(obj, o.Out)
 	}
 
-	o.Namespace, _, err = f.ToRawKubeConfigLoader().Namespace()
+	o.Namespace, o.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return err
 	}
@@ -290,7 +294,7 @@ func (o *CreateRoleOptions) Validate() error {
 
 	for _, v := range o.Verbs {
 		if !arrayContains(validResourceVerbs, v) {
-			return fmt.Errorf("invalid verb: '%s'", v)
+			fmt.Fprintf(o.ErrOut, "Warning: '%s' is not a standard resource verb\n", v)
 		}
 	}
 
@@ -352,6 +356,13 @@ func (o *CreateRoleOptions) RunCreateRole() error {
 		return err
 	}
 	role.Rules = rules
+	if o.EnforceNamespace {
+		role.Namespace = o.Namespace
+	}
+
+	if err := util.CreateOrUpdateAnnotation(o.CreateAnnotation, role, scheme.DefaultJSONEncoder()); err != nil {
+		return err
+	}
 
 	// Create role.
 	if o.DryRunStrategy != cmdutil.DryRunClient {

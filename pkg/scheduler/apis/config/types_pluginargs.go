@@ -57,6 +57,11 @@ type NodeResourcesFitArgs struct {
 	// IgnoredResources is the list of resources that NodeResources fit filter
 	// should ignore.
 	IgnoredResources []string
+	// IgnoredResourceGroups defines the list of resource groups that NodeResources fit filter should ignore.
+	// e.g. if group is ["example.com"], it will ignore all resource names that begin
+	// with "example.com", such as "example.com/aaa" and "example.com/bbb".
+	// A resource group name can't contain '/'.
+	IgnoredResourceGroups []string
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -148,6 +153,8 @@ type ServiceAffinityArgs struct {
 type VolumeBindingArgs struct {
 	metav1.TypeMeta
 
-	// BindTimeoutSeconds is the timeout in seconds in volume binding.
+	// BindTimeoutSeconds is the timeout in seconds in volume binding operation.
+	// Value must be non-negative integer. The value zero indicates no waiting.
+	// If this value is nil, the default value will be used.
 	BindTimeoutSeconds int64
 }

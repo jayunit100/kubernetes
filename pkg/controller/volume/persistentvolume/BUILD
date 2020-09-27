@@ -18,10 +18,12 @@ go_library(
     deps = [
         "//pkg/apis/core/v1/helper:go_default_library",
         "//pkg/controller:go_default_library",
+        "//pkg/controller/volume/common:go_default_library",
         "//pkg/controller/volume/events:go_default_library",
         "//pkg/controller/volume/persistentvolume/metrics:go_default_library",
         "//pkg/controller/volume/persistentvolume/util:go_default_library",
         "//pkg/features:go_default_library",
+        "//pkg/proxy/util:go_default_library",
         "//pkg/util/goroutinemap:go_default_library",
         "//pkg/util/goroutinemap/exponentialbackoff:go_default_library",
         "//pkg/volume:go_default_library",
@@ -55,9 +57,9 @@ go_library(
         "//staging/src/k8s.io/cloud-provider:go_default_library",
         "//staging/src/k8s.io/cloud-provider/volume/errors:go_default_library",
         "//staging/src/k8s.io/csi-translation-lib:go_default_library",
+        "//staging/src/k8s.io/mount-utils:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
         "//vendor/k8s.io/utils/exec:go_default_library",
-        "//vendor/k8s.io/utils/mount:go_default_library",
     ],
 )
 

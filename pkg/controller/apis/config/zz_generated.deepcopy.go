@@ -116,13 +116,14 @@ func (in *KubeControllerManagerConfiguration) DeepCopyInto(out *KubeControllerMa
 	out.DeprecatedController = in.DeprecatedController
 	out.EndpointController = in.EndpointController
 	out.EndpointSliceController = in.EndpointSliceController
+	out.EndpointSliceMirroringController = in.EndpointSliceMirroringController
 	in.GarbageCollectorController.DeepCopyInto(&out.GarbageCollectorController)
 	out.HPAController = in.HPAController
 	out.JobController = in.JobController
 	out.NamespaceController = in.NamespaceController
 	out.NodeIPAMController = in.NodeIPAMController
 	out.NodeLifecycleController = in.NodeLifecycleController
-	out.PersistentVolumeBinderController = in.PersistentVolumeBinderController
+	in.PersistentVolumeBinderController.DeepCopyInto(&out.PersistentVolumeBinderController)
 	out.PodGCController = in.PodGCController
 	out.ReplicaSetController = in.ReplicaSetController
 	out.ReplicationController = in.ReplicationController

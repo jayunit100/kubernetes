@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"k8s.io/klog/v2"
-	"k8s.io/utils/mount"
+	"k8s.io/mount-utils"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -202,6 +202,10 @@ type ActualStateOfWorldMounterUpdater interface {
 
 	// GetVolumeMountState returns mount state of the volume for the Pod
 	GetVolumeMountState(volumName v1.UniqueVolumeName, podName volumetypes.UniquePodName) VolumeMountState
+
+	// MarkForInUseExpansionError marks the volume to have in-use error during expansion.
+	// volume expansion must not be retried for this volume
+	MarkForInUseExpansionError(volumeName v1.UniqueVolumeName)
 }
 
 // ActualStateOfWorldAttacherUpdater defines a set of operations updating the

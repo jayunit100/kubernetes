@@ -31,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
-	statsapi "k8s.io/kubernetes/pkg/kubelet/apis/stats/v1alpha1"
+	statsapi "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	"k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/util/sliceutils"
@@ -190,7 +190,6 @@ func (im *realImageGCManager) Start() {
 	}, 5*time.Minute, wait.NeverStop)
 
 	// Start a goroutine periodically updates image cache.
-	// TODO(random-liu): Merge this with the previous loop.
 	go wait.Until(func() {
 		images, err := im.runtime.ListImages()
 		if err != nil {

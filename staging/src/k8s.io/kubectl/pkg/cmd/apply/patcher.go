@@ -25,6 +25,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -33,7 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/resource"
-	"k8s.io/client-go/dynamic"
 	oapi "k8s.io/kube-openapi/pkg/util/proto"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"k8s.io/kubectl/pkg/scheme"
@@ -52,18 +52,16 @@ const (
 
 // Patcher defines options to patch OpenAPI objects.
 type Patcher struct {
-	Mapping       *meta.RESTMapping
-	Helper        *resource.Helper
-	DynamicClient dynamic.Interface
+	Mapping *meta.RESTMapping
+	Helper  *resource.Helper
 
 	Overwrite bool
 	BackOff   clockwork.Clock
 
-	Force        bool
-	Cascade      bool
-	Timeout      time.Duration
-	GracePeriod  int
-	ServerDryRun bool
+	Force             bool
+	CascadingStrategy metav1.DeletionPropagation
+	Timeout           time.Duration
+	GracePeriod       int
 
 	// If set, forces the patch against a specific resourceVersion
 	ResourceVersion *string
@@ -74,30 +72,30 @@ type Patcher struct {
 	OpenapiSchema openapi.Resources
 }
 
-func newPatcher(o *ApplyOptions, info *resource.Info) (*Patcher, error) {
+func newPatcher(o *ApplyOptions, info *resource.Info, helper *resource.Helper) (*Patcher, error) {
 	var openapiSchema openapi.Resources
 	if o.OpenAPIPatch {
 		openapiSchema = o.OpenAPISchema
 	}
 
 	return &Patcher{
-		Mapping:       info.Mapping,
-		Helper:        resource.NewHelper(info.Client, info.Mapping).WithFieldManager(o.FieldManager),
-		DynamicClient: o.DynamicClient,
-		Overwrite:     o.Overwrite,
-		BackOff:       clockwork.NewRealClock(),
-		Force:         o.DeleteOptions.ForceDeletion,
-		Cascade:       o.DeleteOptions.Cascade,
-		Timeout:       o.DeleteOptions.Timeout,
-		GracePeriod:   o.DeleteOptions.GracePeriod,
-		ServerDryRun:  o.DryRunStrategy == cmdutil.DryRunServer,
-		OpenapiSchema: openapiSchema,
-		Retries:       maxPatchRetry,
+		Mapping:           info.Mapping,
+		Helper:            helper,
+		Overwrite:         o.Overwrite,
+		BackOff:           clockwork.NewRealClock(),
+		Force:             o.DeleteOptions.ForceDeletion,
+		CascadingStrategy: o.DeleteOptions.CascadingStrategy,
+		Timeout:           o.DeleteOptions.Timeout,
+		GracePeriod:       o.DeleteOptions.GracePeriod,
+		OpenapiSchema:     openapiSchema,
+		Retries:           maxPatchRetry,
 	}, nil
 }
 
 func (p *Patcher) delete(namespace, name string) error {
-	return runDelete(namespace, name, p.Mapping, p.DynamicClient, p.Cascade, p.GracePeriod, p.ServerDryRun)
+	options := asDeleteOptions(p.CascadingStrategy, p.GracePeriod)
+	_, err := p.Helper.DeleteWithOptions(namespace, name, &options)
+	return err
 }
 
 func (p *Patcher) patchSimple(obj runtime.Object, modified []byte, source, namespace, name string, errOut io.Writer) ([]byte, runtime.Object, error) {
@@ -178,7 +176,7 @@ func (p *Patcher) patchSimple(obj runtime.Object, modified []byte, source, names
 		}
 	}
 
-	patchedObj, err := p.Helper.DryRun(p.ServerDryRun).Patch(namespace, name, patchType, patch, nil)
+	patchedObj, err := p.Helper.Patch(namespace, name, patchType, patch, nil)
 	return patch, patchedObj, err
 }
 
@@ -194,7 +192,7 @@ func (p *Patcher) Patch(current runtime.Object, modified []byte, source, namespa
 		if i > triesBeforeBackOff {
 			p.BackOff.Sleep(backOffPeriod)
 		}
-		current, getErr = p.Helper.Get(namespace, name, false)
+		current, getErr = p.Helper.Get(namespace, name)
 		if getErr != nil {
 			return nil, nil, getErr
 		}
@@ -212,7 +210,7 @@ func (p *Patcher) deleteAndCreate(original runtime.Object, modified []byte, name
 	}
 	// TODO: use wait
 	if err := wait.PollImmediate(1*time.Second, p.Timeout, func() (bool, error) {
-		if _, err := p.Helper.Get(namespace, name, false); !errors.IsNotFound(err) {
+		if _, err := p.Helper.Get(namespace, name); !errors.IsNotFound(err) {
 			return false, err
 		}
 		return true, nil
@@ -223,11 +221,11 @@ func (p *Patcher) deleteAndCreate(original runtime.Object, modified []byte, name
 	if err != nil {
 		return modified, nil, err
 	}
-	createdObject, err := p.Helper.DryRun(p.ServerDryRun).Create(namespace, true, versionedObject)
+	createdObject, err := p.Helper.Create(namespace, true, versionedObject)
 	if err != nil {
 		// restore the original object if we fail to create the new one
 		// but still propagate and advertise error to user
-		recreated, recreateErr := p.Helper.DryRun(p.ServerDryRun).Create(namespace, true, original)
+		recreated, recreateErr := p.Helper.Create(namespace, true, original)
 		if recreateErr != nil {
 			err = fmt.Errorf("An error occurred force-replacing the existing object with the newly provided one:\n\n%v.\n\nAdditionally, an error occurred attempting to restore the original object:\n\n%v", err, recreateErr)
 		} else {

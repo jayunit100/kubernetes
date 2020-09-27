@@ -28,6 +28,8 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	cliflag "k8s.io/component-base/cli/flag"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
+	"k8s.io/kubectl/pkg/scheme"
+	"k8s.io/kubectl/pkg/util"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
 )
@@ -141,7 +143,7 @@ func (c *CreateClusterRoleOptions) Validate() error {
 	if len(c.Resources) > 0 {
 		for _, v := range c.Verbs {
 			if !arrayContains(validResourceVerbs, v) {
-				return fmt.Errorf("invalid verb: '%s'", v)
+				fmt.Fprintf(c.ErrOut, "Warning: '%s' is not a standard resource verb\n", v)
 			}
 		}
 		if err := c.validateResource(); err != nil {
@@ -199,6 +201,10 @@ func (c *CreateClusterRoleOptions) RunCreateRole() error {
 				},
 			},
 		}
+	}
+
+	if err := util.CreateOrUpdateAnnotation(c.CreateAnnotation, clusterRole, scheme.DefaultJSONEncoder()); err != nil {
+		return err
 	}
 
 	// Create ClusterRole.

@@ -334,7 +334,7 @@ function kube::release::create_docker_images_for_server() {
     local images_dir
     binary_dir="$1"
     arch="$2"
-    binaries=$(kube::build::get_docker_wrapped_binaries "${arch}")
+    binaries=$(kube::build::get_docker_wrapped_binaries)
     images_dir="${RELEASE_IMAGES}/${arch}"
     mkdir -p "${images_dir}"
 
@@ -375,7 +375,7 @@ function kube::release::create_docker_images_for_server() {
         ln "${KUBE_ROOT}/build/nsswitch.conf" "${docker_build_path}/nsswitch.conf"
         chmod 0644 "${docker_build_path}/nsswitch.conf"
         cat <<EOF > "${docker_file_path}"
-FROM ${base_image}
+FROM --platform=linux/${arch} ${base_image}
 COPY ${binary_name} /usr/local/bin/${binary_name}
 EOF
         # ensure /etc/nsswitch.conf exists so go's resolver respects /etc/hosts
@@ -434,7 +434,6 @@ function kube::release::package_kube_manifests_tarball() {
   cp "${src_dir}/kube-controller-manager.manifest" "${dst_dir}"
   cp "${src_dir}/kube-addon-manager.yaml" "${dst_dir}"
   cp "${src_dir}/glbc.manifest" "${dst_dir}"
-  cp "${src_dir}/etcd-empty-dir-cleanup.yaml" "${dst_dir}/"
   find "${src_dir}" -name 'internal-*' -exec cp {} "${dst_dir}" \;
   cp "${KUBE_ROOT}/cluster/gce/gci/configure-helper.sh" "${dst_dir}/gci-configure-helper.sh"
   cp "${KUBE_ROOT}/cluster/gce/gci/configure-kubeapiserver.sh" "${dst_dir}/configure-kubeapiserver.sh"

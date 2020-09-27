@@ -46,7 +46,8 @@ func (ss *scaleSet) AttachDisk(isManagedDisk bool, diskName, diskURI string, nod
 
 	disks := []compute.DataDisk{}
 	if vm.StorageProfile != nil && vm.StorageProfile.DataDisks != nil {
-		disks = filterDetachingDisks(*vm.StorageProfile.DataDisks)
+		disks = make([]compute.DataDisk, len(*vm.StorageProfile.DataDisks))
+		copy(disks, *vm.StorageProfile.DataDisks)
 	}
 	if isManagedDisk {
 		managedDisk := &compute.ManagedDiskParameters{ID: &diskURI}
@@ -84,12 +85,8 @@ func (ss *scaleSet) AttachDisk(isManagedDisk bool, diskName, diskURI string, nod
 			})
 	}
 	newVM := compute.VirtualMachineScaleSetVM{
-		Sku:      vm.Sku,
-		Location: vm.Location,
 		VirtualMachineScaleSetVMProperties: &compute.VirtualMachineScaleSetVMProperties{
-			HardwareProfile: vm.HardwareProfile,
 			StorageProfile: &compute.StorageProfile{
-				OsDisk:    vm.StorageProfile.OsDisk,
 				DataDisks: &disks,
 			},
 		},
@@ -136,7 +133,8 @@ func (ss *scaleSet) DetachDisk(diskName, diskURI string, nodeName types.NodeName
 
 	disks := []compute.DataDisk{}
 	if vm.StorageProfile != nil && vm.StorageProfile.DataDisks != nil {
-		disks = filterDetachingDisks(*vm.StorageProfile.DataDisks)
+		disks = make([]compute.DataDisk, len(*vm.StorageProfile.DataDisks))
+		copy(disks, *vm.StorageProfile.DataDisks)
 	}
 	bFoundDisk := false
 	for i, disk := range disks {
@@ -145,7 +143,11 @@ func (ss *scaleSet) DetachDisk(diskName, diskURI string, nodeName types.NodeName
 			(disk.ManagedDisk != nil && diskURI != "" && strings.EqualFold(*disk.ManagedDisk.ID, diskURI)) {
 			// found the disk
 			klog.V(2).Infof("azureDisk - detach disk: name %q uri %q", diskName, diskURI)
-			disks = append(disks[:i], disks[i+1:]...)
+			if strings.EqualFold(ss.cloud.Environment.Name, "AZURESTACKCLOUD") {
+				disks = append(disks[:i], disks[i+1:]...)
+			} else {
+				disks[i].ToBeDetached = to.BoolPtr(true)
+			}
 			bFoundDisk = true
 			break
 		}
@@ -157,12 +159,8 @@ func (ss *scaleSet) DetachDisk(diskName, diskURI string, nodeName types.NodeName
 	}
 
 	newVM := compute.VirtualMachineScaleSetVM{
-		Sku:      vm.Sku,
-		Location: vm.Location,
 		VirtualMachineScaleSetVMProperties: &compute.VirtualMachineScaleSetVMProperties{
-			HardwareProfile: vm.HardwareProfile,
 			StorageProfile: &compute.StorageProfile{
-				OsDisk:    vm.StorageProfile.OsDisk,
 				DataDisks: &disks,
 			},
 		},

@@ -27,6 +27,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apiextensions-apiserver/test/integration/fixtures"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	genericfeatures "k8s.io/apiserver/pkg/features"
@@ -129,6 +130,69 @@ spec:
 		t.Fatalf("failed to apply object with force after updating replicas: %v:\n%v", err, string(result))
 	}
 	verifyReplicas(t, result, 1)
+
+	// Try to set managed fields using a subresource and verify that it has no effect
+	existingManagedFields, err := getManagedFields(result)
+	if err != nil {
+		t.Fatalf("failed to get managedFields from response: %v", err)
+	}
+	updateBytes := []byte(`{
+		"metadata": {
+			"managedFields": [{
+				"manager":"testing",
+				"operation":"Update",
+				"apiVersion":"v1",
+				"fieldsType":"FieldsV1",
+				"fieldsV1":{
+					"f:spec":{
+						"f:containers":{
+							"k:{\"name\":\"testing\"}":{
+								".":{},
+								"f:image":{},
+								"f:name":{}
+							}
+						}
+					}
+				}
+			}]
+		}
+	}`)
+	result, err = rest.Patch(types.MergePatchType).
+		AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Version, noxuDefinition.Spec.Names.Plural).
+		SubResource("status").
+		Name(name).
+		Param("fieldManager", "subresource_test").
+		Body(updateBytes).
+		DoRaw(context.TODO())
+	if err != nil {
+		t.Fatalf("Error updating subresource: %v ", err)
+	}
+	newManagedFields, err := getManagedFields(result)
+	if err != nil {
+		t.Fatalf("failed to get managedFields from response: %v", err)
+	}
+	if !reflect.DeepEqual(existingManagedFields, newManagedFields) {
+		t.Fatalf("Expected managed fields to not have changed when trying manually settting them via subresoures.\n\nExpected: %#v\n\nGot: %#v", existingManagedFields, newManagedFields)
+	}
+
+	// However, it is possible to modify managed fields using the main resource
+	result, err = rest.Patch(types.MergePatchType).
+		AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Version, noxuDefinition.Spec.Names.Plural).
+		Name(name).
+		Param("fieldManager", "subresource_test").
+		Body([]byte(`{"metadata":{"managedFields":[{}]}}`)).
+		DoRaw(context.TODO())
+	if err != nil {
+		t.Fatalf("Error updating managed fields of the main resource: %v ", err)
+	}
+	newManagedFields, err = getManagedFields(result)
+	if err != nil {
+		t.Fatalf("failed to get managedFields from response: %v", err)
+	}
+
+	if len(newManagedFields) != 0 {
+		t.Fatalf("Expected managed fields to have been reset, but got: %v", newManagedFields)
+	}
 }
 
 // TestApplyCRDStructuralSchema tests that when a CRD has a structural schema in its validation field,
@@ -369,6 +433,39 @@ spec:
 		t.Fatalf("failed to add a new list item to the object as a different applier: %v:\n%v", err, string(result))
 	}
 	verifyNumPorts(t, result, 2)
+
+	// UpdateOnCreate
+	notExistingYAMLBody := []byte(fmt.Sprintf(`
+	{
+		"apiVersion": "%s",
+		"kind": "%s",
+		"metadata": {
+		  "name": "%s",
+		  "finalizers": [
+			"test-finalizer"
+		  ]
+		},
+		"spec": {
+		  "cronSpec": "* * * * */5",
+		  "replicas": 1,
+		  "ports": [
+			{
+			  "name": "x",
+			  "containerPort": 80
+			}
+		  ]
+		},
+		"protocol": "TCP"
+	}`, apiVersion, kind, "should-not-exist"))
+	_, err = rest.Put().
+		AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Version, noxuDefinition.Spec.Names.Plural).
+		Name("should-not-exist").
+		Param("fieldManager", "apply_test").
+		Body(notExistingYAMLBody).
+		DoRaw(context.TODO())
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("create on update should fail with notFound, got %v", err)
+	}
 }
 
 // TestApplyCRDNonStructuralSchema tests that when a CRD has a non-structural schema in its validation field,
@@ -719,4 +816,12 @@ spec:
 		t.Fatalf("failed to apply object with force after updating replicas: %v:\n%v", err, string(result))
 	}
 	verifyReplicas(t, result, 1)
+}
+
+func getManagedFields(rawResponse []byte) ([]metav1.ManagedFieldsEntry, error) {
+	obj := unstructured.Unstructured{}
+	if err := obj.UnmarshalJSON(rawResponse); err != nil {
+		return nil, err
+	}
+	return obj.GetManagedFields(), nil
 }

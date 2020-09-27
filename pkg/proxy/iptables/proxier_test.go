@@ -34,9 +34,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	featuregatetesting "k8s.io/component-base/featuregate/testing"
-	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/proxy"
 	"k8s.io/kubernetes/pkg/proxy/healthcheck"
 	utilproxy "k8s.io/kubernetes/pkg/proxy/util"
@@ -353,10 +350,11 @@ func NewFakeProxier(ipt utiliptables.Interface, endpointSlicesEnabled bool) *Pro
 	p := &Proxier{
 		exec:                     &fakeexec.FakeExec{},
 		serviceMap:               make(proxy.ServiceMap),
-		serviceChanges:           proxy.NewServiceChangeTracker(newServiceInfo, nil, nil),
+		serviceChanges:           proxy.NewServiceChangeTracker(newServiceInfo, nil, nil, nil),
 		endpointsMap:             make(proxy.EndpointsMap),
-		endpointsChanges:         proxy.NewEndpointChangeTracker(testHostname, newEndpointInfo, nil, nil, endpointSlicesEnabled),
+		endpointsChanges:         proxy.NewEndpointChangeTracker(testHostname, newEndpointInfo, nil, nil, endpointSlicesEnabled, nil),
 		iptables:                 ipt,
+		masqueradeMark:           "0x4000",
 		localDetector:            detectLocal,
 		hostname:                 testHostname,
 		portsMap:                 make(map[utilproxy.LocalPort]utilproxy.Closeable),
@@ -686,6 +684,10 @@ func TestLoadBalancer(t *testing.T) {
 			svc.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{{
 				IP: svcLBIP,
 			}}
+			// Also ensure that invalid LoadBalancerSourceRanges will not result
+			// in a crash.
+			svc.Spec.ExternalIPs = []string{svcLBIP}
+			svc.Spec.LoadBalancerSourceRanges = []string{" 1.2.3.4/28"}
 		}),
 	)
 
@@ -836,9 +838,6 @@ func TestExternalIPsReject(t *testing.T) {
 }
 
 func TestOnlyLocalExternalIPs(t *testing.T) {
-	// TODO(freehan): remove this in k8s 1.19
-	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExternalPolicyForExternalIP, true)()
-
 	ipt := iptablestest.NewFake()
 	fp := NewFakeProxier(ipt, false)
 	svcIP := "10.20.30.41"
@@ -2418,7 +2417,7 @@ func TestEndpointSliceE2E(t *testing.T) {
 :KUBE-EXTERNAL-SERVICES - [0:0]
 :KUBE-FORWARD - [0:0]
 -A KUBE-FORWARD -m conntrack --ctstate INVALID -j DROP
--A KUBE-FORWARD -m comment --comment "kubernetes forwarding rules" -m mark --mark  -j ACCEPT
+-A KUBE-FORWARD -m comment --comment "kubernetes forwarding rules" -m mark --mark 0x4000/0x4000 -j ACCEPT
 -A KUBE-FORWARD -m comment --comment "kubernetes forwarding conntrack pod source rule" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 -A KUBE-FORWARD -m comment --comment "kubernetes forwarding conntrack pod destination rule" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 COMMIT
@@ -2431,8 +2430,10 @@ COMMIT
 :KUBE-SEP-3JOIVZTXZZRGORX4 - [0:0]
 :KUBE-SEP-IO5XOSKPAXIFQXAJ - [0:0]
 :KUBE-SEP-XGJFVO3L2O5SRFNT - [0:0]
--A KUBE-POSTROUTING -m comment --comment "kubernetes service traffic requiring SNAT" -m mark --mark  -j MASQUERADE
--A KUBE-MARK-MASQ -j MARK --set-xmark 
+-A KUBE-POSTROUTING -m mark ! --mark 0x4000/0x4000 -j RETURN
+-A KUBE-POSTROUTING -j MARK --xor-mark 0x4000
+-A KUBE-POSTROUTING -m comment --comment "kubernetes service traffic requiring SNAT" -j MASQUERADE
+-A KUBE-MARK-MASQ -j MARK --or-mark 0x4000
 -A KUBE-SERVICES -m comment --comment "ns1/svc1 cluster IP" -m tcp -p tcp -d 172.20.1.1/32 --dport 0 ! -s 10.0.0.0/24 -j KUBE-MARK-MASQ
 -A KUBE-SERVICES -m comment --comment "ns1/svc1 cluster IP" -m tcp -p tcp -d 172.20.1.1/32 --dport 0 -j KUBE-SVC-AQI2S6QIMU7PVVRP
 -A KUBE-SVC-AQI2S6QIMU7PVVRP -m comment --comment ns1/svc1 -m statistic --mode random --probability 0.3333333333 -j KUBE-SEP-3JOIVZTXZZRGORX4

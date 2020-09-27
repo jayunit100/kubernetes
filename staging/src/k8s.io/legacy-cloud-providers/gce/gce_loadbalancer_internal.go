@@ -62,12 +62,24 @@ func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v
 			"Skipped ensureInternalLoadBalancer as service contains '%s' finalizer.", ILBFinalizerV2)
 		return nil, cloudprovider.ImplementedElsewhere
 	}
+
+	nm := types.NamespacedName{Name: svc.Name, Namespace: svc.Namespace}
+
+	var serviceState L4ILBServiceState
+	// Mark the service InSuccess state as false to begin with.
+	// This will be updated to true if the VIP is configured successfully.
+	serviceState.InSuccess = false
+	defer func() {
+		g.metricsCollector.SetL4ILBService(nm.String(), serviceState)
+	}()
+
+	loadBalancerName := g.GetLoadBalancerName(context.TODO(), clusterName, svc)
+	klog.V(2).Infof("ensureInternalLoadBalancer(%v): Attaching %q finalizer", loadBalancerName, ILBFinalizerV1)
 	if err := addFinalizer(svc, g.client.CoreV1(), ILBFinalizerV1); err != nil {
 		klog.Errorf("Failed to attach finalizer '%s' on service %s/%s - %v", ILBFinalizerV1, svc.Namespace, svc.Name, err)
 		return nil, err
 	}
 
-	nm := types.NamespacedName{Name: svc.Name, Namespace: svc.Namespace}
 	ports, _, protocol := getPortsAndProtocol(svc.Spec.Ports)
 	if protocol != v1.ProtocolTCP && protocol != v1.ProtocolUDP {
 		return nil, fmt.Errorf("Invalid protocol %s, only TCP and UDP are supported", string(protocol))
@@ -85,7 +97,6 @@ func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v
 		}
 	}
 
-	loadBalancerName := g.GetLoadBalancerName(context.TODO(), clusterName, svc)
 	sharedBackend := shareBackendService(svc)
 	backendServiceName := makeBackendServiceName(loadBalancerName, clusterID, sharedBackend, scheme, protocol, svc.Spec.SessionAffinity)
 	backendServiceLink := g.getBackendServiceLink(backendServiceName)
@@ -162,12 +173,6 @@ func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v
 		return nil, err
 	}
 
-	bsDescription := makeBackendServiceDescription(nm, sharedBackend)
-	err = g.ensureInternalBackendService(backendServiceName, bsDescription, svc.Spec.SessionAffinity, scheme, protocol, igLinks, hc.SelfLink)
-	if err != nil {
-		return nil, err
-	}
-
 	fwdRuleDescription := &forwardingRuleDescription{ServiceName: nm.String()}
 	fwdRuleDescriptionString, err := fwdRuleDescription.marshal()
 	if err != nil {
@@ -189,8 +194,29 @@ func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v
 	if options.AllowGlobalAccess {
 		newFwdRule.AllowGlobalAccess = options.AllowGlobalAccess
 	}
-	if err := g.ensureInternalForwardingRule(existingFwdRule, newFwdRule); err != nil {
+
+	fwdRuleDeleted := false
+	if existingFwdRule != nil && !forwardingRulesEqual(existingFwdRule, newFwdRule) {
+		// Delete existing forwarding rule before making changes to the backend service. For example - changing protocol
+		// of backend service without first deleting forwarding rule will throw an error since the linked forwarding
+		// rule would show the old protocol.
+		klog.V(2).Infof("ensureInternalLoadBalancer(%v): deleting existing forwarding rule with IP address %v", loadBalancerName, existingFwdRule.IPAddress)
+		if err = ignoreNotFound(g.DeleteRegionForwardingRule(loadBalancerName, g.region)); err != nil {
+			return nil, err
+		}
+		fwdRuleDeleted = true
+	}
+
+	bsDescription := makeBackendServiceDescription(nm, sharedBackend)
+	err = g.ensureInternalBackendService(backendServiceName, bsDescription, svc.Spec.SessionAffinity, scheme, protocol, igLinks, hc.SelfLink)
+	if err != nil {
 		return nil, err
+	}
+
+	if fwdRuleDeleted || existingFwdRule == nil {
+		if err := g.ensureInternalForwardingRule(existingFwdRule, newFwdRule); err != nil {
+			return nil, err
+		}
 	}
 
 	// Delete the previous internal load balancer resources if necessary
@@ -210,6 +236,18 @@ func (g *Cloud) ensureInternalLoadBalancer(clusterName, clusterID string, svc *v
 	if err != nil {
 		return nil, err
 	}
+
+	serviceState.InSuccess = true
+	if options.AllowGlobalAccess {
+		serviceState.EnabledGlobalAccess = true
+	}
+	// SubnetName is overridden to nil value if Alpha feature gate for custom subnet
+	// is not enabled. So, a non empty subnet name at this point implies that the
+	// feature is in use.
+	if options.SubnetName != "" {
+		serviceState.EnabledCustomSubnet = true
+	}
+	klog.V(6).Infof("Internal Loadbalancer for Service %s ensured, updating its state %v in metrics cache", nm, serviceState)
 
 	status := &v1.LoadBalancerStatus{}
 	status.Ingress = []v1.LoadBalancerIngress{{IP: updatedFwdRule.IPAddress}}
@@ -265,6 +303,7 @@ func (g *Cloud) updateInternalLoadBalancer(clusterName, clusterID string, svc *v
 
 func (g *Cloud) ensureInternalLoadBalancerDeleted(clusterName, clusterID string, svc *v1.Service) error {
 	loadBalancerName := g.GetLoadBalancerName(context.TODO(), clusterName, svc)
+	svcNamespacedName := types.NamespacedName{Name: svc.Name, Namespace: svc.Namespace}
 	_, _, protocol := getPortsAndProtocol(svc.Spec.Ports)
 	scheme := cloud.SchemeInternal
 	sharedBackend := shareBackendService(svc)
@@ -317,15 +356,19 @@ func (g *Cloud) ensureInternalLoadBalancerDeleted(clusterName, clusterID string,
 
 	// Try deleting instance groups - expect ResourceInuse error if needed by other LBs
 	igName := makeInstanceGroupName(clusterID)
+	klog.V(2).Infof("ensureInternalLoadBalancerDeleted(%v): Attempting delete of instanceGroup %v", loadBalancerName, igName)
 	if err := g.ensureInternalInstanceGroupsDeleted(igName); err != nil && !isInUsedByError(err) {
 		return err
 	}
 
+	klog.V(2).Infof("ensureInternalLoadBalancerDeleted(%v): Removing %q finalizer", loadBalancerName, ILBFinalizerV1)
 	if err := removeFinalizer(svc, g.client.CoreV1(), ILBFinalizerV1); err != nil {
-		klog.Errorf("Failed to remove finalizer '%s' on service %s/%s - %v", ILBFinalizerV1, svc.Namespace, svc.Name, err)
+		klog.Errorf("Failed to remove finalizer '%s' on service %s - %v", ILBFinalizerV1, svcNamespacedName, err)
 		return err
 	}
 
+	klog.V(6).Infof("Internal Loadbalancer for Service %s deleted, removing its state from metrics cache", svcNamespacedName)
+	g.metricsCollector.DeleteL4ILBService(svcNamespacedName.String())
 	return nil
 }
 

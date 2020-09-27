@@ -19,7 +19,9 @@ package staticpod
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"math"
 	"net/url"
 	"os"
 	"sort"
@@ -32,9 +34,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
+	"k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	kubeadmutil "k8s.io/kubernetes/cmd/kubeadm/app/util"
-	"k8s.io/kubernetes/cmd/kubeadm/app/util/kustomize"
+	"k8s.io/kubernetes/cmd/kubeadm/app/util/patches"
 )
 
 const (
@@ -146,33 +149,43 @@ func GetExtraParameters(overrides map[string]string, defaults map[string]string)
 	return command
 }
 
-// KustomizeStaticPod applies patches defined in kustomizeDir to a static Pod manifest
-func KustomizeStaticPod(pod *v1.Pod, kustomizeDir string) (*v1.Pod, error) {
-	// marshal the pod manifest into yaml
-	serialized, err := kubeadmutil.MarshalToYaml(pod, v1.SchemeGroupVersion)
+// PatchStaticPod applies patches stored in patchesDir to a static Pod.
+func PatchStaticPod(pod *v1.Pod, patchesDir string, output io.Writer) (*v1.Pod, error) {
+	// Marshal the Pod manifest into YAML.
+	podYAML, err := kubeadmutil.MarshalToYaml(pod, v1.SchemeGroupVersion)
 	if err != nil {
-		return pod, errors.Wrapf(err, "failed to marshal manifest to YAML")
+		return pod, errors.Wrapf(err, "failed to marshal Pod manifest to YAML")
 	}
 
-	km, err := kustomize.GetManager(kustomizeDir)
-	if err != nil {
-		return pod, errors.Wrapf(err, "failed to GetPatches from %q", kustomizeDir)
+	var knownTargets = []string{
+		kubeadmconstants.Etcd,
+		kubeadmconstants.KubeAPIServer,
+		kubeadmconstants.KubeControllerManager,
+		kubeadmconstants.KubeScheduler,
 	}
 
-	kustomized, err := km.Kustomize(serialized)
+	patchManager, err := patches.GetPatchManagerForPath(patchesDir, knownTargets, output)
 	if err != nil {
-		return pod, errors.Wrap(err, "failed to kustomize static Pod manifest")
+		return pod, err
 	}
 
-	// unmarshal kustomized yaml back into a pod manifest
-	obj, err := kubeadmutil.UnmarshalFromYaml(kustomized, v1.SchemeGroupVersion)
+	patchTarget := &patches.PatchTarget{
+		Name:                      pod.Name,
+		StrategicMergePatchObject: v1.Pod{},
+		Data:                      podYAML,
+	}
+	if err := patchManager.ApplyPatchesToTarget(patchTarget); err != nil {
+		return pod, err
+	}
+
+	obj, err := kubeadmutil.UnmarshalFromYaml(patchTarget.Data, v1.SchemeGroupVersion)
 	if err != nil {
-		return pod, errors.Wrap(err, "failed to unmarshal kustomize manifest from YAML")
+		return pod, errors.Wrap(err, "failed to unmarshal patched manifest from YAML")
 	}
 
 	pod2, ok := obj.(*v1.Pod)
 	if !ok {
-		return pod, errors.Wrap(err, "kustomized manifest is not a valid Pod object")
+		return pod, errors.Wrap(err, "patched manifest is not a valid Pod object")
 	}
 
 	return pod2, nil
@@ -220,12 +233,28 @@ func ReadStaticPodFromDisk(manifestPath string) (*v1.Pod, error) {
 
 // LivenessProbe creates a Probe object with a HTTPGet handler
 func LivenessProbe(host, path string, port int, scheme v1.URIScheme) *v1.Probe {
-	return createHTTPProbe(host, path, port, scheme, 15, 15, 8, 10)
+	// sets initialDelaySeconds same as periodSeconds to skip one period before running a check
+	return createHTTPProbe(host, path, port, scheme, 10, 15, 8, 10)
 }
 
 // ReadinessProbe creates a Probe object with a HTTPGet handler
 func ReadinessProbe(host, path string, port int, scheme v1.URIScheme) *v1.Probe {
+	// sets initialDelaySeconds as '0' because we don't want to delay user infrastructure checks
+	// looking for "ready" status on kubeadm static Pods
 	return createHTTPProbe(host, path, port, scheme, 0, 15, 3, 1)
+}
+
+// StartupProbe creates a Probe object with a HTTPGet handler
+func StartupProbe(host, path string, port int, scheme v1.URIScheme, timeoutForControlPlane *metav1.Duration) *v1.Probe {
+	periodSeconds, timeoutForControlPlaneSeconds := int32(10), constants.DefaultControlPlaneTimeout.Seconds()
+	if timeoutForControlPlane != nil {
+		timeoutForControlPlaneSeconds = timeoutForControlPlane.Seconds()
+	}
+	// sets failureThreshold big enough to guarantee the full timeout can cover the worst case scenario for the control-plane to come alive
+	// we ignore initialDelaySeconds in the calculation here for simplicity
+	failureThreshold := int32(math.Ceil(timeoutForControlPlaneSeconds / float64(periodSeconds)))
+	// sets initialDelaySeconds same as periodSeconds to skip one period before running a check
+	return createHTTPProbe(host, path, port, scheme, periodSeconds, 15, failureThreshold, periodSeconds)
 }
 
 func createHTTPProbe(host, path string, port int, scheme v1.URIScheme, initialDelaySeconds, timeoutSeconds, failureThreshold, periodSeconds int32) *v1.Probe {

@@ -298,6 +298,29 @@ func podsRunning(c clientset.Interface, pods *v1.PodList) []error {
 	return e
 }
 
+func podContainerFailed(c clientset.Interface, namespace, podName string, containerIndex int, reason string) wait.ConditionFunc {
+	return func() (bool, error) {
+		pod, err := c.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		switch pod.Status.Phase {
+		case v1.PodPending:
+			if len(pod.Status.ContainerStatuses) == 0 {
+				return false, nil
+			}
+			containerStatus := pod.Status.ContainerStatuses[containerIndex]
+			if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason == reason {
+				return true, nil
+			}
+			return false, nil
+		case v1.PodFailed, v1.PodRunning, v1.PodSucceeded:
+			return false, fmt.Errorf("pod was expected to be pending, but it is in the state: %s", pod.Status.Phase)
+		}
+		return false, nil
+	}
+}
+
 // LogPodStates logs basic info of provided pods for debugging.
 func LogPodStates(pods []v1.Pod) {
 	// Find maximum widths for pod, node, and phase strings for column printing.
@@ -386,23 +409,21 @@ func isNotRestartAlwaysMirrorPod(p *v1.Pod) bool {
 	return p.Spec.RestartPolicy != v1.RestartPolicyAlways
 }
 
-// NewExecPodSpec returns the pod spec of hostexec pod
-func NewExecPodSpec(ns, name string, hostNetwork bool) *v1.Pod {
+// NewAgnhostPod returns a pod that uses the agnhost image. The image's binary supports various subcommands
+// that behave the same, no matter the underlying OS. If no args are given, it defaults to the pause subcommand.
+// For more information about agnhost subcommands, see: https://github.com/kubernetes/kubernetes/tree/master/test/images/agnhost#agnhost
+func NewAgnhostPod(ns, podName string, volumes []v1.Volume, mounts []v1.VolumeMount, ports []v1.ContainerPort, args ...string) *v1.Pod {
 	immediate := int64(0)
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name:      podName,
 			Namespace: ns,
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
-				{
-					Name:            "agnhost",
-					Image:           imageutils.GetE2EImage(imageutils.Agnhost),
-					ImagePullPolicy: v1.PullIfNotPresent,
-				},
+				NewAgnhostContainer("agnhost-container", mounts, ports, args...),
 			},
-			HostNetwork:                   hostNetwork,
+			Volumes:                       volumes,
 			SecurityContext:               &v1.PodSecurityContext{},
 			TerminationGracePeriodSeconds: &immediate,
 		},
@@ -410,25 +431,33 @@ func NewExecPodSpec(ns, name string, hostNetwork bool) *v1.Pod {
 	return pod
 }
 
+// NewAgnhostContainer returns the container Spec of an agnhost container.
+func NewAgnhostContainer(containerName string, mounts []v1.VolumeMount, ports []v1.ContainerPort, args ...string) v1.Container {
+	if len(args) == 0 {
+		args = []string{"pause"}
+	}
+	return v1.Container{
+		Name:            containerName,
+		Image:           imageutils.GetE2EImage(imageutils.Agnhost),
+		Args:            args,
+		VolumeMounts:    mounts,
+		Ports:           ports,
+		SecurityContext: &v1.SecurityContext{},
+		ImagePullPolicy: v1.PullIfNotPresent,
+	}
+}
+
+// NewExecPodSpec returns the pod spec of hostexec pod
+func NewExecPodSpec(ns, name string, hostNetwork bool) *v1.Pod {
+	pod := NewAgnhostPod(ns, name, nil, nil, nil)
+	pod.Spec.HostNetwork = hostNetwork
+	return pod
+}
+
 // newExecPodSpec returns the pod spec of exec pod
 func newExecPodSpec(ns, generateName string) *v1.Pod {
-	immediate := int64(0)
-	pod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: generateName,
-			Namespace:    ns,
-		},
-		Spec: v1.PodSpec{
-			TerminationGracePeriodSeconds: &immediate,
-			Containers: []v1.Container{
-				{
-					Name:  "agnhost-pause",
-					Image: imageutils.GetE2EImage(imageutils.Agnhost),
-					Args:  []string{"pause"},
-				},
-			},
-		},
-	}
+	pod := NewAgnhostPod(ns, "agnhost-pod", nil, nil, nil)
+	pod.ObjectMeta.GenerateName = generateName
 	return pod
 }
 

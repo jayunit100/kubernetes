@@ -86,7 +86,7 @@ func ParseMetrics(data string, output *Metrics) error {
 			continue
 		}
 		for _, metric := range v {
-			name := string(metric.Metric[model.MetricNameLabel])
+			name := string(metric.Metric[MetricNameLabel])
 			(*output)[name] = append((*output)[name], metric)
 		}
 	}
@@ -101,29 +101,7 @@ func TextToMetricFamilies(in io.Reader) (map[string]*dto.MetricFamily, error) {
 	return textParser.TextToMetricFamilies(in)
 }
 
-// ExtractMetricSamples parses the prometheus metric samples from the input string.
-func ExtractMetricSamples(metricsBlob string) ([]*model.Sample, error) {
-	dec := expfmt.NewDecoder(strings.NewReader(metricsBlob), expfmt.FmtText)
-	decoder := expfmt.SampleDecoder{
-		Dec:  dec,
-		Opts: &expfmt.DecodeOptions{},
-	}
-
-	var samples []*model.Sample
-	for {
-		var v model.Vector
-		if err := decoder.Decode(&v); err != nil {
-			if err == io.EOF {
-				// Expected loop termination condition.
-				return samples, nil
-			}
-			return nil, err
-		}
-		samples = append(samples, v...)
-	}
-}
-
-// PrintSample returns formated representation of metric Sample
+// PrintSample returns formatted representation of metric Sample
 func PrintSample(sample *model.Sample) string {
 	buf := make([]string, 0)
 	// Id is a VERY special label. For 'normal' container it's useless, but it's necessary
@@ -286,8 +264,14 @@ func (hist *Histogram) Quantile(q float64) float64 {
 		})
 	}
 
-	// bucketQuantile expects the upper bound of the last bucket to be +inf
-	// buckets[len(buckets)-1].upperBound = math.Inf(+1)
+	if len(buckets) == 0 || buckets[len(buckets)-1].upperBound != math.Inf(+1) {
+		// The list of buckets in dto.Histogram doesn't include the final +Inf bucket, so we
+		// add it here for the reset of the samples.
+		buckets = append(buckets, bucket{
+			count:      float64(hist.GetSampleCount()),
+			upperBound: math.Inf(+1),
+		})
+	}
 
 	return bucketQuantile(q, buckets)
 }

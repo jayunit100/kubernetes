@@ -30,8 +30,8 @@ import (
 	"time"
 
 	"k8s.io/klog/v2"
+	"k8s.io/mount-utils"
 	utilexec "k8s.io/utils/exec"
-	"k8s.io/utils/mount"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/kubernetes/pkg/kubelet/config"
@@ -107,11 +107,18 @@ func updateISCSIDiscoverydb(b iscsiDiskMounter, tp string) error {
 }
 
 func updateISCSINode(b iscsiDiskMounter, tp string) error {
+	// setting node.session.scan to manual to handle https://github.com/kubernetes/kubernetes/issues/90982
+	out, err := execWithLog(b, "iscsiadm", "-m", "node", "-p", tp, "-T", b.Iqn, "-I", b.Iface, "-o", "update", "-n", "node.session.scan", "-v", "manual")
+	if err != nil {
+		// don't fail if iscsiadm fails or the version does not support node.session.scan - log a warning to highlight the potential exposure
+		klog.Warningf("iscsi: failed to update node with node.session.scan=manual, possible exposure to issue 90982: %v", out)
+	}
+
 	if !b.chapSession {
 		return nil
 	}
 
-	out, err := execWithLog(b, "iscsiadm", "-m", "node", "-p", tp, "-T", b.Iqn, "-I", b.Iface, "-o", "update", "-n", "node.session.auth.authmethod", "-v", "CHAP")
+	out, err = execWithLog(b, "iscsiadm", "-m", "node", "-p", tp, "-T", b.Iqn, "-I", b.Iface, "-o", "update", "-n", "node.session.auth.authmethod", "-v", "CHAP")
 	if err != nil {
 		return fmt.Errorf("iscsi: failed to update node with CHAP, output: %v", out)
 	}
@@ -484,6 +491,22 @@ func (util *ISCSIUtil) persistISCSI(b iscsiDiskMounter) error {
 		klog.Errorf("iscsi: failed to mkdir %s, error", globalPDPath)
 		return err
 	}
+
+	if b.volumeMode == v1.PersistentVolumeFilesystem {
+		notMnt, err := b.mounter.IsLikelyNotMountPoint(globalPDPath)
+		if err != nil {
+			return err
+		}
+		if !notMnt {
+			// The volume is already mounted, therefore the previous WaitForAttach must have
+			// persisted the volume metadata. In addition, the metadata is actually *inside*
+			// globalPDPath and we can't write it here, because it was shadowed by the volume
+			// mount.
+			klog.V(4).Infof("Skipping persistISCSI, the volume is already mounted at %s", globalPDPath)
+			return nil
+		}
+	}
+
 	// Persist iscsi disk config to json file for DetachDisk path
 	return util.persistISCSIFile(*(b.iscsiDisk), globalPDPath)
 }

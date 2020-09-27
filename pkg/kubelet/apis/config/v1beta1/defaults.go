@@ -21,11 +21,12 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
+	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
 	kubeletconfigv1beta1 "k8s.io/kubelet/config/v1beta1"
 	// TODO: Cut references to k8s.io/kubernetes, eventually there should be none from this package
+	"k8s.io/kubernetes/pkg/cluster/ports"
 	"k8s.io/kubernetes/pkg/kubelet/qos"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
-	"k8s.io/kubernetes/pkg/master/ports"
 	utilpointer "k8s.io/utils/pointer"
 )
 
@@ -48,6 +49,9 @@ func addDefaultingFuncs(scheme *kruntime.Scheme) error {
 }
 
 func SetDefaults_KubeletConfiguration(obj *kubeletconfigv1beta1.KubeletConfiguration) {
+	if obj.EnableServer == nil {
+		obj.EnableServer = utilpointer.BoolPtr(true)
+	}
 	if obj.SyncFrequency == zeroDuration {
 		obj.SyncFrequency = metav1.Duration{Duration: 1 * time.Minute}
 	}
@@ -176,6 +180,9 @@ func SetDefaults_KubeletConfiguration(obj *kubeletconfigv1beta1.KubeletConfigura
 	if obj.CPUCFSQuotaPeriod == nil {
 		obj.CPUCFSQuotaPeriod = &metav1.Duration{Duration: 100 * time.Millisecond}
 	}
+	if obj.NodeStatusMaxImages == nil {
+		obj.NodeStatusMaxImages = utilpointer.Int32Ptr(50)
+	}
 	if obj.MaxOpenFiles == 0 {
 		obj.MaxOpenFiles = 1000000
 	}
@@ -226,5 +233,10 @@ func SetDefaults_KubeletConfiguration(obj *kubeletconfigv1beta1.KubeletConfigura
 	}
 	if obj.VolumePluginDir == "" {
 		obj.VolumePluginDir = DefaultVolumePluginDir
+	}
+	// Use the Default LoggingConfiguration option
+	componentbaseconfigv1alpha1.RecommendedLoggingConfiguration(&obj.Logging)
+	if obj.EnableSystemLogHandler == nil {
+		obj.EnableSystemLogHandler = utilpointer.BoolPtr(true)
 	}
 }

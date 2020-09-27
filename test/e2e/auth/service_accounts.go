@@ -421,7 +421,7 @@ var _ = SIGDescribe("ServiceAccounts", func() {
 	/*
 	   Testname: Projected service account token file ownership and permission.
 	   Description: Ensure that Projected Service Account Token is mounted with
-	               correct file ownership and permissino mounted. We test the
+	               correct file ownership and permission mounted. We test the
 	               following scenarios here.
 	   1. RunAsUser is set,
 	   2. FsGroup is set,
@@ -745,7 +745,15 @@ var _ = SIGDescribe("ServiceAccounts", func() {
 		framework.Logf("completed pod")
 	})
 
-	ginkgo.It("should run through the lifecycle of a ServiceAccount", func() {
+	/*
+			   Release: v1.19
+			   Testname: ServiceAccount lifecycle test
+			   Description: Creates a ServiceAccount with a static Label MUST be added as shown in watch event.
+		                        Patching the ServiceAccount MUST return it's new property.
+		                        Listing the ServiceAccounts MUST return the test ServiceAccount with it's patched values.
+		                        ServiceAccount will be deleted and MUST find a deleted watch event.
+	*/
+	framework.ConformanceIt("should run through the lifecycle of a ServiceAccount", func() {
 		testNamespaceName := f.Namespace.Name
 		testServiceAccountName := "testserviceaccount"
 		testServiceAccountStaticLabels := map[string]string{"test-serviceaccount-static": "true"}
