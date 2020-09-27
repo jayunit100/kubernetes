@@ -1,13 +1,16 @@
 package utils
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/onsi/ginkgo"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/test/e2e/framework"
-	"time"
 )
 
 var (
@@ -45,6 +48,17 @@ func NewScenario() *Scenario {
 	}
 }
 
+// prettyPrint a networkPolicy
+func jsonPrettyPrint(policy *networkingv1.NetworkPolicy) string {
+	raw, _ := json.Marshal(policy)
+	var out bytes.Buffer
+	err := json.Indent(&out, []byte(raw), "", "\t")
+	if err != nil {
+		return ""
+	}
+	return out.String()
+}
+
 func CleanPoliciesAndValidate(f *framework.Framework, k8s *Kubernetes, scenario *Scenario) {
 	err := k8s.CleanNetworkPolicies(scenario.Namespaces)
 	framework.ExpectNoError(err, "Error occurred while cleaning network policy")
@@ -65,7 +79,10 @@ func ValidateOrFailFuncInner(k8s *Kubernetes, f *framework.Framework, ns, protoc
 	}
 
 	if policy != nil {
-		fmt.Println("Network Policy creating ", policy.Name)
+
+		fmt.Println("****************************************************************")
+		framework.Logf("Network Policy creating %v %v", policy.Name, jsonPrettyPrint(policy))
+		fmt.Println("****************************************************************")
 		_, err1 := f.ClientSet.NetworkingV1().NetworkPolicies(ns).Create(context.TODO(), policy, metav1.CreateOptions{})
 		if err1 != nil {
 			fmt.Println("Network Policy failed to create, trying to update... ", policy.Name)
