@@ -156,7 +156,7 @@ func probeWorker(k8s *Kubernetes, jobs <-chan *ProbeJob, results chan<- *ProbeJo
 
 // GetDefaultDenyPolicy returns a default deny policy named 'name'.
 // 	 Note we have several defaults that are empty/nil here.
-//   - Empty podSelector:  this means that *all* pods in the namespace are selected.
+//   - Empty podSelector:  this means that *all* Pods in the namespace are selected.
 //   - No Selector type: this means we default to Ingress.
 //
 // Equivalent YAML:
@@ -392,7 +392,7 @@ func GetDefaultAllAllowEggress() *networkingv1.NetworkPolicy {
 			Name: "allow-all",
 		},
 		Spec: networkingv1.NetworkPolicySpec{
-			// Apply this policy to all pods
+			// Apply this policy to all Pods
 			PodSelector: metav1.LabelSelector{
 				MatchLabels: map[string]string{},
 			},

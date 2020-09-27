@@ -59,12 +59,12 @@ func (k *Kubernetes) getPodsUncached(ns string, key, val string) ([]v1.Pod, erro
 		LabelSelector: fmt.Sprintf("%v=%v", key, val),
 	})
 	if err != nil {
-		return nil, errors.WithMessage(err, "unable to list pods")
+		return nil, errors.WithMessage(err, "unable to list Pods")
 	}
 	return v1PodList.Items, nil
 }
 
-// GetPods returns an array of all pods in the given namespace having a k/v label pair.
+// GetPods returns an array of all Pods in the given namespace having a k/v label pair.
 func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error) {
 
 	if p, ok := k.podCache[fmt.Sprintf("%v_%v_%v", ns, key, val)]; ok {
@@ -73,7 +73,7 @@ func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error
 
 	v1PodList, err := k.getPodsUncached(ns, key, val)
 	if err != nil {
-		return nil, errors.WithMessage(err, "unable to list pods")
+		return nil, errors.WithMessage(err, "unable to list Pods")
 	}
 	k.mutex.Lock()
 	k.podCache[fmt.Sprintf("%v_%v_%v", ns, key, val)] = v1PodList
@@ -87,7 +87,7 @@ func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error
 func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2, protocol string, fromPort, toPort int) (bool, error, string) {
 	fromPods, err := k.GetPods(ns1, "pod", pod1)
 	if err != nil {
-		return false, errors.WithMessagef(err, "unable to get pods from ns %s", ns1), ""
+		return false, errors.WithMessagef(err, "unable to get Pods from ns %s", ns1), ""
 	}
 	if len(fromPods) == 0 {
 		return false, errors.New(fmt.Sprintf("no pod of name %s in namespace %s found", pod1, ns1)), ""
@@ -96,7 +96,7 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2, protocol string, fromPort, toPo
 
 	toPods, err := k.GetPods(ns2, "pod", pod2)
 	if err != nil {
-		return false, errors.WithMessagef(err, "unable to get pods from ns %s", ns2), ""
+		return false, errors.WithMessagef(err, "unable to get Pods from ns %s", ns2), ""
 	}
 	if len(toPods) == 0 {
 		return false, errors.New(fmt.Sprintf("no pod of name %s in namespace %s found", pod2, ns2)), ""
@@ -154,7 +154,7 @@ func (k *Kubernetes) ExecuteRemoteCommand(pod v1.Pod, cname string, command []st
 	}
 	buf := &bytes.Buffer{}
 	errBuf := &bytes.Buffer{}
-	request := k.ClientSet.CoreV1().RESTClient().Post().Namespace(pod.Namespace).Resource("pods").
+	request := k.ClientSet.CoreV1().RESTClient().Post().Namespace(pod.Namespace).Resource("Pods").
 		Name(pod.Name).SubResource("exec").VersionedParams(&v1.PodExecOptions{
 		Container: cname,
 		Command:   command,
@@ -196,7 +196,7 @@ func Client() (*kubernetes.Clientset, error) {
 	return clientset, nil
 }
 
-// CreateOrUpdateNamespace is a convenience function for idempotent setup of namespaces
+// CreateOrUpdateNamespace is a convenience function for idempotent setup of Namespaces
 func (k *Kubernetes) CreateOrUpdateNamespace(n string, labels map[string]string) (*v1.Namespace, error) {
 	ns := &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
