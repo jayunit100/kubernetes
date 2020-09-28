@@ -284,7 +284,7 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 					Containers: []v1.Container{
 						makeContainerSpec(80, v1.ProtocolTCP), makeContainerSpec(81, v1.ProtocolTCP),
 						makeContainerSpec(80, v1.ProtocolUDP), makeContainerSpec(81, v1.ProtocolUDP),
-						// makeContainerSpec(80, v1.ProtocolSCTP), makeContainerSpec(81, v1.ProtocolSCTP),
+						makeContainerSpec(80, v1.ProtocolSCTP), makeContainerSpec(81, v1.ProtocolSCTP),
 					},
 				},
 			},
