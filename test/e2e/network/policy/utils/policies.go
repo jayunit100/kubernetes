@@ -43,10 +43,10 @@ func waitForHTTPServers(k8s *Kubernetes) error {
 	var wrong int
 	for i := 0; i < maxTries; i++ {
 		reachability := NewReachability(allPods, true)
-		Validate(k8s, reachability, 82, 80, "tcp")
-		Validate(k8s, reachability, 82, 81, "tcp")
-		Validate(k8s, reachability, 82, 80, "udp")
-		Validate(k8s, reachability, 82, 81, "udp")
+		Validate(k8s, reachability, 82, 80, v1.ProtocolTCP)
+		Validate(k8s, reachability, 82, 81, v1.ProtocolTCP)
+		Validate(k8s, reachability, 82, 80, v1.ProtocolUDP)
+		Validate(k8s, reachability, 82, 81, v1.ProtocolUDP)
 		_, wrong, _ = reachability.Summary()
 		if wrong == 0 {
 			log.Infof("all HTTP servers are ready")
@@ -87,7 +87,7 @@ type ProbeJob struct {
 	PodTo    PodString
 	FromPort int
 	ToPort   int
-	Protocol string
+	Protocol v1.Protocol
 }
 
 type ProbeJobResults struct {
@@ -97,7 +97,7 @@ type ProbeJobResults struct {
 	Command     string
 }
 
-func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int, protocol string) {
+func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int, protocol v1.Protocol) {
 	k8s.ClearCache()
 	numberOfWorkers := 30
 	size := len(allPods) * len(allPods)

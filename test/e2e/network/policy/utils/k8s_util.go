@@ -84,7 +84,7 @@ func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error
 // Probe execs into a pod and checks its connectivity to another pod.  Of course it assumes
 // that the target pod is serving on the input port, and also that wget is installed.  For perf it uses
 // spider rather then actually getting the full contents.
-func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2, protocol string, fromPort, toPort int) (bool, error, string) {
+func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, protocol v1.Protocol, fromPort int, toPort int) (bool, error, string) {
 	fromPods, err := k.GetPods(ns1, "pod", pod1)
 	if err != nil {
 		return false, errors.WithMessagef(err, "unable to get Pods from ns %s", ns1), ""
@@ -117,19 +117,25 @@ func (k *Kubernetes) Probe(ns1, pod1, ns2, pod2, protocol string, fromPort, toPo
 
 		// fmt.Sprintf("for i in $(seq 1 3); do ncat -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort),
 	}
+
+	var protocolString string
 	switch protocol {
-	// case "sctp":
-	// 	fmt.Sprintf("for i in $(seq 1 3); do ncat --sctp -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort),
-	case "tcp":
+	case v1.ProtocolSCTP:
+		cmd = append(cmd, fmt.Sprintf("for i in $(seq 1 3); do ncat --sctp -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort))
+		protocolString = "sctp"
+	case v1.ProtocolTCP:
 		// TODO add a retry if necessary
 		cmd = append(cmd, fmt.Sprintf("ncat -p %d -v -z -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
-	case "udp":
+		protocolString = "tcp"
+	case v1.ProtocolUDP:
 		cmd = append(cmd, fmt.Sprintf("ncat -u -p %d -v -z -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
+		protocolString = "udp"
 	default:
 		panic(errors.Errorf("protocol %s not supported", protocol))
 	}
 	// HACK: inferring container name as c80, c81, etc, for simplicity.
-	containerName := fmt.Sprintf("c%v-%v", toPort, protocol)
+	// TODO this is indirectly coupled to the deployment name -- this connection should be made explicitly
+	containerName := fmt.Sprintf("c%v-%v", toPort, protocolString)
 	theCommand := fmt.Sprintf("kubectl exec %s -c %s -n %s -- %s", fromPod.Name, containerName, fromPod.Namespace, strings.Join(cmd, " "))
 	stdout, stderr, err := k.ExecuteRemoteCommand(fromPod, containerName, cmd)
 	if err != nil {
@@ -219,42 +225,45 @@ func (k *Kubernetes) CreateOrUpdateNamespace(n string, labels map[string]string)
 	return nsr, err
 }
 
+func makeContainerSpec(port int32, protocol v1.Protocol) v1.Container {
+	var cmd []string
+	var protocolString string
+
+	switch protocol {
+	case v1.ProtocolTCP:
+		cmd = []string{"ncat", "-l", "-k", "-p", fmt.Sprintf("%d", port)}
+		protocolString = "tcp"
+	case v1.ProtocolUDP:
+		cmd = []string{"ncat", "-u", "-l", "-p", fmt.Sprintf("%d", port)}
+		protocolString = "udp"
+	case v1.ProtocolSCTP:
+		cmd = []string{"ncat", "--sctp", "-l", "-k", "-p", fmt.Sprintf("%d", port)}
+		protocolString = "sctp"
+	default:
+		panic(errors.Errorf("invalid protocol %s", protocol))
+	}
+
+	return v1.Container{
+		Name:            fmt.Sprintf("c%d-%s", port, protocolString),
+		ImagePullPolicy: v1.PullIfNotPresent,
+		Image:           "antrea/netpol-test:latest",
+		// "-k" for persistent server
+		Command:         cmd,
+		SecurityContext: &v1.SecurityContext{},
+		Ports: []v1.ContainerPort{
+			{
+				ContainerPort: port,
+				Name:          fmt.Sprintf("serve-%d-%s", port, protocolString),
+				Protocol:      protocol,
+			},
+		},
+	}
+}
+
 // CreateOrUpdateDeployment is a convenience function for idempotent setup of deployments
 func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replicas int32, labels map[string]string) (*appsv1.Deployment, error) {
 	zero := int64(0)
 	log.Infof("creating/updating deployment %s in ns %s", deploymentName, ns)
-	// protocol can be one of: tcp udp sctp
-	makeContainerSpec := func(port int32, protocol string) v1.Container {
-		var cmd []string
-		var v1proto v1.Protocol
-
-		switch protocol {
-		case "tcp":
-			cmd = []string{"ncat", "-l", "-k", "-p", fmt.Sprintf("%d", port)}
-			v1proto = v1.ProtocolTCP
-		case "udp":
-			cmd = []string{"ncat", "-u", "-l", "-p", fmt.Sprintf("%d", port)}
-			v1proto = v1.ProtocolUDP
-		case "sctp":
-			cmd = []string{"ncat", "--sctp", "-l", "-k", "-p", fmt.Sprintf("%d", port)}
-			v1proto = v1.ProtocolSCTP
-		}
-		return v1.Container{
-			Name:            fmt.Sprintf("c%d-%v", port, protocol),
-			ImagePullPolicy: v1.PullIfNotPresent,
-			Image:           "antrea/netpol-test:latest",
-			// "-k" for persistent server
-			Command:         cmd,
-			SecurityContext: &v1.SecurityContext{},
-			Ports: []v1.ContainerPort{
-				{
-					ContainerPort: port,
-					Name:          fmt.Sprintf("serve-%d-%s", port, protocol),
-					Protocol:      v1proto,
-				},
-			},
-		}
-	}
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -273,9 +282,9 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 				Spec: v1.PodSpec{
 					TerminationGracePeriodSeconds: &zero,
 					Containers: []v1.Container{
-						makeContainerSpec(80, "tcp"), makeContainerSpec(81, "tcp"),
-						makeContainerSpec(80, "udp"), makeContainerSpec(81, "udp"),
-						// makeContainerSpec(80, "sctp"), makeContainerSpec(81, "sctp"),
+						makeContainerSpec(80, v1.ProtocolTCP), makeContainerSpec(81, v1.ProtocolTCP),
+						makeContainerSpec(80, v1.ProtocolUDP), makeContainerSpec(81, v1.ProtocolUDP),
+						// makeContainerSpec(80, v1.ProtocolSCTP), makeContainerSpec(81, v1.ProtocolSCTP),
 					},
 				},
 			},
@@ -293,7 +302,7 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 	if err != nil {
 		log.Debugf("unable to update deployment %s in ns %s: %s", deployment.Name, ns, err)
 	}
-	return d, err
+	return d, errors.Wrapf(err, "unable to update deployment %s/%s", ns, deployment.Name)
 }
 
 // CleanNetworkPolicies is a convenience function for deleting network policies before startup of any new test.
@@ -314,6 +323,7 @@ func (k *Kubernetes) CleanNetworkPolicies(namespaces []string) error {
 	}
 	return nil
 }
+
 func (k *Kubernetes) ClearCache() {
 	log.Info("Clearing pod cache...")
 	k.mutex.Lock()
@@ -339,17 +349,20 @@ func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *v1net.Networ
 	return np, err
 }
 
-// Bootstrap creates a namespace
-func (k8s *Kubernetes) Bootstrap(namespaces []string, pods []string, allPods []PodString) error {
+// Bootstrap checks the state of the cluster, and if necessary:
+// - creates namespaces
+// - creates deployments
+// - waits for pods to come up
+func (k *Kubernetes) Bootstrap(namespaces []string, pods []string, allPods []PodString) error {
 	for _, ns := range namespaces {
-		_, err := k8s.CreateOrUpdateNamespace(ns, map[string]string{"ns": ns})
+		_, err := k.CreateOrUpdateNamespace(ns, map[string]string{"ns": ns})
 		if err != nil {
 			return errors.WithMessagef(err, "unable to create/update ns %s", ns)
 		}
 
 		for _, pod := range pods {
 			log.Infof("creating/updating pod %s/%s", ns, pod)
-			_, err := k8s.CreateOrUpdateDeployment(ns, ns+pod, 1, map[string]string{"pod": pod})
+			_, err := k.CreateOrUpdateDeployment(ns, ns+pod, 1, map[string]string{"pod": pod})
 			if err != nil {
 				return errors.WithMessagef(err, "unable to create/update deployment %s/%s", ns, pod)
 			}
@@ -357,7 +370,7 @@ func (k8s *Kubernetes) Bootstrap(namespaces []string, pods []string, allPods []P
 	}
 
 	for _, pod := range allPods {
-		err := waitForPodInNamespace(k8s, pod.Namespace(), pod.PodName())
+		err := waitForPodInNamespace(k, pod.Namespace(), pod.PodName())
 		if err != nil {
 			return errors.WithMessagef(err, "unable to wait for pod %s/%s", pod.Namespace(), pod.PodName())
 		}
@@ -365,7 +378,7 @@ func (k8s *Kubernetes) Bootstrap(namespaces []string, pods []string, allPods []P
 
 	// Ensure that all the HTTP servers have time to start properly.
 	// See https://github.com/vmware-tanzu/antrea/issues/472.
-	if err := waitForHTTPServers(k8s); err != nil {
+	if err := waitForHTTPServers(k); err != nil {
 		return err
 	}
 

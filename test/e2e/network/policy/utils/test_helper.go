@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	v1 "k8s.io/api/core/v1"
 	"time"
 
 	"github.com/onsi/ginkgo"
@@ -63,15 +64,15 @@ func CleanPoliciesAndValidate(f *framework.Framework, k8s *Kubernetes, scenario 
 	err := k8s.CleanNetworkPolicies(scenario.Namespaces)
 	framework.ExpectNoError(err, "Error occurred while cleaning network policy")
 	reachability := NewReachability(scenario.AllPods, true)
-	ValidateOrFailFuncInner(k8s, f, "x", "tcp", 83, 80, nil, reachability, false, scenario, false)
+	ValidateOrFailFuncInner(k8s, f, "x", v1.ProtocolTCP, 83, 80, nil, reachability, false, scenario, false)
 }
 
-func ValidateOrFailFunc(k8s *Kubernetes, f *framework.Framework, ns, protocol string, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
+func ValidateOrFailFunc(k8s *Kubernetes, f *framework.Framework, ns string, protocol v1.Protocol, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
 	reachability *Reachability, cleanPreviousPolicies bool, scenario *Scenario) {
 	ValidateOrFailFuncInner(k8s, f, ns, protocol, fromPort, toPort, policy, reachability, cleanPreviousPolicies, scenario, false)
 }
 
-func ValidateOrFailFuncInner(k8s *Kubernetes, f *framework.Framework, ns, protocol string, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
+func ValidateOrFailFuncInner(k8s *Kubernetes, f *framework.Framework, ns string, protocol v1.Protocol, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
 	reachability *Reachability, cleanPreviousPolicies bool, scenario *Scenario, quiet bool) {
 	if cleanPreviousPolicies {
 		err := k8s.CleanNetworkPolicies(scenario.Namespaces)
