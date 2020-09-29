@@ -329,20 +329,17 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		})
 
 		ginkgo.It("should allow ingress access on one named port [Feature:NetworkPolicy]", func() {
-			policy := netpol.GetAllowIngress("allow-all")
+			policy := netpol.GetAllowIngressByPort("allow-all", &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81-tcp"})
 
 			// WARNING ! Since we are adding a port rule, that means that the lack of a
-			// pod selector will cause this policy to target the ENTIRE namespace.....
+			// pod selector will cause this policy to target the ENTIRE namespace
 			ginkgo.By("Blocking all ports other then 81 in the entire namespace")
-			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
-				Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81-tcp"},
-			}}
 
-			reachability := netpol.NewReachability(scenario.AllPods, true)
+			reachabilityPort81 := netpol.NewReachability(scenario.AllPods, true)
 
-			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 81, policy, reachability, true, scenario)
+			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 81, policy, reachabilityPort81, true, scenario)
 
-			// disallow all traffic from the x or z namespaces
+			// disallow all traffic to the x namespace
 			reachabilityPort80 := netpol.NewReachability(scenario.AllPods, true)
 			reachabilityPort80.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
 			reachabilityPort80.AllowLoopback()
@@ -356,68 +353,42 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 					"ns": "y",
 				},
 			}
-			policy := netpol.GetAllowIngressByNamespace("allow-client-a-via-ns-selector-80", map[string]string{"pod": "a"}, allowedLabels)
-			policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
-				Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80-tcp"},
-			}}
+			policy := netpol.GetAllowIngressByNamespaceAndPort("allow-client-a-via-ns-selector-80", map[string]string{"pod": "a"}, allowedLabels, &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80-tcp"})
 
 			reachability := netpol.NewReachability(scenario.AllPods, true)
-
 			// disallow all traffic from the x or z namespaces
-			for _, nn := range []string{"x", "z"} {
-				for _, pp := range []string{"a", "b", "c"} {
-					reachability.Expect(netpol.NewPodString(nn, pp), "x/a", false)
-				}
-			}
+			reachability.ExpectPeer(&netpol.Peer{Namespace: "x"}, &netpol.Peer{Namespace: "x", Pod: "a"}, false)
+			reachability.ExpectPeer(&netpol.Peer{Namespace: "z"}, &netpol.Peer{Namespace: "x", Pod: "a"}, false)
 			reachability.AllowLoopback()
 
+			ginkgo.By("Verify that port 80 is allowed for namespace y")
 			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, policy, reachability, true, scenario)
 
-			// now validate 81 doesnt work, AT ALL, even for ns y... this validation might be overkill,
-			// but still should be pretty fast.
+			ginkgo.By("Verify that port 81 is blocked for all namespaces including y")
 			reachabilityFAIL := netpol.NewReachability(scenario.AllPods, true)
 			reachabilityFAIL.ExpectAllIngress("x/a", false)
 			reachabilityFAIL.AllowLoopback()
-			//change here
-			//k8s.CleanNetworkPolicies(scenario.namespaces)
+
 			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 81, policy, reachabilityFAIL, false, scenario)
 		})
 
-		// TODO In this test we remove the DNS check.  Write a higher level DNS checking test
-		// which can be used to fulfill that requirement.
 		ginkgo.It("should allow egress access on one named port [Feature:NetworkPolicy]", func() {
 			ginkgo.By("validating egress from port 82 to port 80")
-			policy := netpol.GetAllowIngress("allow-egress")
-			// By adding a port rule to the egress class we now restrict egress to only work on
-			// port 80.  We add DNS support as well so that this can be done over a service.
-			policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{
-				{
-					To: []networkingv1.NetworkPolicyPeer{
-						{
-							PodSelector: &metav1.LabelSelector{},
-							// allow all
-							NamespaceSelector: &metav1.LabelSelector{},
-							IPBlock:           nil,
-						},
-					},
-					Ports: []networkingv1.NetworkPolicyPort{
-						{
-							Port: &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80-tcp"},
-						},
-					},
-				},
-			}
-			policy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress, networkingv1.PolicyTypeIngress}
-			reachability := netpol.NewReachability(scenario.AllPods, true)
-			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, policy, reachability, true, scenario)
+			policy := netpol.GetAllowEgressByPort("allow-egress", &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80-tcp"})
+			// By adding a port rule to the egress class we now restrict egress to only work on port 80.
+			// TODO What about DNS -- we removed that check.  Write a higher level DNS checking test
+			//   which can be used to fulfill that requirement.
 
-			// meanwhile no traffic over 81 should work, since our egress policy is on 82
-			reachability81 := netpol.NewReachability(scenario.AllPods, true)
-			reachability81.ExpectPeer(&netpol.Peer{Namespace: "x"}, &netpol.Peer{}, false)
-			reachability81.AllowLoopback()
+			reachabilityPort80 := netpol.NewReachability(scenario.AllPods, true)
+			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, policy, reachabilityPort80, true, scenario)
+
+			// meanwhile no traffic over 81 should work, since our egress policy is on 80
+			reachabilityPort81 := netpol.NewReachability(scenario.AllPods, true)
+			reachabilityPort81.ExpectPeer(&netpol.Peer{Namespace: "x"}, &netpol.Peer{}, false)
+			reachabilityPort81.AllowLoopback()
 
 			// no input policy, don't erase the last one...
-			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 81, nil, reachability81, false, scenario)
+			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 81, nil, reachabilityPort81, false, scenario)
 		})
 
 		// The simplest possible mutation for this test - which is allow all->deny all.

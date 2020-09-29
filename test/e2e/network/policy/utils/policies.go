@@ -74,6 +74,49 @@ func GetAllowIngress(name string) *networkingv1.NetworkPolicy {
 	return policy
 }
 
+func GetAllowIngressByPort(name string, port *intstr.IntOrString) *networkingv1.NetworkPolicy {
+	policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{},
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{Port: port},
+					},
+				},
+			},
+		},
+	}
+	return policy
+}
+
+func GetAllowEgressByPort(name string, port *intstr.IntOrString) *networkingv1.NetworkPolicy {
+	policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{},
+			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{Port: port},
+					},
+				},
+			},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+		},
+	}
+	return policy
+}
+
 // GetDenyAll denies ingress traffic, AS WELL as egress traffic.
 // - BOTH policy types must be specified
 // - The Egress rule must (like the ingress default rule) be a array with 0 values.
