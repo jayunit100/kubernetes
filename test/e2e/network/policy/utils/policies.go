@@ -122,6 +122,28 @@ func GetAllowIngressByNamespace(name string, targetLabels map[string]string, pee
 	return policy
 }
 
+func GetAllowIngressByNamespaceAndPort(name string, targetLabels map[string]string, peerNamespaceSelector *metav1.LabelSelector, port *intstr.IntOrString) *networkingv1.NetworkPolicy {
+	policy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: targetLabels,
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				From: []networkingv1.NetworkPolicyPeer{{
+					NamespaceSelector: peerNamespaceSelector,
+				}},
+				Ports: []networkingv1.NetworkPolicyPort{
+					{Port: port},
+				},
+			}},
+		},
+	}
+	return policy
+}
+
 func GetAllowIngressByNamespaceOrPod(name string, targetLabels map[string]string, peerNamespaceSelector *metav1.LabelSelector, peerPodSelector *metav1.LabelSelector) *networkingv1.NetworkPolicy {
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
