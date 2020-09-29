@@ -19,8 +19,9 @@ package network
 import (
 	"context"
 	"fmt"
-	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
 	"time"
+
+	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -81,7 +82,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	ginkgo.Context("NetworkPolicy between server and client", func() {
 		ginkgo.BeforeEach(func() {
 			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
-			netpol.CleanPoliciesAndValidate(f, k8s, scenario)
+			netpol.CleanPoliciesAndValidate(f, k8s, scenario, v1.ProtocolTCP)
 		})
 
 		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:NetworkPolicy]", func() {
@@ -881,7 +882,7 @@ var _ = SIGDescribe("NetworkPolicy [Feature:SCTPConnectivity][LinuxOnly][Disrupt
 	ginkgo.Context("NetworkPolicy between server and client using SCTP", func() {
 		ginkgo.BeforeEach(func() {
 			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
-			netpol.CleanPoliciesAndValidate(f, k8s, scenario)
+			netpol.CleanPoliciesAndValidate(f, k8s, scenario, v1.ProtocolSCTP)
 		})
 
 		ginkgo.It("should support a 'default-deny' policy [Feature:NetworkPolicy]", func() {
@@ -916,7 +917,7 @@ var _ = SIGDescribe("NetworkPolicy [Feature:UDPConnectivity][LinuxOnly][Disrupti
 	ginkgo.Context("NetworkPolicy between server and client using UDP", func() {
 		ginkgo.BeforeEach(func() {
 			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
-			netpol.CleanPoliciesAndValidate(f, k8s, scenario)
+			netpol.CleanPoliciesAndValidate(f, k8s, scenario, v1.ProtocolUDP)
 		})
 		ginkgo.It("should support a 'default-deny' policy [Feature:NetworkPolicy]", func() {
 			policy := netpol.GetDefaultDenyIngressPolicy("deny-ingress")

@@ -5,8 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/onsi/ginkgo"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -60,11 +61,11 @@ func jsonPrettyPrint(policy *networkingv1.NetworkPolicy) string {
 	return out.String()
 }
 
-func CleanPoliciesAndValidate(f *framework.Framework, k8s *Kubernetes, scenario *Scenario) {
+func CleanPoliciesAndValidate(f *framework.Framework, k8s *Kubernetes, scenario *Scenario, protocol v1.Protocol) {
 	err := k8s.CleanNetworkPolicies(scenario.Namespaces)
 	framework.ExpectNoError(err, "Error occurred while cleaning network policy")
 	reachability := NewReachability(scenario.AllPods, true)
-	ValidateOrFailFuncInner(k8s, f, "x", v1.ProtocolTCP, 83, 80, nil, reachability, false, scenario, false)
+	ValidateOrFailFuncInner(k8s, f, "x", protocol, 83, 80, nil, reachability, false, scenario, false)
 }
 
 func ValidateOrFailFunc(k8s *Kubernetes, f *framework.Framework, ns string, protocol v1.Protocol, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
