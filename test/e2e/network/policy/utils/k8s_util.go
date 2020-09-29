@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"k8s.io/client-go/rest"
 
@@ -387,4 +388,50 @@ func (k *Kubernetes) Bootstrap(namespaces []string, pods []string, allPods []Pod
 	}
 
 	return nil
+}
+
+func waitForHTTPServers(k8s *Kubernetes) error {
+	const maxTries = 10
+	const sleepInterval = 1 * time.Second
+	log.Infof("waiting for HTTP servers (ports 80 and 81) to become ready")
+	var wrong int
+	for i := 0; i < maxTries; i++ {
+		reachability := NewReachability(GetAllPods(), true)
+		Validate(k8s, reachability, 82, 80, v1.ProtocolTCP)
+		Validate(k8s, reachability, 82, 81, v1.ProtocolTCP)
+		Validate(k8s, reachability, 82, 80, v1.ProtocolUDP)
+		Validate(k8s, reachability, 82, 81, v1.ProtocolUDP)
+		_, wrong, _ = reachability.Summary()
+		if wrong == 0 {
+			log.Infof("all HTTP servers are ready")
+			return nil
+		}
+		log.Debugf("%d HTTP servers not ready", wrong)
+		time.Sleep(sleepInterval)
+	}
+	return errors.Errorf("after %d tries, %d HTTP servers are not ready", maxTries, wrong)
+}
+
+func waitForPodInNamespace(k8s *Kubernetes, ns string, pod string) error {
+	log.Infof("waiting for pod %s/%s", ns, pod)
+	for {
+		k8sPod, err := k8s.GetPod(ns, pod)
+		if err != nil {
+			return errors.WithMessagef(err, "unable to get pod %s/%s", ns, pod)
+		}
+
+		if k8sPod != nil && k8sPod.Status.Phase == v1.PodRunning {
+			if k8sPod.Status.PodIP == "" {
+				return errors.Errorf("unable to get IP of pod %s/%s", ns, pod)
+			} else {
+				log.Debugf("IP of pod %s/%s is: %s", ns, pod, k8sPod.Status.PodIP)
+				//podIPs[ns+"/"+pod] = k8sPod.Status.PodIP
+			}
+
+			log.Debugf("pod running: %s/%s", ns, pod)
+			return nil
+		}
+		log.Infof("pod %s/%s not ready, waiting ...", ns, pod)
+		time.Sleep(2 * time.Second)
+	}
 }
