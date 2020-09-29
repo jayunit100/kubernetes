@@ -1,3 +1,5 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
 # gazelle:build_file_name BUILD,BUILD.bazel
 
 # gazelle:exclude _artifacts
@@ -138,5 +140,26 @@ pkg_tar(
     tags = [
         "manual",
         "no-cache",
+    ],
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = ["old.go"],
+    importpath = "k8s.io/kubernetes",
+    deps = [
+        "//staging/src/k8s.io/api/core/v1:go_default_library",
+        "//staging/src/k8s.io/api/networking/v1:go_default_library",
+        "//staging/src/k8s.io/apimachinery/pkg/api/errors:go_default_library",
+        "//staging/src/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
+        "//staging/src/k8s.io/apimachinery/pkg/types:go_default_library",
+        "//staging/src/k8s.io/apimachinery/pkg/util/intstr:go_default_library",
+        "//test/e2e/framework:go_default_library",
+        "//test/e2e/framework/node:go_default_library",
+        "//test/e2e/framework/pod:go_default_library",
+        "//test/e2e/framework/skipper:go_default_library",
+        "//test/utils/image:go_default_library",
+        "//vendor/github.com/onsi/ginkgo:go_default_library",
+        "//vendor/k8s.io/utils/net:go_default_library",
     ],
 )

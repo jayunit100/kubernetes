@@ -978,6 +978,7 @@ github.com/seccomp/libseccomp-golang
 github.com/shurcooL/sanitized_anchor_name
 # github.com/shurcooL/sanitized_anchor_name => github.com/shurcooL/sanitized_anchor_name v1.0.0
 # github.com/sirupsen/logrus v1.6.0 => github.com/sirupsen/logrus v1.6.0
+## explicit
 github.com/sirupsen/logrus
 # github.com/sirupsen/logrus => github.com/sirupsen/logrus v1.6.0
 # github.com/smartystreets/assertions => github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d
