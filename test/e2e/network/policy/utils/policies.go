@@ -386,7 +386,7 @@ func GetPolicyWithEgressRule_legacy(ns string, name string, toNs string, toPod s
 	}
 }
 
-func GetDefaultAllAllowEggress() *networkingv1.NetworkPolicy {
+func GetDefaultAllAllowEgress() *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "allow-all",
