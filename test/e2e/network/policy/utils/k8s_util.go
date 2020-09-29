@@ -300,8 +300,12 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 	log.Debugf("unable to create deployment %s in ns %s, let's try update instead", deployment.Name, ns)
 	d, err = k.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), d, metav1.UpdateOptions{})
 	if err != nil {
-		log.Debugf("unable to update deployment %s in ns %s: %s", deployment.Name, ns, err)
+		//bytes, marshalErr := json.MarshalIndent(deployment, "", "  ")
+		//if marshalErr != nil { panic(marshalErr) }
+		//log.Errorf("unable to create/update deployment %s/%s: %+v\n\n%s", ns, deployment.Name, err, bytes)
+		log.Errorf("unable to create/update deployment %s/%s: %+v", ns, deployment.Name, err)
 	}
+
 	return d, errors.Wrapf(err, "unable to update deployment %s/%s", ns, deployment.Name)
 }
 
