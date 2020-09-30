@@ -284,10 +284,10 @@ func GetAllowEgress() *networkingv1.NetworkPolicy {
 	}
 }
 
-func GetPolicyWithEgressRuleOnlyPodSelector(name string, toPod string) *networkingv1.NetworkPolicy {
+func GetAllowEgressByPod(name string, toPod string) *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name: fmt.Sprintf("allow-egress-by-pod-%s-%s", name, toPod),
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
@@ -313,7 +313,7 @@ func GetPolicyWithEgressRuleOnlyPodSelector(name string, toPod string) *networki
 	}
 }
 
-func PolicyAllowCIDR(podname string, podserverCIDR string) *networkingv1.NetworkPolicy {
+func GetAllowEgressByCIDR(podname string, podserverCIDR string) *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "allow-client-a-via-cidr-egress-rule",
@@ -341,7 +341,7 @@ func PolicyAllowCIDR(podname string, podserverCIDR string) *networkingv1.Network
 	}
 }
 
-func AllowSCTPBasedOnPodSelector(name string, podSelectorLabels map[string]string, portNum *intstr.IntOrString) *networkingv1.NetworkPolicy {
+func GetAllowIngressOnSCTPByPort(name string, targetLabels map[string]string, portNum *intstr.IntOrString) *networkingv1.NetworkPolicy {
 	protocolSCTP := v1.ProtocolSCTP
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -349,7 +349,7 @@ func AllowSCTPBasedOnPodSelector(name string, podSelectorLabels map[string]strin
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
-				MatchLabels: podSelectorLabels,
+				MatchLabels: targetLabels,
 			},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				Ports: []networkingv1.NetworkPolicyPort{{
@@ -362,15 +362,15 @@ func AllowSCTPBasedOnPodSelector(name string, podSelectorLabels map[string]strin
 	return policy
 }
 
-// AllowProtocolBasedOnPodSelector is a base network policy template which distinguishes between the types of v1.Protocol available in v1 core
-func AllowProtocolBasedOnPodSelector(name string, protocol v1.Protocol, podSelectorLabels map[string]string, portNum *intstr.IntOrString) *networkingv1.NetworkPolicy {
+// GetAllowIngressOnProtocolByPort is a base network policy template which distinguishes between the types of v1.Protocol available in v1 core
+func GetAllowIngressOnProtocolByPort(name string, protocol v1.Protocol, targetLabels map[string]string, portNum *intstr.IntOrString) *networkingv1.NetworkPolicy {
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
-				MatchLabels: podSelectorLabels,
+				MatchLabels: targetLabels,
 			},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{{
 				Ports: []networkingv1.NetworkPolicyPort{{

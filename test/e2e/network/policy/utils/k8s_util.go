@@ -16,7 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
-	v1net "k8s.io/api/networking/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -338,7 +338,7 @@ func (k *Kubernetes) ClearCache() {
 
 // CreateOrUpdateNetworkPolicy is a convenience function for updating/creating netpols. Updating is important since
 // some tests update a network policy to confirm that mutation works with a CNI.
-func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *v1net.NetworkPolicy) (*v1net.NetworkPolicy, error) {
+func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *networkingv1.NetworkPolicy) (*networkingv1.NetworkPolicy, error) {
 	log.Infof("creating/updating network policy %s in ns %s", netpol.Name, ns)
 	netpol.ObjectMeta.Namespace = ns
 	np, err := k.ClientSet.NetworkingV1().NetworkPolicies(ns).Update(context.TODO(), netpol, metav1.UpdateOptions{})

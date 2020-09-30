@@ -6,12 +6,14 @@ import (
 	"strings"
 )
 
+// TruthTable takes in n items and maintains an n x n table of booleans for each ordered pair
 type TruthTable struct {
 	Items   []string
 	itemSet map[string]bool
 	Values  map[string]map[string]bool
 }
 
+// NewTruthTable creates a new truth table
 func NewTruthTable(items []string, defaultValue *bool) *TruthTable {
 	itemSet := map[string]bool{}
 	values := map[string]map[string]bool{}
@@ -43,6 +45,7 @@ func (tt *TruthTable) IsComplete() bool {
 	return true
 }
 
+// Set sets the value for from->to
 func (tt *TruthTable) Set(from string, to string, value bool) {
 	dict, ok := tt.Values[from]
 	if !ok {
@@ -54,6 +57,7 @@ func (tt *TruthTable) Set(from string, to string, value bool) {
 	dict[to] = value
 }
 
+// SetAllFrom sets all values where from = 'from'
 func (tt *TruthTable) SetAllFrom(from string, value bool) {
 	dict, ok := tt.Values[from]
 	if !ok {
@@ -64,6 +68,7 @@ func (tt *TruthTable) SetAllFrom(from string, value bool) {
 	}
 }
 
+// SetAllTo sets all values where to = 'to'
 func (tt *TruthTable) SetAllTo(to string, value bool) {
 	if _, ok := tt.itemSet[to]; !ok {
 		panic(errors.New(fmt.Sprintf("key %s not found", to)))
@@ -73,6 +78,7 @@ func (tt *TruthTable) SetAllTo(to string, value bool) {
 	}
 }
 
+// Get gets the specified value
 func (tt *TruthTable) Get(from string, to string) bool {
 	dict, ok := tt.Values[from]
 	if !ok {
@@ -85,6 +91,9 @@ func (tt *TruthTable) Get(from string, to string) bool {
 	return val
 }
 
+// Compare is used to check two truth tables for equality, returning its
+// result in the form of a third truth table.  Both tables are expected to
+// have identical items.
 func (tt *TruthTable) Compare(other *TruthTable) *TruthTable {
 	// TODO set equality
 	//if tt.itemSet != other.itemSet {
@@ -105,6 +114,7 @@ func (tt *TruthTable) Compare(other *TruthTable) *TruthTable {
 	}
 }
 
+// PrettyPrint produces a nice visual representation.
 func (tt *TruthTable) PrettyPrint(indent string) string {
 	header := indent + strings.Join(append([]string{"-"}, tt.Items...), "\t")
 	lines := []string{header}
