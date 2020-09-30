@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// GetDefaultDenyPolicy returns a default deny policy named 'name'.
+// GetDenyIngress returns a default deny policy named 'name'.
 // 	 Note we have several defaults that are empty/nil here.
 //   - Empty podSelector:  this means that *all* Pods in the namespace are selected.
 //   - No Selector type: this means we default to Ingress.
@@ -146,6 +146,19 @@ func GetAllowIngressByPod(name string, targetLabels map[string]string, peerPodSe
 	return policy
 }
 
+func GetDenyIngressForTarget(targetSelector metav1.LabelSelector) *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "deny-ingress-via-label-selector",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: targetSelector,
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
+			Ingress:     []networkingv1.NetworkPolicyIngressRule{},
+		},
+	}
+}
+
 func GetAllowIngressByNamespace(name string, targetLabels map[string]string, peerNamespaceSelector *metav1.LabelSelector) *networkingv1.NetworkPolicy {
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -231,24 +244,22 @@ func GetAllowIngressByNamespaceAndPod(name string, targetLabels map[string]strin
 	return policy
 }
 
-// TODO Discuss do we want to pass string(support only single field) or labelselector(support multiple fields) as function arg
-func GetPolicyWithEgressrule(ns string, name string, podLabelSelector map[string]string, egressNsSelector *metav1.LabelSelector, egressPodSelector *metav1.LabelSelector) *networkingv1.NetworkPolicy {
+func GetAllowEgressByNamespaceAndPod(name string, targetLabels map[string]string, peerNamespaceSelector *metav1.LabelSelector, peerPodSelector *metav1.LabelSelector) *networkingv1.NetworkPolicy {
 	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: ns,
-			Name:      name,
+			Name: name,
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
-				MatchLabels: podLabelSelector,
+				MatchLabels: targetLabels,
 			},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
 			Egress: []networkingv1.NetworkPolicyEgressRule{
 				{
 					To: []networkingv1.NetworkPolicyPeer{
 						{
-							NamespaceSelector: egressNsSelector,
-							PodSelector:       egressPodSelector,
+							NamespaceSelector: peerNamespaceSelector,
+							PodSelector:       peerPodSelector,
 						},
 					},
 				},
@@ -258,45 +269,10 @@ func GetPolicyWithEgressrule(ns string, name string, podLabelSelector map[string
 	return policy
 }
 
-func GetPolicyWithEgressRule_legacy(ns string, name string, toNs string, toPod string) *networkingv1.NetworkPolicy {
-	return &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: ns,
-			Name:      name,
-		},
-		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"pod": name,
-				},
-			},
-			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
-			Egress: []networkingv1.NetworkPolicyEgressRule{
-				{
-					To: []networkingv1.NetworkPolicyPeer{
-						{
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"ns": toNs,
-								},
-							},
-							PodSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"pod": toPod,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
 func GetAllowEgress() *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "allow-all",
+			Name: "allow-egress",
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
@@ -308,11 +284,10 @@ func GetAllowEgress() *networkingv1.NetworkPolicy {
 	}
 }
 
-func GetPolicyWithEgressRuleOnlyPodSelector(ns string, name string, toPod string) *networkingv1.NetworkPolicy {
+func GetPolicyWithEgressRuleOnlyPodSelector(name string, toPod string) *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: ns,
-			Name:      name,
+			Name: name,
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
@@ -338,11 +313,10 @@ func GetPolicyWithEgressRuleOnlyPodSelector(ns string, name string, toPod string
 	}
 }
 
-func PolicyAllowCIDR(namespace string, podname string, podserverCIDR string) *networkingv1.NetworkPolicy {
+func PolicyAllowCIDR(podname string, podserverCIDR string) *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      "allow-client-a-via-cidr-egress-rule",
+			Name: "allow-client-a-via-cidr-egress-rule",
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{

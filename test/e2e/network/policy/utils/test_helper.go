@@ -36,7 +36,6 @@ type Scenario struct {
 	P80        int
 	P81        int
 	AllPods    []PodString
-	//policies   []networkingv1.NetworkPolicy
 }
 
 // NewScenario creates a new test scenario.
@@ -81,7 +80,6 @@ func ValidateOrFailFuncInner(k8s *Kubernetes, f *framework.Framework, ns string,
 	}
 
 	if policy != nil {
-
 		fmt.Println("****************************************************************")
 		framework.Logf("Network Policy creating %v %v", policy.Name, jsonPrettyPrint(policy))
 		fmt.Println("****************************************************************")
@@ -94,6 +92,7 @@ func ValidateOrFailFuncInner(k8s *Kubernetes, f *framework.Framework, ns string,
 			}
 		}
 	}
+
 	ginkgo.By("Validating reachability matrix...")
 
 	Validate(k8s, reachability, fromPort, toPort, protocol)
@@ -108,7 +107,7 @@ func ValidateOrFailFuncInner(k8s *Kubernetes, f *framework.Framework, ns string,
 	}
 }
 
-func NSLabelCleaner(f *framework.Framework, ns string) {
+func ResetNamespaceLabels(f *framework.Framework, ns string) {
 	selectedNameSpace, err := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
 	framework.ExpectNoError(err, "Failing to get namespace %v", ns)
 	selectedNameSpace.ObjectMeta.Labels = map[string]string{"ns": ns}
@@ -117,16 +116,16 @@ func NSLabelCleaner(f *framework.Framework, ns string) {
 	time.Sleep(10 * time.Second)
 }
 
-func PodLabelCleaner(f *framework.Framework, ns string, pod string) {
-	selectedPod, err := f.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
-	framework.ExpectNoError(err, "Failing to get pod %v in namespace %v", pod, ns)
-	selectedPod.Spec.Template.ObjectMeta.Labels = map[string]string{"pod": pod}
-	_, err = f.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), selectedPod, metav1.UpdateOptions{})
-	framework.ExpectNoError(err, "Failing to update pod %v labels in namespace %v", pod, ns)
+func ResetDeploymentPodLabels(f *framework.Framework, ns string, pod string) {
+	deployment, err := f.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
+	framework.ExpectNoError(err, "Failing to get deployment %s/%s", ns, pod)
+	deployment.Spec.Template.ObjectMeta.Labels = map[string]string{"pod": pod}
+	_, err = f.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+	framework.ExpectNoError(err, "Failing to update deployment %s/%s labels", ns, pod)
 	time.Sleep(10 * time.Second)
 }
 
-func NSLabelUpdater(f *framework.Framework, ns string, newNsLabel map[string]string) {
+func UpdateNamespaceLabels(f *framework.Framework, ns string, newNsLabel map[string]string) {
 	selectedNameSpace, err := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
 	framework.ExpectNoError(err, "Failing to get namespace %v", ns)
 	selectedNameSpace.ObjectMeta.Labels = newNsLabel
@@ -135,11 +134,22 @@ func NSLabelUpdater(f *framework.Framework, ns string, newNsLabel map[string]str
 	time.Sleep(10 * time.Second)
 }
 
-func PodLabelUpdater(f *framework.Framework, ns string, pod string, newPodLabel map[string]string) {
-	selectedPod, err := f.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
-	framework.ExpectNoError(err, "Failing to get pod %v in namespace %v", pod, ns)
-	selectedPod.Spec.Template.ObjectMeta.Labels = newPodLabel
-	_, err = f.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), selectedPod, metav1.UpdateOptions{})
-	framework.ExpectNoError(err, "Failing to update pod %v labels in namespace %v", pod, ns)
+func AddDeploymentPodLabels(f *framework.Framework, ns string, pod string, newPodLabels map[string]string) {
+	deployment, err := f.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
+	framework.ExpectNoError(err, "Failing to get deployment %s/%s", ns, pod)
+	for key, val := range newPodLabels {
+		deployment.Spec.Template.ObjectMeta.Labels[key] = val
+	}
+	_, err = f.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+	framework.ExpectNoError(err, "Failing to add deployment %s/%s labels", ns, pod)
+	time.Sleep(10 * time.Second)
+}
+
+func UpdateDeploymentPodLabels(f *framework.Framework, ns string, pod string, newPodLabels map[string]string) {
+	deployment, err := f.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
+	framework.ExpectNoError(err, "Failing to get deployment %s/%s", ns, pod)
+	deployment.Spec.Template.ObjectMeta.Labels = newPodLabels
+	_, err = f.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+	framework.ExpectNoError(err, "Failing to update deployment %s/%s labels", ns, pod)
 	time.Sleep(10 * time.Second)
 }
