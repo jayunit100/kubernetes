@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package utils
 
 import (
@@ -69,6 +70,7 @@ func (p *Peer) Matches(pod PodString) bool {
 	return (p.Namespace == "" || p.Namespace == pod.Namespace()) && (p.Pod == "" || p.Pod == pod.PodName())
 }
 
+// Reachability packages the data for a cluster-wide connectivity probe
 type Reachability struct {
 	Expected *TruthTable
 	Observed *TruthTable

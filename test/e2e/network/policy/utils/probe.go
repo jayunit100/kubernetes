@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package utils
 
 import (
@@ -20,6 +21,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// ProbeJob packages the data for the input of a pod->pod connectivity probe
 type ProbeJob struct {
 	PodFrom  PodString
 	PodTo    PodString
@@ -28,6 +30,7 @@ type ProbeJob struct {
 	Protocol v1.Protocol
 }
 
+// ProbeJobResults packages the data for the results of a pod->pod connectivity probe
 type ProbeJobResults struct {
 	Job         *ProbeJob
 	IsConnected bool
@@ -35,6 +38,7 @@ type ProbeJobResults struct {
 	Command     string
 }
 
+// Validate runs a series of probes in kube, and records the results in `reachability`
 func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int, protocol v1.Protocol) {
 	k8s.ClearCache()
 	numberOfWorkers := 30
@@ -83,7 +87,7 @@ func probeWorker(k8s *Kubernetes, jobs <-chan *ProbeJob, results chan<- *ProbeJo
 	for job := range jobs {
 		podFrom := job.PodFrom
 		podTo := job.PodTo
-		connected, err, command := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), job.Protocol, job.FromPort, job.ToPort)
+		connected, command, err := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), job.Protocol, job.FromPort, job.ToPort)
 		results <- &ProbeJobResults{
 			Job:         job,
 			IsConnected: connected,

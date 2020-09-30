@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package utils
 
 import (
@@ -39,6 +40,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
+// Kubernetes provides a convenience interface to kube functionality
 type Kubernetes struct {
 	mutex     *sync.Mutex
 	podCache  map[string][]v1.Pod
@@ -100,22 +102,22 @@ func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error
 // Probe execs into a pod and checks its connectivity to another pod.  Of course it assumes
 // that the target pod is serving on the input port, and also that wget is installed.  For perf it uses
 // spider rather then actually getting the full contents.
-func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, protocol v1.Protocol, fromPort int, toPort int) (bool, error, string) {
+func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, protocol v1.Protocol, fromPort int, toPort int) (bool, string, error) {
 	fromPods, err := k.GetPods(ns1, "pod", pod1)
 	if err != nil {
-		return false, errors.WithMessagef(err, "unable to get Pods from ns %s", ns1), ""
+		return false, "", errors.WithMessagef(err, "unable to get Pods from ns %s", ns1)
 	}
 	if len(fromPods) == 0 {
-		return false, errors.New(fmt.Sprintf("no pod of name %s in namespace %s found", pod1, ns1)), ""
+		return false, "", errors.New(fmt.Sprintf("no pod of name %s in namespace %s found", pod1, ns1))
 	}
 	fromPod := fromPods[0]
 
 	toPods, err := k.GetPods(ns2, "pod", pod2)
 	if err != nil {
-		return false, errors.WithMessagef(err, "unable to get Pods from ns %s", ns2), ""
+		return false, "", errors.WithMessagef(err, "unable to get Pods from ns %s", ns2)
 	}
 	if len(toPods) == 0 {
-		return false, errors.New(fmt.Sprintf("no pod of name %s in namespace %s found", pod2, ns2)), ""
+		return false, "", errors.New(fmt.Sprintf("no pod of name %s in namespace %s found", pod2, ns2))
 	}
 	toPod := toPods[0]
 
@@ -158,9 +160,9 @@ func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, pro
 		// log this error as trace since may be an expected failure
 		log.Infof("%s/%s -> %s/%s: error when running command: err - %v /// stdout - %s /// stderr - %s", ns1, pod1, ns2, pod2, err, stdout, stderr)
 		// do not return an error
-		return false, nil, theCommand
+		return false, theCommand, nil
 	}
-	return true, nil, theCommand
+	return true, theCommand, nil
 }
 
 // ExecuteRemoteCommand executes a remote shell command on the given pod
@@ -200,6 +202,7 @@ func (k *Kubernetes) ExecuteRemoteCommand(pod v1.Pod, cname string, command []st
 	return buf.String(), errBuf.String(), nil
 }
 
+// Client instantiates a clientset
 func Client() (*kubernetes.Clientset, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -344,6 +347,7 @@ func (k *Kubernetes) CleanNetworkPolicies(namespaces []string) error {
 	return nil
 }
 
+// ClearCache clears the kube pod cache
 func (k *Kubernetes) ClearCache() {
 	log.Info("Clearing pod cache...")
 	k.mutex.Lock()
@@ -438,10 +442,10 @@ func waitForPodInNamespace(k8s *Kubernetes, ns string, pod string) error {
 		if k8sPod != nil && k8sPod.Status.Phase == v1.PodRunning {
 			if k8sPod.Status.PodIP == "" {
 				return errors.Errorf("unable to get IP of pod %s/%s", ns, pod)
-			} else {
-				log.Debugf("IP of pod %s/%s is: %s", ns, pod, k8sPod.Status.PodIP)
-				//podIPs[ns+"/"+pod] = k8sPod.Status.PodIP
 			}
+
+			log.Debugf("IP of pod %s/%s is: %s", ns, pod, k8sPod.Status.PodIP)
+			//podIPs[ns+"/"+pod] = k8sPod.Status.PodIP
 
 			log.Debugf("pod running: %s/%s", ns, pod)
 			return nil

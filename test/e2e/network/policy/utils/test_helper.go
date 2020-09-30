@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package utils
 
 import (
@@ -31,7 +32,9 @@ import (
 )
 
 var (
+	// NetpolTestPods are the pod + deployment names used for connectivity probes
 	NetpolTestPods       = []string{"a", "b", "c"}
+	// NetpolTestNamespaces are the namespaces used for connectivity probes
 	NetpolTestNamespaces = []string{"x", "y", "z"}
 )
 
@@ -77,19 +80,21 @@ func jsonPrettyPrint(policy *networkingv1.NetworkPolicy) string {
 	return out.String()
 }
 
+// CleanPoliciesAndValidate removes network policies, then validates connectivity
 func CleanPoliciesAndValidate(f *framework.Framework, k8s *Kubernetes, scenario *Scenario, protocol v1.Protocol) {
 	err := k8s.CleanNetworkPolicies(scenario.Namespaces)
 	framework.ExpectNoError(err, "Error occurred while cleaning network policy")
 	reachability := NewReachability(scenario.AllPods, true)
-	ValidateOrFailFuncInner(k8s, f, "x", protocol, 83, 80, nil, reachability, false, scenario, false)
+	validateOrFailHelper(k8s, f, "x", protocol, 83, 80, nil, reachability, false, scenario, false)
 }
 
-func ValidateOrFailFunc(k8s *Kubernetes, f *framework.Framework, ns string, protocol v1.Protocol, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
+// ValidateOrFail removes network policies, then validates connectivity
+func ValidateOrFail(k8s *Kubernetes, f *framework.Framework, ns string, protocol v1.Protocol, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
 	reachability *Reachability, cleanPreviousPolicies bool, scenario *Scenario) {
-	ValidateOrFailFuncInner(k8s, f, ns, protocol, fromPort, toPort, policy, reachability, cleanPreviousPolicies, scenario, false)
+	validateOrFailHelper(k8s, f, ns, protocol, fromPort, toPort, policy, reachability, cleanPreviousPolicies, scenario, false)
 }
 
-func ValidateOrFailFuncInner(k8s *Kubernetes, f *framework.Framework, ns string, protocol v1.Protocol, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
+func validateOrFailHelper(k8s *Kubernetes, f *framework.Framework, ns string, protocol v1.Protocol, fromPort, toPort int, policy *networkingv1.NetworkPolicy,
 	reachability *Reachability, cleanPreviousPolicies bool, scenario *Scenario, quiet bool) {
 	if cleanPreviousPolicies {
 		err := k8s.CleanNetworkPolicies(scenario.Namespaces)
