@@ -613,20 +613,17 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		ginkgo.It("should enforce except clause while egress access to server in CIDR block [Feature:NetworkPolicy]", func() {
 			// Getting podServer's status to get podServer's IP, to create the CIDR with except clause
 			podList, err := f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=a"})
-			framework.ExpectNoError(err, "Failing to pod a in namespace x")
-			pod := podList.Items[0]
+			framework.ExpectNoError(err, "Failing to find pod x/a")
+			podA := podList.Items[0]
 
-			podServerAllowCIDR := fmt.Sprintf("%s/4", pod.Status.PodIP)
-
-			policyAllowCIDR := netpol.GetAllowEgressByCIDR("a", podServerAllowCIDR)
+			podServerAllowCIDR := fmt.Sprintf("%s/4", podA.Status.PodIP)
 
 			podList, err = f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=b"})
-			framework.ExpectNoError(err, "Failing to pod b in namespace x")
-			podb := podList.Items[0]
+			framework.ExpectNoError(err, "Failing to find pod x/b")
+			podB := podList.Items[0]
 
-			// Exclude podServer's IP with an Except clause
-			podServerExceptList := []string{fmt.Sprintf("%s/32", podb.Status.PodIP)}
-			policyAllowCIDR.Spec.Egress[0].To[0].IPBlock.Except = podServerExceptList
+			podServerExceptList := []string{fmt.Sprintf("%s/32", podB.Status.PodIP)}
+			policyAllowCIDR := netpol.GetAllowEgressByCIDRExcept("a", podServerAllowCIDR, podServerExceptList)
 
 			reachability := netpol.NewReachability(scenario.AllPods, true)
 			reachability.Expect("x/a", "x/b", false)
@@ -637,35 +634,33 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		ginkgo.It("should ensure an IP overlapping both IPBlock.CIDR and IPBlock.Except is allowed [Feature:NetworkPolicy]", func() {
 			// Getting podServer's status to get podServer's IP, to create the CIDR with except clause
 			podList, err := f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=a"})
-			framework.ExpectNoError(err, "Failing to pod a in namespace x")
-			pod := podList.Items[0]
-
-			podServerAllowCIDR := fmt.Sprintf("%s/4", pod.Status.PodIP)
-			policyAllowCIDR := netpol.GetAllowEgressByCIDR("a", podServerAllowCIDR)
+			framework.ExpectNoError(err, "Failing to find pod x/a")
+			podA := podList.Items[0]
 
 			podList, err = f.ClientSet.CoreV1().Pods("x").List(context.TODO(), metav1.ListOptions{LabelSelector: "pod=b"})
-			framework.ExpectNoError(err, "Failing to pod b in namespace x")
-			podb := podList.Items[0]
+			framework.ExpectNoError(err, "Failing to find pod x/b")
+			podB := podList.Items[0]
 
 			// Exclude podServer's IP with an Except clause
-			podServerExceptList := []string{fmt.Sprintf("%s/32", podb.Status.PodIP)}
-			policyAllowCIDR.Spec.Egress[0].To[0].IPBlock.Except = podServerExceptList
+			podServerAllowCIDR := fmt.Sprintf("%s/4", podA.Status.PodIP)
+			podServerExceptList := []string{fmt.Sprintf("%s/32", podB.Status.PodIP)}
+			policyAllowCIDR := netpol.GetAllowEgressByCIDRExcept("a", podServerAllowCIDR, podServerExceptList)
 
 			reachability := netpol.NewReachability(scenario.AllPods, true)
 			reachability.Expect("x/a", "x/b", false)
 
 			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, policyAllowCIDR, reachability, true, scenario)
 
-			podbIp := fmt.Sprintf("%s/32", podb.Status.PodIP)
+			podBIP := fmt.Sprintf("%s/32", podB.Status.PodIP)
 			//// Create NetworkPolicy which allows access to the podServer using podServer's IP in allow CIDR.
-			allowPolicy := netpol.GetAllowEgressByCIDR("a", podbIp)
+			allowPolicy := netpol.GetAllowEgressByCIDR("a", podBIP)
 
-			reachability_2 := netpol.NewReachability(scenario.AllPods, true)
-			reachability_2.ExpectAllEgress("x/a", false)
-			reachability_2.Expect("x/a", "x/b", true)
-			reachability_2.AllowLoopback()
+			reachabilityAllow := netpol.NewReachability(scenario.AllPods, true)
+			reachabilityAllow.ExpectAllEgress("x/a", false)
+			reachabilityAllow.Expect("x/a", "x/b", true)
+			reachabilityAllow.AllowLoopback()
 
-			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, allowPolicy, reachability_2, false, scenario)
+			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, allowPolicy, reachabilityAllow, false, scenario)
 		})
 
 		ginkgo.It("should enforce policies to check ingress and egress policies can be controlled independently based on PodSelector [Feature:NetworkPolicy]", func() {
@@ -673,34 +668,34 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 				Test steps:
 				1. Verify every pod in every namespace can talk to each other
 				2. Create and apply a policy to allow egress traffic to pod b
-				3. Deny all Ingress traffic to Pod A in Namespace A (so that B cannot talk to A, that is how it was originally
-				4. Verify B cannot send traffic to A
-				5. Verify A can send traffic to B
+				3. Deny all Ingress traffic to Pod A in Namespace A (so that B cannot talk to A)
+				4. Verify B->A: blocked
+				5. Verify A->B: allowed
 			*/
-			policy := netpol.GetAllowIngress("allow-all")
+			allowAllIngressPolicy := netpol.GetAllowIngress("allow-all")
 
 			reachability := netpol.NewReachability(scenario.AllPods, true)
-			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, policy, reachability, true, scenario)
+			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, allowAllIngressPolicy, reachability, true, scenario)
 
 			ginkgo.By("Creating a network policy for pod-a which allows Egress traffic to pod-b.")
 
-			egressPolicyAllowToB := netpol.GetAllowEgressByPod("a", "b")
+			allowEgressToBPolicy := netpol.GetAllowEgressByPod("a", "b")
 
-			reachability = netpol.NewReachability(scenario.AllPods, true)
-			reachability.ExpectAllEgress("x/a", false)
-			reachability.AllowLoopback()
-			reachability.Expect("x/a", "x/b", true)
+			allowEgressToBReachability := netpol.NewReachability(scenario.AllPods, true)
+			allowEgressToBReachability.ExpectAllEgress("x/a", false)
+			allowEgressToBReachability.AllowLoopback()
+			allowEgressToBReachability.Expect("x/a", "x/b", true)
 
-			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, egressPolicyAllowToB, reachability, true, scenario)
+			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, allowEgressToBPolicy, allowEgressToBReachability, true, scenario)
 
 			ginkgo.By("Creating a network policy for pod-a that denies traffic from pod-b.")
-			policyDenyFromPodB := netpol.GetDenyIngress("deny-all")
+			denyAllIngressPolicy := netpol.GetDenyIngress("deny-all")
 
-			reachability2 := netpol.NewReachability(scenario.AllPods, true)
-			reachability2.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
-			reachability2.AllowLoopback()
+			denyIngressToXReachability := netpol.NewReachability(scenario.AllPods, true)
+			denyIngressToXReachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
+			denyIngressToXReachability.AllowLoopback()
 
-			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, policyDenyFromPodB, reachability2, true, scenario)
+			netpol.ValidateOrFailFunc(k8s, f, "x", v1.ProtocolTCP, 82, 80, denyAllIngressPolicy, denyIngressToXReachability, true, scenario)
 		})
 
 		// NOTE: SCTP protocol is not in Kubernetes 1.19 so this test will fail locally.

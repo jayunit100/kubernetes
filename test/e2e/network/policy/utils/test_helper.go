@@ -1,3 +1,18 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package utils
 
 import (
@@ -20,6 +35,7 @@ var (
 	NetpolTestNamespaces = []string{"x", "y", "z"}
 )
 
+// GetAllPods returns a cartesian product of test namespaces and test pods
 func GetAllPods() []PodString {
 	var allPods []PodString
 	for _, podName := range NetpolTestPods {
@@ -30,6 +46,7 @@ func GetAllPods() []PodString {
 	return allPods
 }
 
+// Scenario describes the data for a netpol test
 type Scenario struct {
 	Pods       []string
 	Namespaces []string
@@ -107,6 +124,7 @@ func ValidateOrFailFuncInner(k8s *Kubernetes, f *framework.Framework, ns string,
 	}
 }
 
+// ResetNamespaceLabels returns a namespace's labels to their original state
 func ResetNamespaceLabels(f *framework.Framework, ns string) {
 	selectedNameSpace, err := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
 	framework.ExpectNoError(err, "Failing to get namespace %v", ns)
@@ -116,6 +134,7 @@ func ResetNamespaceLabels(f *framework.Framework, ns string) {
 	time.Sleep(10 * time.Second)
 }
 
+// ResetDeploymentPodLabels returns a deployment's spec labels to their original state
 func ResetDeploymentPodLabels(f *framework.Framework, ns string, pod string) {
 	deployment, err := f.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
 	framework.ExpectNoError(err, "Failing to get deployment %s/%s", ns, pod)
@@ -125,6 +144,7 @@ func ResetDeploymentPodLabels(f *framework.Framework, ns string, pod string) {
 	time.Sleep(10 * time.Second)
 }
 
+// UpdateNamespaceLabels sets the labels for a namespace
 func UpdateNamespaceLabels(f *framework.Framework, ns string, newNsLabel map[string]string) {
 	selectedNameSpace, err := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
 	framework.ExpectNoError(err, "Failing to get namespace %v", ns)
@@ -134,6 +154,7 @@ func UpdateNamespaceLabels(f *framework.Framework, ns string, newNsLabel map[str
 	time.Sleep(10 * time.Second)
 }
 
+// AddDeploymentPodLabels adds new labels to a deployment's template
 func AddDeploymentPodLabels(f *framework.Framework, ns string, pod string, newPodLabels map[string]string) {
 	deployment, err := f.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
 	framework.ExpectNoError(err, "Failing to get deployment %s/%s", ns, pod)
@@ -145,6 +166,7 @@ func AddDeploymentPodLabels(f *framework.Framework, ns string, pod string, newPo
 	time.Sleep(10 * time.Second)
 }
 
+// UpdateDeploymentPodLabels sets the labels for a deployment's template
 func UpdateDeploymentPodLabels(f *framework.Framework, ns string, pod string, newPodLabels map[string]string) {
 	deployment, err := f.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
 	framework.ExpectNoError(err, "Failing to get deployment %s/%s", ns, pod)
