@@ -616,11 +616,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 			framework.ExpectNoError(err, "Failing to pod a in namespace x")
 			pod := podList.Items[0]
 
-			hostMask := 32
-			if utilnet.IsIPv6String(pod.Status.PodIP) {
-				hostMask = 128
-			}
-			podServerAllowCIDR := fmt.Sprintf("%s/%d", pod.Status.PodIP, hostMask)
+			podServerAllowCIDR := fmt.Sprintf("%s/4", pod.Status.PodIP)
 
 			policyAllowCIDR := netpol.GetAllowEgressByCIDR("a", podServerAllowCIDR)
 
