@@ -33,7 +33,7 @@ import (
 
 var (
 	// NetpolTestPods are the pod + deployment names used for connectivity probes
-	NetpolTestPods       = []string{"a", "b", "c"}
+	NetpolTestPods = []string{"a", "b", "c"}
 	// NetpolTestNamespaces are the namespaces used for connectivity probes
 	NetpolTestNamespaces = []string{"x", "y", "z"}
 )
