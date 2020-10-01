@@ -20,7 +20,6 @@ go_library(
         "//staging/src/k8s.io/apimachinery/pkg/util/intstr:go_default_library",
         "//staging/src/k8s.io/client-go/kubernetes:go_default_library",
         "//staging/src/k8s.io/client-go/kubernetes/scheme:go_default_library",
-        "//staging/src/k8s.io/client-go/rest:go_default_library",
         "//staging/src/k8s.io/client-go/tools/clientcmd:go_default_library",
         "//staging/src/k8s.io/client-go/tools/remotecommand:go_default_library",
         "//test/e2e/framework:go_default_library",
