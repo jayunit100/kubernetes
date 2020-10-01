@@ -88,7 +88,7 @@ func CreateOrUpdatePolicy(k8s *Kubernetes, policy *networkingv1.NetworkPolicy, n
 	framework.ExpectNoError(err, "Unable to create/update netpol")
 }
 
-// CleanPoliciesAndValidate removes network policies, then validates connectivity
+// CleanPolicies removes network policies
 func CleanPolicies(k8s *Kubernetes, namespaces []string) {
 	err := k8s.CleanNetworkPolicies(namespaces)
 	framework.ExpectNoError(err, "Error occurred while cleaning network policy")
