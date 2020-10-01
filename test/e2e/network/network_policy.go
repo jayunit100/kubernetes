@@ -737,69 +737,69 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 	})
 })
 
-var _ = SIGDescribe("NetworkPolicy [Feature:SCTPConnectivity][LinuxOnly][Disruptive]", func() {
-	f := framework.NewDefaultFramework("sctp-network-policy")
-	var k8s *netpol.Kubernetes
-	var err error
-	scenario := netpol.NewScenario()
-
-	ginkgo.BeforeEach(func() {
-		if k8s == nil {
-			k8s, err = netpol.NewKubernetes()
-			framework.ExpectNoError(err, "Error occurred while getting k8s client")
-			k8s.Bootstrap(netpol.NetpolTestNamespaces, netpol.NetpolTestPods, netpol.GetAllPods())
-		}
-		// Windows does not support network policies.
-		e2eskipper.SkipIfNodeOSDistroIs("windows")
-	})
-
-	ginkgo.Context("NetworkPolicy between server and client using SCTP", func() {
-		ginkgo.BeforeEach(func() {
-			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
-			netpol.CleanPoliciesAndValidate(f, k8s, scenario, v1.ProtocolSCTP)
-		})
-
-		ginkgo.It("should support a 'default-deny' policy [Feature:NetworkPolicy]", func() {
-			policy := netpol.GetDenyIngress("deny-ingress")
-
-			reachability := netpol.NewReachability(scenario.AllPods, false)
-			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
-			reachability.AllowLoopback()
-
-			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolSCTP, 82, 80, policy, reachability, false, scenario)
-		})
-	})
-})
-
-var _ = SIGDescribe("NetworkPolicy [Feature:UDPConnectivity][LinuxOnly][Disruptive]", func() {
-	f := framework.NewDefaultFramework("udp-network-policy")
-	var k8s *netpol.Kubernetes
-	var err error
-	scenario := netpol.NewScenario()
-
-	ginkgo.BeforeEach(func() {
-		if k8s == nil {
-			k8s, err = netpol.NewKubernetes()
-			framework.ExpectNoError(err, "Error occurred while getting k8s client")
-			k8s.Bootstrap(netpol.NetpolTestNamespaces, netpol.NetpolTestPods, netpol.GetAllPods())
-		}
-		// Windows does not support network policies.
-		e2eskipper.SkipIfNodeOSDistroIs("windows")
-	})
-
-	ginkgo.Context("NetworkPolicy between server and client using UDP", func() {
-		ginkgo.BeforeEach(func() {
-			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
-			netpol.CleanPoliciesAndValidate(f, k8s, scenario, v1.ProtocolUDP)
-		})
-		ginkgo.It("should support a 'default-deny' policy [Feature:NetworkPolicy]", func() {
-			policy := netpol.GetDenyIngress("deny-ingress")
-
-			reachability := netpol.NewReachability(scenario.AllPods, true)
-			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
-			reachability.AllowLoopback()
-
-			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolUDP, 82, 80, policy, reachability, false, scenario)
-		})
-	})
-})
+//var _ = SIGDescribe("NetworkPolicy [Feature:SCTPConnectivity][LinuxOnly][Disruptive]", func() {
+//	f := framework.NewDefaultFramework("sctp-network-policy")
+//	var k8s *netpol.Kubernetes
+//	var err error
+//	scenario := netpol.NewScenario()
+//
+//	ginkgo.BeforeEach(func() {
+//		if k8s == nil {
+//			k8s, err = netpol.NewKubernetes()
+//			framework.ExpectNoError(err, "Error occurred while getting k8s client")
+//			k8s.Bootstrap(netpol.NetpolTestNamespaces, netpol.NetpolTestPods, netpol.GetAllPods())
+//		}
+//		// Windows does not support network policies.
+//		e2eskipper.SkipIfNodeOSDistroIs("windows")
+//	})
+//
+//	ginkgo.Context("NetworkPolicy between server and client using SCTP", func() {
+//		ginkgo.BeforeEach(func() {
+//			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
+//			netpol.CleanPoliciesAndValidate(f, k8s, scenario, v1.ProtocolSCTP)
+//		})
+//
+//		ginkgo.It("should support a 'default-deny' policy [Feature:NetworkPolicy]", func() {
+//			policy := netpol.GetDenyIngress("deny-ingress")
+//
+//			reachability := netpol.NewReachability(scenario.AllPods, false)
+//			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
+//			reachability.AllowLoopback()
+//
+//			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolSCTP, 82, 80, policy, reachability, false, scenario)
+//		})
+//	})
+//})
+//
+//var _ = SIGDescribe("NetworkPolicy [Feature:UDPConnectivity][LinuxOnly][Disruptive]", func() {
+//	f := framework.NewDefaultFramework("udp-network-policy")
+//	var k8s *netpol.Kubernetes
+//	var err error
+//	scenario := netpol.NewScenario()
+//
+//	ginkgo.BeforeEach(func() {
+//		if k8s == nil {
+//			k8s, err = netpol.NewKubernetes()
+//			framework.ExpectNoError(err, "Error occurred while getting k8s client")
+//			k8s.Bootstrap(netpol.NetpolTestNamespaces, netpol.NetpolTestPods, netpol.GetAllPods())
+//		}
+//		// Windows does not support network policies.
+//		e2eskipper.SkipIfNodeOSDistroIs("windows")
+//	})
+//
+//	ginkgo.Context("NetworkPolicy between server and client using UDP", func() {
+//		ginkgo.BeforeEach(func() {
+//			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
+//			netpol.CleanPoliciesAndValidate(f, k8s, scenario, v1.ProtocolUDP)
+//		})
+//		ginkgo.It("should support a 'default-deny' policy [Feature:NetworkPolicy]", func() {
+//			policy := netpol.GetDenyIngress("deny-ingress")
+//
+//			reachability := netpol.NewReachability(scenario.AllPods, true)
+//			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
+//			reachability.AllowLoopback()
+//
+//			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolUDP, 82, 80, policy, reachability, false, scenario)
+//		})
+//	})
+//})
