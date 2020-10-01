@@ -404,28 +404,6 @@ func GetAllowEgressByCIDRExcept(podname string, podserverCIDR string, except []s
 	}
 }
 
-// GetAllowIngressOnSCTPByPort allows ingress on protocol SCTP by port
-func GetAllowIngressOnSCTPByPort(name string, targetLabels map[string]string, portNum *intstr.IntOrString) *networkingv1.NetworkPolicy {
-	protocolSCTP := v1.ProtocolSCTP
-	policy := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{
-				MatchLabels: targetLabels,
-			},
-			Ingress: []networkingv1.NetworkPolicyIngressRule{{
-				Ports: []networkingv1.NetworkPolicyPort{{
-					Port:     portNum,
-					Protocol: &protocolSCTP,
-				}},
-			}},
-		},
-	}
-	return policy
-}
-
 // GetAllowIngressOnProtocolByPort is a base network policy template which distinguishes between the types of v1.Protocol available in v1 core
 func GetAllowIngressOnProtocolByPort(name string, protocol v1.Protocol, targetLabels map[string]string, portNum *intstr.IntOrString) *networkingv1.NetworkPolicy {
 	policy := &networkingv1.NetworkPolicy{
