@@ -51,7 +51,7 @@ func GetDenyIngress(name string) *networkingv1.NetworkPolicy {
 	}
 }
 
-// GetRandomIngressPolicies returns "num" random policies that whitelist a unique:n label, i.e.
+// GetRandomIngressPolicies returns "num" random policies that allow a unique:n label, i.e.
 // unique:1, unique:2, and so on.  Used for creating a 'background' set of policies.
 func GetRandomIngressPolicies(num int) []*networkingv1.NetworkPolicy {
 	policies := []*networkingv1.NetworkPolicy{}
