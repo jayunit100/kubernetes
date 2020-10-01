@@ -20,13 +20,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
-
-	"k8s.io/client-go/rest"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -34,7 +30,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
@@ -44,20 +40,16 @@ import (
 type Kubernetes struct {
 	mutex     *sync.Mutex
 	podCache  map[string][]v1.Pod
-	ClientSet *kubernetes.Clientset
+	ClientSet clientset.Interface
 }
 
 //NewKubernetes is a utility function that wraps creation of the Kube client.
-func NewKubernetes() (*Kubernetes, error) {
-	clientSet, err := Client()
-	if err != nil {
-		return nil, errors.WithMessagef(err, "unable to instantiate kube client")
-	}
+func NewKubernetes(clientSet clientset.Interface) *Kubernetes {
 	return &Kubernetes{
 		mutex:     &sync.Mutex{},
 		podCache:  map[string][]v1.Pod{},
 		ClientSet: clientSet,
-	}, nil
+	}
 }
 
 // GetPod returns a pod with the matching namespace and name
@@ -84,8 +76,10 @@ func (k *Kubernetes) getPodsUncached(ns string, key, val string) ([]v1.Pod, erro
 
 // GetPods returns an array of all Pods in the given namespace having a k/v label pair.
 func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error) {
-
-	if p, ok := k.podCache[fmt.Sprintf("%v_%v_%v", ns, key, val)]; ok {
+	k.mutex.Lock()
+	p, ok := k.podCache[fmt.Sprintf("%v_%v_%v", ns, key, val)]
+	k.mutex.Unlock()
+	if ok {
 		return p, nil
 	}
 
@@ -93,9 +87,11 @@ func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error
 	if err != nil {
 		return nil, errors.WithMessage(err, "unable to list Pods")
 	}
+
 	k.mutex.Lock()
 	k.podCache[fmt.Sprintf("%v_%v_%v", ns, key, val)] = v1PodList
 	k.mutex.Unlock()
+
 	return v1PodList, nil
 }
 
@@ -200,25 +196,6 @@ func (k *Kubernetes) ExecuteRemoteCommand(pod v1.Pod, cname string, command []st
 		return buf.String(), errBuf.String(), err
 	}
 	return buf.String(), errBuf.String(), nil
-}
-
-// Client instantiates a clientset
-func Client() (*kubernetes.Clientset, error) {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		kubeconfig := filepath.Join(
-			os.Getenv("HOME"), ".kube", "config",
-		)
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			return nil, errors.WithMessagef(err, "unable to build config from flags, check that your KUBECONFIG file is correct !")
-		}
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "unable to instantiate clientset")
-	}
-	return clientset, nil
 }
 
 // CreateOrUpdateNamespace is a convenience function for idempotent setup of Namespaces

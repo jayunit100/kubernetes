@@ -311,32 +311,36 @@ func GetAllowEgress() *networkingv1.NetworkPolicy {
 	}
 }
 
-// GetAllowEgressByPod allows egress by pod labels
-func GetAllowEgressByPod(name string, toPod string) *networkingv1.NetworkPolicy {
+// GetAllowEgressForTarget allows all egress for a target
+func GetAllowEgressForTarget(targetSelector metav1.LabelSelector) *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("allow-egress-by-pod-%s-%s", name, toPod),
+			Name: "allow-egress-for-target",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: targetSelector,
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
+			Egress:      []networkingv1.NetworkPolicyEgressRule{{}},
+		},
+	}
+}
+
+// GetAllowEgressByPod allows egress by pod labels
+func GetAllowEgressByPod(name string, targetLabels map[string]string, peerPodSelector *metav1.LabelSelector) *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"pod": name,
-				},
+				MatchLabels: targetLabels,
 			},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
-			Egress: []networkingv1.NetworkPolicyEgressRule{
-				{
-					To: []networkingv1.NetworkPolicyPeer{
-						{
-							PodSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"pod": toPod,
-								},
-							},
-						},
-					},
-				},
-			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{{
+				To: []networkingv1.NetworkPolicyPeer{{
+					PodSelector: peerPodSelector,
+				}},
+			}},
 		},
 	}
 }

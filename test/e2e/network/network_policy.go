@@ -22,8 +22,6 @@ import (
 	utilnet "k8s.io/utils/net"
 	"time"
 
-	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
-
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/onsi/ginkgo"
@@ -55,7 +53,7 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 		if k8s == nil {
 			var err error
 			framework.Logf("instantiating Kubernetes helper")
-			k8s, err = netpol.NewKubernetes()
+			k8s = netpol.NewKubernetes(f.ClientSet)
 
 			framework.ExpectNoError(err, "Unable to instantiate Kubernetes helper")
 			framework.Logf("bootstrapping cluster: ensuring namespaces, deployments, and pods exist and are ready")
@@ -665,88 +663,78 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 
 		ginkgo.It("should enforce policies to check ingress and egress policies can be controlled independently based on PodSelector [Feature:NetworkPolicy]", func() {
 			/*
-				Test steps:
-				1. Verify every pod in every namespace can talk to each other
-				2. Create and apply a policy to allow egress traffic to pod b
-				3. Deny all Ingress traffic to Pod A in Namespace A (so that B cannot talk to A)
-				4. Verify B->A: blocked
-				5. Verify A->B: allowed
+					Test steps:
+					1. Verify every pod in every namespace can talk to each other
+				       - including a -> b and b -> a
+					2. Create a policy to allow egress a -> b (target = a)
+				    3. Create a policy to *deny* ingress b -> a (target = a)
+					4. Verify a -> b allowed; b -> a blocked
 			*/
-			allowAllIngressPolicy := netpol.GetAllowIngress("allow-all")
-
-			reachability := netpol.NewReachability(scenario.AllPods, true)
-			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolTCP, 82, 80, allowAllIngressPolicy, reachability, true, scenario)
+			targetLabels := map[string]string{"pod": "a"}
 
 			ginkgo.By("Creating a network policy for pod-a which allows Egress traffic to pod-b.")
 
-			allowEgressToBPolicy := netpol.GetAllowEgressByPod("a", "b")
-
-			allowEgressToBReachability := netpol.NewReachability(scenario.AllPods, true)
-			allowEgressToBReachability.ExpectAllEgress("x/a", false)
-			allowEgressToBReachability.AllowLoopback()
-			allowEgressToBReachability.Expect("x/a", "x/b", true)
-
-			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolTCP, 82, 80, allowEgressToBPolicy, allowEgressToBReachability, true, scenario)
+			allowEgressPolicy := netpol.GetAllowEgressForTarget(metav1.LabelSelector{MatchLabels: targetLabels})
+			allowEgressReachability := netpol.NewReachability(scenario.AllPods, true)
+			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolTCP, 82, 80, allowEgressPolicy, allowEgressReachability, true, scenario)
 
 			ginkgo.By("Creating a network policy for pod-a that denies traffic from pod-b.")
-			denyAllIngressPolicy := netpol.GetDenyIngress("deny-all")
 
+			denyAllIngressPolicy := netpol.GetDenyIngressForTarget(metav1.LabelSelector{MatchLabels: targetLabels})
 			denyIngressToXReachability := netpol.NewReachability(scenario.AllPods, true)
-			denyIngressToXReachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
+			denyIngressToXReachability.ExpectAllIngress("x/a", false)
 			denyIngressToXReachability.AllowLoopback()
 
 			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolTCP, 82, 80, denyAllIngressPolicy, denyIngressToXReachability, true, scenario)
 		})
 
-		// NOTE: SCTP protocol is not in Kubernetes 1.19 so this test will fail locally.
-		ginkgo.It("should not allow access by TCP when a policy specifies only SCTP [Feature:NetworkPolicy] [Feature:SCTP]", func() {
-			policy := netpol.GetAllowIngressOnSCTPByPort("allow-only-sctp-ingress-on-port-81", map[string]string{"pod": "a"}, &intstr.IntOrString{IntVal: 81})
-			ginkgo.By("Creating a network policy for the server which allows traffic only via SCTP on port 81.")
-			//protocolSCTP := v1.ProtocolSCTP
-			//			//// WARNING ! Since we are adding a port rule, that means that the lack of a
-			//			//// pod selector will cause this policy to target the ENTIRE namespace.....
-			//			//policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
-			//			//	//Port:     &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81"},
-			//			//	Port:     &intstr.IntOrString{IntVal: 81},
-			//			//	Protocol: &protocolSCTP,
-			//			//}}
-
-			// Probing with TCP, so all traffic should be dropped.
-			reachability := netpol.NewReachability(scenario.AllPods, true)
-			reachability.ExpectAllIngress("x/a", false)
-			reachability.AllowLoopback()
-
-			//TODO check SCTP is not module is not available at time of testing
-			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolTCP, 82, 81, policy, reachability, true, scenario)
-		})
-
-		ginkgo.It("should not allow access by TCP when a policy specifies only UDP [Feature:NetworkPolicy] [Feature:UDP]", func() {
-			policy := netpol.GetAllowIngressOnProtocolByPort(
-				"allow-only-udp-ingress-on-port-81",
-				v1.ProtocolUDP,
-				map[string]string{"pod": "a"}, &intstr.IntOrString{IntVal: 81},
-			)
-			ginkgo.By("Creating a network policy for the server which allows traffic only via UDP on port 81.")
-
-			// Probing with TCP, so all traffic should be dropped.
-			reachability := netpol.NewReachability(scenario.AllPods, true)
-			reachability.ExpectAllIngress("x/a", false)
-			reachability.AllowLoopback()
-			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolTCP, 82, 81, policy, reachability, true, scenario)
-		})
+		//// NOTE: SCTP protocol is not in Kubernetes 1.19 so this test will fail locally.
+		//ginkgo.It("should not allow access by TCP when a policy specifies only SCTP [Feature:NetworkPolicy] [Feature:SCTP]", func() {
+		//	policy := netpol.GetAllowIngressOnSCTPByPort("allow-only-sctp-ingress-on-port-81", map[string]string{"pod": "a"}, &intstr.IntOrString{IntVal: 81})
+		//	ginkgo.By("Creating a network policy for the server which allows traffic only via SCTP on port 81.")
+		//	//protocolSCTP := v1.ProtocolSCTP
+		//	//			//// WARNING ! Since we are adding a port rule, that means that the lack of a
+		//	//			//// pod selector will cause this policy to target the ENTIRE namespace.....
+		//	//			//policy.Spec.Ingress[0].Ports = []networkingv1.NetworkPolicyPort{{
+		//	//			//	//Port:     &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81"},
+		//	//			//	Port:     &intstr.IntOrString{IntVal: 81},
+		//	//			//	Protocol: &protocolSCTP,
+		//	//			//}}
+		//
+		//	// Probing with TCP, so all traffic should be dropped.
+		//	reachability := netpol.NewReachability(scenario.AllPods, true)
+		//	reachability.ExpectAllIngress("x/a", false)
+		//	reachability.AllowLoopback()
+		//
+		//	//TODO check SCTP is not module is not available at time of testing
+		//	netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolTCP, 82, 81, policy, reachability, true, scenario)
+		//})
+		//
+		//ginkgo.It("should not allow access by TCP when a policy specifies only UDP [Feature:NetworkPolicy] [Feature:UDP]", func() {
+		//	policy := netpol.GetAllowIngressOnProtocolByPort(
+		//		"allow-only-udp-ingress-on-port-81",
+		//		v1.ProtocolUDP,
+		//		map[string]string{"pod": "a"}, &intstr.IntOrString{IntVal: 81},
+		//	)
+		//	ginkgo.By("Creating a network policy for the server which allows traffic only via UDP on port 81.")
+		//
+		//	// Probing with TCP, so all traffic should be dropped.
+		//	reachability := netpol.NewReachability(scenario.AllPods, true)
+		//	reachability.ExpectAllIngress("x/a", false)
+		//	reachability.AllowLoopback()
+		//	netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolTCP, 82, 81, policy, reachability, true, scenario)
+		//})
 	})
 })
 
 //var _ = SIGDescribe("NetworkPolicy [Feature:SCTPConnectivity][LinuxOnly][Disruptive]", func() {
 //	f := framework.NewDefaultFramework("sctp-network-policy")
 //	var k8s *netpol.Kubernetes
-//	var err error
 //	scenario := netpol.NewScenario()
 //
 //	ginkgo.BeforeEach(func() {
 //		if k8s == nil {
-//			k8s, err = netpol.NewKubernetes()
-//			framework.ExpectNoError(err, "Error occurred while getting k8s client")
+//			k8s = netpol.NewKubernetes(f.ClientSet)
 //			k8s.Bootstrap(netpol.NetpolTestNamespaces, netpol.NetpolTestPods, netpol.GetAllPods())
 //		}
 //		// Windows does not support network policies.
@@ -774,13 +762,11 @@ var _ = SIGDescribe("NetworkPolicy [LinuxOnly]", func() {
 //var _ = SIGDescribe("NetworkPolicy [Feature:UDPConnectivity][LinuxOnly][Disruptive]", func() {
 //	f := framework.NewDefaultFramework("udp-network-policy")
 //	var k8s *netpol.Kubernetes
-//	var err error
 //	scenario := netpol.NewScenario()
 //
 //	ginkgo.BeforeEach(func() {
 //		if k8s == nil {
-//			k8s, err = netpol.NewKubernetes()
-//			framework.ExpectNoError(err, "Error occurred while getting k8s client")
+//			k8s = netpol.NewKubernetes(f.ClientSet)
 //			k8s.Bootstrap(netpol.NetpolTestNamespaces, netpol.NetpolTestPods, netpol.GetAllPods())
 //		}
 //		// Windows does not support network policies.
