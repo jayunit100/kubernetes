@@ -32,15 +32,6 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 )
 
-/*
-The following Network Policy tests verify that policy object definitions
-are correctly enforced by a networking plugin. It accomplishes this by launching
-a simple netcat server, and two clients with different
-attributes. Each test case creates a network policy which should only allow
-connections from one of the clients. The test then asserts that the clients
-failed or successfully connected as expected.
-*/
-
 var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 	f := framework.NewDefaultFramework("netpol")
 
@@ -54,9 +45,7 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 
 			framework.ExpectNoError(err, "Unable to instantiate Kubernetes helper")
 			framework.Logf("bootstrapping cluster: ensuring namespaces, deployments, and pods exist and are ready")
-			// TODO why does this error on the first test case?
-			//err = k8s.Bootstrap(netpol.NetpolTestNamespaces, netpol.NetpolTestPods, netpol.GetAllPods())
-			//framework.ExpectNoError(err, "Unable to bootstrap cluster")
+			
 			k8s.Bootstrap(NetpolTestNamespaces, NetpolTestPods, GetAllPods())
 			framework.Logf("finished bootstrapping cluster")
 
@@ -793,66 +782,3 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 		})
 	})
 })
-
-//var _ = SIGDescribe("NetworkPolicy [Feature:SCTPConnectivity][LinuxOnly][Disruptive]", func() {
-//	f := framework.NewDefaultFramework("sctp-network-policy")
-//	var k8s *netpol.Kubernetes
-//	scenario := netpol.NewScenario()
-//
-//	ginkgo.BeforeEach(func() {
-//		if k8s == nil {
-//			k8s = netpol.NewKubernetes(f.ClientSet)
-//			k8s.Bootstrap(netpol.NetpolTestNamespaces, netpol.NetpolTestPods, netpol.GetAllPods())
-//		}
-//		// Windows does not support network policies.
-//		e2eskipper.SkipIfNodeOSDistroIs("windows")
-//	})
-//
-//	ginkgo.Context("NetworkPolicy between server and client using SCTP", func() {
-//		ginkgo.BeforeEach(func() {
-//			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
-//			netpol.CleanPoliciesAndValidate(f, k8s, scenario, v1.ProtocolSCTP)
-//		})
-//
-//		ginkgo.It("should support a 'default-deny' policy [Feature:Netpol]", func() {
-//			policy := netpol.GetDenyIngress("deny-ingress")
-//
-//			reachability := netpol.NewReachability(netpol.GetAllPods(), false)
-//			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
-//			reachability.AllowLoopback()
-//
-//			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolSCTP, 82, 80, policy, reachability, false, scenario)
-//		})
-//	})
-//})
-//
-//var _ = SIGDescribe("NetworkPolicy [Feature:UDPConnectivity][LinuxOnly][Disruptive]", func() {
-//	f := framework.NewDefaultFramework("udp-network-policy")
-//	var k8s *netpol.Kubernetes
-//	scenario := netpol.NewScenario()
-//
-//	ginkgo.BeforeEach(func() {
-//		if k8s == nil {
-//			k8s = netpol.NewKubernetes(f.ClientSet)
-//			k8s.Bootstrap(netpol.NetpolTestNamespaces, netpol.NetpolTestPods, netpol.GetAllPods())
-//		}
-//		// Windows does not support network policies.
-//		e2eskipper.SkipIfNodeOSDistroIs("windows")
-//	})
-//
-//	ginkgo.Context("NetworkPolicy between server and client using UDP", func() {
-//		ginkgo.BeforeEach(func() {
-//			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
-//			netpol.CleanPoliciesAndValidate(f, k8s, scenario, v1.ProtocolUDP)
-//		})
-//		ginkgo.It("should support a 'default-deny' policy [Feature:Netpol]", func() {
-//			policy := netpol.GetDenyIngress("deny-ingress")
-//
-//			reachability := netpol.NewReachability(netpol.GetAllPods(), true)
-//			reachability.ExpectPeer(&netpol.Peer{}, &netpol.Peer{Namespace: "x"}, false)
-//			reachability.AllowLoopback()
-//
-//			netpol.ValidateOrFail(k8s, f, "x", v1.ProtocolUDP, 82, 80, policy, reachability, false, scenario)
-//		})
-//	})
-//})
