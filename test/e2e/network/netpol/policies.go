@@ -26,19 +26,6 @@ import (
 )
 
 // GetDenyIngress returns a default deny policy named 'name'.
-// 	 Note we have several defaults that are empty/nil here.
-//   - Empty podSelector:  this means that *all* Pods in the namespace are selected.
-//   - No Selector type: this means we default to Ingress.
-//
-// Equivalent YAML:
-//
-// kind: NetworkPolicy
-//  apiVersion: networking.k8s.io/v1
-//  metadata:
-//    name: name
-//  spec:
-//    podSelector:
-//    ingress: []
 func GetDenyIngress(name string) *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
