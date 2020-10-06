@@ -95,9 +95,7 @@ func (k *Kubernetes) GetPods(ns string, key string, val string) ([]v1.Pod, error
 	return v1PodList, nil
 }
 
-// Probe execs into a pod and checks its connectivity to another pod.  Of course it assumes
-// that the target pod is serving on the input port, and also that wget is installed.  For perf it uses
-// spider rather then actually getting the full contents.
+// Probe execs into a pod and checks its connectivity to another pod.
 func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, protocol v1.Protocol, fromPort int, toPort int) (bool, string, error) {
 	fromPods, err := k.GetPods(ns1, "pod", pod1)
 	if err != nil {
@@ -119,17 +117,9 @@ func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, pro
 
 	toIP := toPod.Status.PodIP
 
-	// There seems to be an issue when running Antrea in Kind where tunnel traffic is dropped at
-	// first. This leads to the first test being run consistently failing. To avoid this issue
-	// until it is resolved, we try to connect 3 times.
-	// See https://github.com/vmware-tanzu/antrea/issues/467.
 	cmd := []string{
 		"/bin/sh",
 		"-c",
-		// 3 tries, timeout is 1 second
-		// it uses the identical port for send and receive traffic.  TODO possibly support different ports.
-
-		// fmt.Sprintf("for i in $(seq 1 3); do ncat -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort),
 	}
 
 	var protocolString string
@@ -147,22 +137,17 @@ func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, pro
 	default:
 		panic(errors.Errorf("protocol %s not supported", protocol))
 	}
-	// HACK: inferring container name as c80, c81, etc, for simplicity.
-	// TODO this is indirectly coupled to the deployment name -- this connection should be made explicitly
 	containerName := fmt.Sprintf("c%v-%v", toPort, protocolString)
 	theCommand := fmt.Sprintf("kubectl exec %s -c %s -n %s -- %s", fromPod.Name, containerName, fromPod.Namespace, strings.Join(cmd, " "))
 	stdout, stderr, err := k.ExecuteRemoteCommand(fromPod, containerName, cmd)
 	if err != nil {
-		// log this error as trace since may be an expected failure
 		log.Infof("%s/%s -> %s/%s: error when running command: err - %v /// stdout - %s /// stderr - %s", ns1, pod1, ns2, pod2, err, stdout, stderr)
-		// do not return an error
 		return false, theCommand, nil
 	}
 	return true, theCommand, nil
 }
 
-// ExecuteRemoteCommand executes a remote shell command on the given pod
-// returns the output from stdout and stderr
+// ExecuteRemoteCommand executes a remote shell command on the given pod. Will be replaced with something from framework...
 func (k *Kubernetes) ExecuteRemoteCommand(pod v1.Pod, cname string, command []string) (string, string, error) {
 	kubeCfg := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		clientcmd.NewDefaultClientConfigLoadingRules(),
@@ -332,8 +317,7 @@ func (k *Kubernetes) ClearCache() {
 	k.mutex.Unlock()
 }
 
-// CreateOrUpdateNetworkPolicy is a convenience function for updating/creating netpols. Updating is important since
-// some tests update a network policy to confirm that mutation works with a CNI.
+// CreateOrUpdateNetworkPolicy is a convenience function for updating/creating netpols
 func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *networkingv1.NetworkPolicy) (*networkingv1.NetworkPolicy, error) {
 	log.Infof("creating/updating network policy %s in ns %s", netpol.Name, ns)
 	netpol.ObjectMeta.Namespace = ns
@@ -350,10 +334,7 @@ func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *networkingv1
 	return np, err
 }
 
-// Bootstrap checks the state of the cluster, and if necessary:
-// - creates namespaces
-// - creates deployments
-// - waits for pods to come up
+// Bootstrap checks the state of the cluster
 func (k *Kubernetes) Bootstrap(namespaces []string, pods []string, allPods []PodString) error {
 	for _, ns := range namespaces {
 		_, err := k.CreateOrUpdateNamespace(ns, map[string]string{"ns": ns})
@@ -376,13 +357,9 @@ func (k *Kubernetes) Bootstrap(namespaces []string, pods []string, allPods []Pod
 			return errors.WithMessagef(err, "unable to wait for pod %s/%s", pod.Namespace(), pod.PodName())
 		}
 	}
-
-	// Ensure that all the HTTP servers have time to start properly.
-	// See https://github.com/vmware-tanzu/antrea/issues/472.
 	if err := waitForHTTPServers(k); err != nil {
 		return err
 	}
-
 	return nil
 }
 
