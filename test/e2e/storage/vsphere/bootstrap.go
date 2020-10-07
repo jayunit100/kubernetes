@@ -27,7 +27,7 @@ var once sync.Once
 var waiting = make(chan bool)
 var f *framework.Framework
 
-// InitializeCluster takes care of initializing necessary test context for vSphere tests
+// Bootstrap takes care of initializing necessary test context for vSphere tests
 func Bootstrap(fw *framework.Framework) {
 	done := make(chan bool)
 	f = fw
