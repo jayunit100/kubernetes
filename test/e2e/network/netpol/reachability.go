@@ -91,9 +91,8 @@ func NewReachability(pods []PodString, defaultExpectation bool) *Reachability {
 	return r
 }
 
-// AllowLoopback is a convenience func to access Expected and re-enabl
-// all loopback to true.  in general call it after doing other logical
-// stuff in loops since loopback logic follows no policy.
+// AllowLoopback expects all communication from a pod to itself to be allowed.
+// In general, call it after setting up any other rules since loopback logic follows no policy.
 func (r *Reachability) AllowLoopback() {
 	for _, item := range r.Expected.Items {
 		r.Expected.Set(item, item, true)

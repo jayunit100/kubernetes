@@ -68,7 +68,8 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 		ginkgo.BeforeEach(func() {
 			ginkgo.By("Testing pods can connect to both ports when no policy is present.")
 			CleanPolicies(k8s, NetpolTestNamespaces)
-			ValidateAllConnectivity(k8s, NewScenario(83, 80, v1.ProtocolTCP))
+			reachability := NewReachability(GetAllPods(), true)
+			ValidateOrFail(k8s, reachability, NewScenario(83, 80, v1.ProtocolTCP), true)
 		})
 
 		ginkgo.It("should support a 'default-deny-ingress' policy [Feature:Netpol]", func() {
@@ -367,8 +368,6 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 			policy := GetAllowIngressByPort("allow-all", &intstr.IntOrString{Type: intstr.String, StrVal: "serve-81-tcp"})
 			CreateOrUpdatePolicy(k8s, policy, ns, true)
 
-			// WARNING ! Since we are adding a port rule, that means that the lack of a
-			// pod selector will cause this policy to target the ENTIRE namespace
 			ginkgo.By("Blocking all ports other then 81 in the entire namespace")
 
 			reachabilityPort81 := NewReachability(GetAllPods(), true)
@@ -413,9 +412,6 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 			ns := "x"
 			policy := GetAllowEgressByPort("allow-egress", &intstr.IntOrString{Type: intstr.String, StrVal: "serve-80-tcp"})
 			CreateOrUpdatePolicy(k8s, policy, ns, true)
-			// By adding a port rule to the egress class we now restrict egress to only work on port 80.
-			// TODO What about DNS -- we removed that check.  Write a higher level DNS checking test
-			//   which can be used to fulfill that requirement.
 
 			reachabilityPort80 := NewReachability(GetAllPods(), true)
 			ValidateOrFail(k8s, reachabilityPort80, NewScenario(82, 80, v1.ProtocolTCP), true)

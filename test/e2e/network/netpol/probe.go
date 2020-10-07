@@ -38,8 +38,8 @@ type ProbeJobResults struct {
 	Command     string
 }
 
-// Validate runs a series of probes in kube, and records the results in `reachability`
-func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int, protocol v1.Protocol) {
+// ProbePodToPodConnectivity runs a series of probes in kube, and records the results in `reachability`
+func ProbePodToPodConnectivity(k8s *Kubernetes, reachability *Reachability, scenario *Scenario) {
 	k8s.ClearCache()
 	numberOfWorkers := 30
 	allPods := GetAllPods()
@@ -49,15 +49,14 @@ func Validate(k8s *Kubernetes, reachability *Reachability, fromPort, toPort int,
 	for i := 0; i < numberOfWorkers; i++ {
 		go probeWorker(k8s, jobs, results)
 	}
-	// TODO: find better metrics, this is only for POC.
 	for _, podFrom := range allPods {
 		for _, podTo := range allPods {
 			jobs <- &ProbeJob{
 				PodFrom:  podFrom,
 				PodTo:    podTo,
-				FromPort: fromPort,
-				ToPort:   toPort,
-				Protocol: protocol,
+				FromPort: scenario.FromPort,
+				ToPort:   scenario.ToPort,
+				Protocol: scenario.Protocol,
 			}
 		}
 	}

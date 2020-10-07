@@ -281,9 +281,6 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 	log.Debugf("unable to create deployment %s in ns %s, let's try update instead", deployment.Name, ns)
 	d, err = k.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), d, metav1.UpdateOptions{})
 	if err != nil {
-		//bytes, marshalErr := json.MarshalIndent(deployment, "", "  ")
-		//if marshalErr != nil { panic(marshalErr) }
-		//log.Errorf("unable to create/update deployment %s/%s: %+v\n\n%s", ns, deployment.Name, err, bytes)
 		log.Errorf("unable to create/update deployment %s/%s: %+v", ns, deployment.Name, err)
 	}
 
@@ -334,7 +331,7 @@ func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *networkingv1
 	return np, err
 }
 
-// Bootstrap checks the state of the cluster
+// Bootstrap checks the state of the cluster, creating or updating namespaces and deployments as needed
 func (k *Kubernetes) Bootstrap(namespaces []string, pods []string, allPods []PodString) error {
 	for _, ns := range namespaces {
 		_, err := k.CreateOrUpdateNamespace(ns, map[string]string{"ns": ns})
@@ -370,10 +367,10 @@ func waitForHTTPServers(k8s *Kubernetes) error {
 	var wrong int
 	for i := 0; i < maxTries; i++ {
 		reachability := NewReachability(GetAllPods(), true)
-		Validate(k8s, reachability, 82, 80, v1.ProtocolTCP)
-		Validate(k8s, reachability, 82, 81, v1.ProtocolTCP)
-		Validate(k8s, reachability, 82, 80, v1.ProtocolUDP)
-		Validate(k8s, reachability, 82, 81, v1.ProtocolUDP)
+		ProbePodToPodConnectivity(k8s, reachability, NewScenario(82, 80, v1.ProtocolTCP))
+		ProbePodToPodConnectivity(k8s, reachability, NewScenario(82, 81, v1.ProtocolTCP))
+		ProbePodToPodConnectivity(k8s, reachability, NewScenario(82, 80, v1.ProtocolUDP))
+		ProbePodToPodConnectivity(k8s, reachability, NewScenario(82, 81, v1.ProtocolUDP))
 		_, wrong, _ = reachability.Summary()
 		if wrong == 0 {
 			log.Infof("all HTTP servers are ready")
@@ -399,7 +396,6 @@ func waitForPodInNamespace(k8s *Kubernetes, ns string, pod string) error {
 			}
 
 			log.Debugf("IP of pod %s/%s is: %s", ns, pod, k8sPod.Status.PodIP)
-			//podIPs[ns+"/"+pod] = k8sPod.Status.PodIP
 
 			log.Debugf("pod running: %s/%s", ns, pod)
 			return nil

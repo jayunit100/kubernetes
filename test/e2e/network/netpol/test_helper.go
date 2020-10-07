@@ -17,7 +17,6 @@ limitations under the License.
 package netpol
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -67,25 +66,20 @@ func NewScenario(fromPort int, toPort int, protocol v1.Protocol) *Scenario {
 
 // prettyPrint a networkPolicy
 func jsonPrettyPrint(policy *networkingv1.NetworkPolicy) string {
-	raw, _ := json.Marshal(policy)
-	var out bytes.Buffer
-	err := json.Indent(&out, []byte(raw), "", "\t")
-	if err != nil {
-		return ""
-	}
-	return out.String()
+	raw, _ := json.MarshalIndent(policy, "", "\t")
+	return string(raw)
 }
 
 // CreateOrUpdatePolicy fails if it can not create or update the policy in the given namespace
 func CreateOrUpdatePolicy(k8s *Kubernetes, policy *networkingv1.NetworkPolicy, namespace string, isVerbose bool) {
 	if isVerbose {
 		fmt.Println("****************************************************************")
-		framework.Logf("Network Policy creating %v %v", policy.Name, jsonPrettyPrint(policy))
+		framework.Logf("Network Policy creating %s/%s %v", namespace, policy.Name, jsonPrettyPrint(policy))
 		fmt.Println("****************************************************************")
 	}
 
 	_, err := k8s.CreateOrUpdateNetworkPolicy(namespace, policy)
-	framework.ExpectNoError(err, "Unable to create/update netpol")
+	framework.ExpectNoError(err, "Unable to create/update netpol %s/%s", namespace, policy.Name)
 }
 
 // CleanPolicies removes network policies
@@ -94,20 +88,14 @@ func CleanPolicies(k8s *Kubernetes, namespaces []string) {
 	framework.ExpectNoError(err, "Error occurred while cleaning network policy")
 }
 
-// ValidateAllConnectivity verifies that each pod can talk to each other pod
-func ValidateAllConnectivity(k8s *Kubernetes, scenario *Scenario) {
-	reachability := NewReachability(GetAllPods(), true)
-	ValidateOrFail(k8s, reachability, scenario, true)
-}
-
 // ValidateOrFail validates connectivity
 func ValidateOrFail(k8s *Kubernetes, reachability *Reachability, scenario *Scenario, isVerbose bool) {
 	ginkgo.By("Validating reachability matrix...")
 
-	Validate(k8s, reachability, scenario.FromPort, scenario.ToPort, scenario.Protocol)
+	ProbePodToPodConnectivity(k8s, reachability, scenario)
 	if _, wrong, _ := reachability.Summary(); wrong != 0 {
 		reachability.PrintSummary(true, true, true)
-		framework.Failf("Had more than 0 wrong results in the reachability matrix")
+		framework.Failf("Had %d wrong results in reachability matrix", wrong)
 	} else {
 		if isVerbose {
 			reachability.PrintSummary(true, true, true)
