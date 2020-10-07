@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
+	imageutils "k8s.io/kubernetes/test/utils/image"
 )
 
 // Kubernetes provides a convenience interface to kube functionality
@@ -149,22 +150,18 @@ func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, pro
 		"-c",
 	}
 
-	var protocolString string
 	switch protocol {
 	case v1.ProtocolSCTP:
-		cmd = append(cmd, fmt.Sprintf("for i in $(seq 1 3); do ncat --sctp -p %d -vz -w 1 %s %d && exit 0 || true; done; exit 1", fromPort, toIP, toPort))
-		protocolString = "sctp"
+		cmd = append(cmd, fmt.Sprintf("ncat --sctp -p %d -vz -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
 	case v1.ProtocolTCP:
 		// TODO add a retry if necessary
 		cmd = append(cmd, fmt.Sprintf("ncat -p %d -v -z -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
-		protocolString = "tcp"
 	case v1.ProtocolUDP:
 		cmd = append(cmd, fmt.Sprintf("ncat -u -p %d -v -z -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
-		protocolString = "udp"
 	default:
 		panic(errors.Errorf("protocol %s not supported", protocol))
 	}
-	containerName := fmt.Sprintf("c%v-%v", toPort, protocolString)
+	containerName := fmt.Sprintf("c%v-%v", toPort, protocol)
 	theCommand := fmt.Sprintf("kubectl exec %s -c %s -n %s -- %s", fromPod.Name, containerName, fromPod.Namespace, strings.Join(cmd, " "))
 	stdout, stderr, err := k.ExecuteRemoteCommand(fromPod, containerName, cmd)
 	if err != nil {
@@ -234,34 +231,32 @@ func (k *Kubernetes) CreateOrUpdateNamespace(n string, labels map[string]string)
 }
 
 func makeContainerSpec(port int32, protocol v1.Protocol) v1.Container {
-	var cmd []string
-	var protocolString string
+	var (
+		// agnHostImage is the image URI of AgnHost
+		agnHostImage = imageutils.GetE2EImage(imageutils.Agnhost)
+		cmd          []string
+	)
 
 	switch protocol {
 	case v1.ProtocolTCP:
-		cmd = []string{"ncat", "-l", "-k", "-p", fmt.Sprintf("%d", port)}
-		protocolString = "tcp"
+		cmd = []string{"serve-hostname", "--tcp", "--http=false", "--port", fmt.Sprintf("%d", port)}
 	case v1.ProtocolUDP:
-		cmd = []string{"ncat", "-u", "-l", "-p", fmt.Sprintf("%d", port)}
-		protocolString = "udp"
+		cmd = []string{"serve-hostname", "--udp", "--http=false", "--port", fmt.Sprintf("%d", port)}
 	case v1.ProtocolSCTP:
 		cmd = []string{"ncat", "--sctp", "-l", "-k", "-p", fmt.Sprintf("%d", port)}
-		protocolString = "sctp"
 	default:
 		panic(errors.Errorf("invalid protocol %s", protocol))
 	}
-
 	return v1.Container{
-		Name:            fmt.Sprintf("c%d-%s", port, protocolString),
+		Name:            fmt.Sprintf("c%d-%s", port, protocol),
 		ImagePullPolicy: v1.PullIfNotPresent,
-		Image:           "antrea/netpol-test:latest",
-		// "-k" for persistent server
+		Image:           agnHostImage,
 		Command:         cmd,
 		SecurityContext: &v1.SecurityContext{},
 		Ports: []v1.ContainerPort{
 			{
 				ContainerPort: port,
-				Name:          fmt.Sprintf("serve-%d-%s", port, protocolString),
+				Name:          fmt.Sprintf("serve-%d-%s", port, protocol),
 				Protocol:      protocol,
 			},
 		},
