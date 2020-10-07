@@ -45,7 +45,7 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 
 			framework.ExpectNoError(err, "Unable to instantiate Kubernetes helper")
 			framework.Logf("bootstrapping cluster: ensuring namespaces, deployments, and pods exist and are ready")
-			
+
 			k8s.Bootstrap(NetpolTestNamespaces, NetpolTestPods, GetAllPods())
 			framework.Logf("finished bootstrapping cluster")
 
