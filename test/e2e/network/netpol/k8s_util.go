@@ -161,7 +161,7 @@ func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, pro
 	default:
 		panic(errors.Errorf("protocol %s not supported", protocol))
 	}
-	containerName := fmt.Sprintf("c%v-%v", toPort, protocol)
+	containerName := fmt.Sprintf("c%v-%v", toPort, strings.ToLower(string(protocol)))
 	theCommand := fmt.Sprintf("kubectl exec %s -c %s -n %s -- %s", fromPod.Name, containerName, fromPod.Namespace, strings.Join(cmd, " "))
 	stdout, stderr, err := k.ExecuteRemoteCommand(fromPod, containerName, cmd)
 	if err != nil {
@@ -245,10 +245,10 @@ func makeContainerSpec(port int32, protocol v1.Protocol) v1.Container {
 	case v1.ProtocolSCTP:
 		cmd = []string{"ncat", "--sctp", "-l", "-k", "-p", fmt.Sprintf("%d", port)}
 	default:
-		panic(errors.Errorf("invalid protocol %s", protocol))
+		panic(errors.Errorf("invalid protocol %v", protocol))
 	}
 	return v1.Container{
-		Name:            fmt.Sprintf("c%d-%s", port, protocol),
+		Name:            fmt.Sprintf("c%d-%s", port, strings.ToLower(string(protocol))),
 		ImagePullPolicy: v1.PullIfNotPresent,
 		Image:           agnHostImage,
 		Command:         cmd,
@@ -256,7 +256,7 @@ func makeContainerSpec(port int32, protocol v1.Protocol) v1.Container {
 		Ports: []v1.ContainerPort{
 			{
 				ContainerPort: port,
-				Name:          fmt.Sprintf("serve-%d-%s", port, protocol),
+				Name:          fmt.Sprintf("serve-%d-%s", port, strings.ToLower(string(protocol))),
 				Protocol:      protocol,
 			},
 		},
