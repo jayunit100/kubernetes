@@ -62,18 +62,22 @@ type Peer struct {
 	Pod       string
 }
 
-// Matches checks whether the Peer matches the PodString
+// Matches checks whether the Peer matches the PodString:
+// - an empty namespace means the namespace will always match
+// - otherwise, the namespace must match the PodString's namespace
+// - same goes for Pod: empty matches everything, otherwise must match exactly
 func (p *Peer) Matches(pod PodString) bool {
 	return (p.Namespace == "" || p.Namespace == pod.Namespace()) && (p.Pod == "" || p.Pod == pod.PodName())
 }
 
-// Reachability packages the data for a cluster-wide connectivity probe.  All ensuing functions are self explanatory
+// Reachability packages the data for a cluster-wide connectivity probe
 type Reachability struct {
 	Expected *TruthTable
 	Observed *TruthTable
 	Pods     []PodString
 }
 
+// NewReachability instantiates a reachability
 func NewReachability(pods []PodString, defaultExpectation bool) *Reachability {
 	items := []string{}
 	for _, pod := range pods {
@@ -87,16 +91,21 @@ func NewReachability(pods []PodString, defaultExpectation bool) *Reachability {
 	return r
 }
 
+// AllowLoopback is a convenience func to access Expected and re-enabl
+// all loopback to true.  in general call it after doing other logical
+// stuff in loops since loopback logic follows no policy.
 func (r *Reachability) AllowLoopback() {
 	for _, item := range r.Expected.Items {
 		r.Expected.Set(item, item, true)
 	}
 }
 
+// Expect sets the expected value for a single observation
 func (r *Reachability) Expect(from PodString, to PodString, isConnected bool) {
 	r.Expected.Set(string(from), string(to), isConnected)
 }
 
+// ExpectAllIngress defines that any traffic going into the pod will be allowed/denied (true/false)
 func (r *Reachability) ExpectAllIngress(pod PodString, connected bool) {
 	r.Expected.SetAllTo(string(pod), connected)
 	if !connected {
@@ -104,6 +113,7 @@ func (r *Reachability) ExpectAllIngress(pod PodString, connected bool) {
 	}
 }
 
+// ExpectAllEgress defines that any traffic going out of the pod will be allowed/denied (true/false)
 func (r *Reachability) ExpectAllEgress(pod PodString, connected bool) {
 	r.Expected.SetAllFrom(string(pod), connected)
 	if !connected {
@@ -111,6 +121,7 @@ func (r *Reachability) ExpectAllEgress(pod PodString, connected bool) {
 	}
 }
 
+// ExpectPeer sets expected values using Peer matchers
 func (r *Reachability) ExpectPeer(from *Peer, to *Peer, connected bool) {
 	for _, fromPod := range r.Pods {
 		if from.Matches(fromPod) {
@@ -123,10 +134,12 @@ func (r *Reachability) ExpectPeer(from *Peer, to *Peer, connected bool) {
 	}
 }
 
+// Observe records a single connectivity observation
 func (r *Reachability) Observe(pod1 PodString, pod2 PodString, isConnected bool) {
 	r.Observed.Set(string(pod1), string(pod2), isConnected)
 }
 
+// Summary produces a useful summary of expected and observed data
 func (r *Reachability) Summary() (trueObs int, falseObs int, comparison *TruthTable) {
 	comparison = r.Expected.Compare(r.Observed)
 	if !comparison.IsComplete() {
@@ -146,6 +159,7 @@ func (r *Reachability) Summary() (trueObs int, falseObs int, comparison *TruthTa
 	return trueObs, falseObs, comparison
 }
 
+// PrintSummary prints the summary
 func (r *Reachability) PrintSummary(printExpected bool, printObserved bool, printComparison bool) {
 	right, wrong, comparison := r.Summary()
 	fmt.Printf("reachability: correct:%v, incorrect:%v, result=%t\n\n", right, wrong, wrong == 0)
