@@ -403,3 +403,13 @@ func (k *Kubernetes) waitForPodInNamespace(ns string, pod string) error {
 		time.Sleep(2 * time.Second)
 	}
 }
+
+func (k *Kubernetes) setNamespaceLabels(ns string, labels map[string]string) error {
+	selectedNameSpace, err := k.ClientSet.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "unable to get namespace %s", ns)
+	}
+	selectedNameSpace.ObjectMeta.Labels = labels
+	_, err = k.ClientSet.CoreV1().Namespaces().Update(context.TODO(), selectedNameSpace, metav1.UpdateOptions{})
+	return errors.Wrapf(err, "unable to update namespace %s", ns)
+}

@@ -87,43 +87,37 @@ func ValidateOrFail(k8s *Kubernetes, testCase *NetpolTestCase, isVerbose bool) {
 }
 
 // ResetNamespaceLabels returns a namespace's labels to their original state
-func ResetNamespaceLabels(f *framework.Framework, ns string) {
-	selectedNameSpace, err := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
-	framework.ExpectNoError(err, "Failing to get namespace %v", ns)
-	selectedNameSpace.ObjectMeta.Labels = map[string]string{"ns": ns}
-	_, err = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), selectedNameSpace, metav1.UpdateOptions{})
-	framework.ExpectNoError(err, "Failing to update Namespace %v", ns)
+func ResetNamespaceLabels(k8s *Kubernetes, ns string) {
+	err := k8s.setNamespaceLabels(ns, map[string]string{"ns": ns})
+	framework.ExpectNoError(err, "reset namespace %s labels", ns)
 	time.Sleep(10 * time.Second)
 }
 
 // ResetDeploymentPodLabels returns a deployment's spec labels to their original state
-func ResetDeploymentPodLabels(f *framework.Framework, ns string, pod string) {
-	deployment, err := f.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
+func ResetDeploymentPodLabels(k8s *Kubernetes, ns string, pod string) {
+	deployment, err := k8s.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
 	framework.ExpectNoError(err, "Failing to get deployment %s/%s", ns, pod)
 	deployment.Spec.Template.ObjectMeta.Labels = map[string]string{"pod": pod}
-	_, err = f.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+	_, err = k8s.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), deployment, metav1.UpdateOptions{})
 	framework.ExpectNoError(err, "Failing to update deployment %s/%s labels", ns, pod)
 	time.Sleep(10 * time.Second)
 }
 
 // UpdateNamespaceLabels sets the labels for a namespace
-func UpdateNamespaceLabels(f *framework.Framework, ns string, newNsLabel map[string]string) {
-	selectedNameSpace, err := f.ClientSet.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
-	framework.ExpectNoError(err, "Failing to get namespace %v", ns)
-	selectedNameSpace.ObjectMeta.Labels = newNsLabel
-	_, err = f.ClientSet.CoreV1().Namespaces().Update(context.TODO(), selectedNameSpace, metav1.UpdateOptions{})
-	framework.ExpectNoError(err, "Failing to update Label of namespace %v", ns)
+func UpdateNamespaceLabels(k8s *Kubernetes, ns string, newNsLabel map[string]string) {
+	err := k8s.setNamespaceLabels(ns, newNsLabel)
+	framework.ExpectNoError(err, "Update namespace %s labels", ns)
 	time.Sleep(10 * time.Second)
 }
 
 // AddDeploymentPodLabels adds new labels to a deployment's template
-func AddDeploymentPodLabels(f *framework.Framework, ns string, pod string, newPodLabels map[string]string) {
-	deployment, err := f.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
+func AddDeploymentPodLabels(k8s *Kubernetes, ns string, pod string, newPodLabels map[string]string) {
+	deployment, err := k8s.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
 	framework.ExpectNoError(err, "Failing to get deployment %s/%s", ns, pod)
 	for key, val := range newPodLabels {
 		deployment.Spec.Template.ObjectMeta.Labels[key] = val
 	}
-	_, err = f.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+	_, err = k8s.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), deployment, metav1.UpdateOptions{})
 	framework.ExpectNoError(err, "Failing to add deployment %s/%s labels", ns, pod)
 	time.Sleep(10 * time.Second)
 }

@@ -17,7 +17,6 @@ limitations under the License.
 package netpol
 
 import (
-	"fmt"
 	"github.com/pkg/errors"
 	"strings"
 )
@@ -65,10 +64,10 @@ func (tt *TruthTable) IsComplete() bool {
 func (tt *TruthTable) Set(from string, to string, value bool) {
 	dict, ok := tt.Values[from]
 	if !ok {
-		panic(errors.New(fmt.Sprintf("key %s not found in map", from)))
+		panic(errors.Errorf("key %s not found in map", from))
 	}
 	if _, ok := tt.itemSet[to]; !ok {
-		panic(errors.New(fmt.Sprintf("key %s not allowed", to)))
+		panic(errors.Errorf("key %s not allowed", to))
 	}
 	dict[to] = value
 }
@@ -77,7 +76,7 @@ func (tt *TruthTable) Set(from string, to string, value bool) {
 func (tt *TruthTable) SetAllFrom(from string, value bool) {
 	dict, ok := tt.Values[from]
 	if !ok {
-		panic(errors.New(fmt.Sprintf("key %s not found in map", from)))
+		panic(errors.Errorf("key %s not found in map", from))
 	}
 	for _, to := range tt.Items {
 		dict[to] = value
@@ -87,7 +86,7 @@ func (tt *TruthTable) SetAllFrom(from string, value bool) {
 // SetAllTo sets all values where to = 'to'
 func (tt *TruthTable) SetAllTo(to string, value bool) {
 	if _, ok := tt.itemSet[to]; !ok {
-		panic(errors.New(fmt.Sprintf("key %s not found", to)))
+		panic(errors.Errorf("key %s not found", to))
 	}
 	for _, from := range tt.Items {
 		tt.Values[from][to] = value
@@ -98,11 +97,11 @@ func (tt *TruthTable) SetAllTo(to string, value bool) {
 func (tt *TruthTable) Get(from string, to string) bool {
 	dict, ok := tt.Values[from]
 	if !ok {
-		panic(errors.New(fmt.Sprintf("key %s not found in map", from)))
+		panic(errors.Errorf("key %s not found in map", from))
 	}
 	val, ok := dict[to]
 	if !ok {
-		panic(errors.New(fmt.Sprintf("key %s not found in map (%+v)", to, dict)))
+		panic(errors.Errorf("key %s not found in map (%+v)", to, dict))
 	}
 	return val
 }
@@ -111,18 +110,13 @@ func (tt *TruthTable) Get(from string, to string) bool {
 // result in the form of a third truth table.  Both tables are expected to
 // have identical items.
 func (tt *TruthTable) Compare(other *TruthTable) *TruthTable {
-	// TODO set equality
-	//if tt.itemSet != other.itemSet {
-	//	panic()
-	//}
 	values := map[string]map[string]bool{}
 	for from, dict := range tt.Values {
 		values[from] = map[string]bool{}
 		for to, val := range dict {
-			values[from][to] = val == other.Values[from][to] // TODO other.Get(from, to) ?
+			values[from][to] = val == other.Values[from][to]
 		}
 	}
-	// TODO check for equality from both sides
 	return &TruthTable{
 		Items:   tt.Items,
 		itemSet: tt.itemSet,

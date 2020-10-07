@@ -432,8 +432,8 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 		})
 
 		ginkgo.It("should allow ingress access from updated namespace [Feature:Netpol]", func() {
-			ResetNamespaceLabels(f, "y")
-			defer ResetNamespaceLabels(f, "y")
+			ResetNamespaceLabels(k8s, "y")
+			defer ResetNamespaceLabels(k8s, "y")
 
 			ns := "x"
 			allowedLabels := &metav1.LabelSelector{
@@ -454,7 +454,7 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 				"ns":  "y",
 				"ns2": "updated",
 			}
-			UpdateNamespaceLabels(f, "y", updatedLabels)
+			UpdateNamespaceLabels(k8s, "y", updatedLabels)
 
 			// anything from namespace 'y' should be able to get to x/a
 			reachabilityWithLabel := NewReachability(GetAllPods(), true)
@@ -465,8 +465,8 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 		})
 
 		ginkgo.It("should allow ingress access from updated pod [Feature:Netpol]", func() {
-			ResetDeploymentPodLabels(f, "x", "b")
-			defer ResetDeploymentPodLabels(f, "x", "b")
+			ResetDeploymentPodLabels(k8s, "x", "b")
+			defer ResetDeploymentPodLabels(k8s, "x", "b")
 
 			// add a new label, we'll remove it after this test is done
 			ns := "x"
@@ -481,7 +481,7 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 			ValidateOrFail(k8s, &NetpolTestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolTCP, Reachability: reachability}, true)
 
 			// now update label in x namespace and pod b
-			AddDeploymentPodLabels(f, "x", "b", matchLabels)
+			AddDeploymentPodLabels(k8s, "x", "b", matchLabels)
 
 			ginkgo.By("x/b is able to reach x/a when label is updated")
 
@@ -493,8 +493,8 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 		})
 
 		ginkgo.It("should deny ingress access to updated pod [Feature:Netpol]", func() {
-			ResetDeploymentPodLabels(f, "x", "a")
-			defer ResetDeploymentPodLabels(f, "x", "a")
+			ResetDeploymentPodLabels(k8s, "x", "a")
+			defer ResetDeploymentPodLabels(k8s, "x", "a")
 
 			ns := "x"
 			policy := GetDenyIngressForTarget(metav1.LabelSelector{MatchLabels: map[string]string{"target": "isolated"}})
@@ -504,7 +504,7 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 			reachability := NewReachability(GetAllPods(), true)
 			ValidateOrFail(k8s, &NetpolTestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolTCP, Reachability: reachability}, true)
 
-			AddDeploymentPodLabels(f, "x", "a", map[string]string{"target": "isolated"})
+			AddDeploymentPodLabels(k8s, "x", "a", map[string]string{"target": "isolated"})
 			reachabilityIsolated := NewReachability(GetAllPods(), true)
 			reachabilityIsolated.ExpectAllIngress("x/a", false)
 			reachabilityIsolated.AllowLoopback()
