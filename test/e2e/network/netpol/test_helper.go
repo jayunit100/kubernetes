@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/onsi/ginkgo"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,22 +44,6 @@ func GetAllPods() []PodString {
 		}
 	}
 	return allPods
-}
-
-// Scenario describes the data for a netpol test
-type Scenario struct {
-	FromPort int
-	ToPort   int
-	Protocol v1.Protocol
-}
-
-// NewScenario creates a new test scenario.
-func NewScenario(fromPort int, toPort int, protocol v1.Protocol) *Scenario {
-	return &Scenario{
-		FromPort: fromPort,
-		ToPort:   toPort,
-		Protocol: protocol,
-	}
 }
 
 // prettyPrint a networkPolicy
@@ -89,16 +71,16 @@ func CleanPolicies(k8s *Kubernetes, namespaces []string) {
 }
 
 // ValidateOrFail validates connectivity
-func ValidateOrFail(k8s *Kubernetes, reachability *Reachability, scenario *Scenario, isVerbose bool) {
+func ValidateOrFail(k8s *Kubernetes, testCase *NetpolTestCase, isVerbose bool) {
 	ginkgo.By("Validating reachability matrix...")
 
-	ProbePodToPodConnectivity(k8s, reachability, scenario)
-	if _, wrong, _ := reachability.Summary(); wrong != 0 {
-		reachability.PrintSummary(true, true, true)
+	ProbePodToPodConnectivity(k8s, testCase)
+	if _, wrong, _ := testCase.Reachability.Summary(); wrong != 0 {
+		testCase.Reachability.PrintSummary(true, true, true)
 		framework.Failf("Had %d wrong results in reachability matrix", wrong)
 	} else {
 		if isVerbose {
-			reachability.PrintSummary(true, true, true)
+			testCase.Reachability.PrintSummary(true, true, true)
 		}
 		fmt.Println("VALIDATION SUCCESSFUL")
 	}

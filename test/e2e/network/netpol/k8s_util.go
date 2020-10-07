@@ -52,6 +52,33 @@ func NewKubernetes(clientSet clientset.Interface) *Kubernetes {
 	}
 }
 
+// InitializeCluster checks the state of the cluster, creating or updating namespaces and deployments as needed
+func (k *Kubernetes) InitializeCluster(namespaces []string, pods []string, allPods []PodString) error {
+	for _, ns := range namespaces {
+		_, err := k.CreateOrUpdateNamespace(ns, map[string]string{"ns": ns})
+		if err != nil {
+			return errors.WithMessagef(err, "unable to create/update ns %s", ns)
+		}
+
+		for _, pod := range pods {
+			log.Infof("creating/updating pod %s/%s", ns, pod)
+			_, err := k.CreateOrUpdateDeployment(ns, ns+pod, 1, map[string]string{"pod": pod})
+			if err != nil {
+				return errors.WithMessagef(err, "unable to create/update deployment %s/%s", ns, pod)
+			}
+		}
+	}
+
+	for _, pod := range allPods {
+		err := k.waitForPodInNamespace(pod.Namespace(), pod.PodName())
+		if err != nil {
+			return errors.WithMessagef(err, "unable to wait for pod %s/%s", pod.Namespace(), pod.PodName())
+		}
+	}
+
+	return k.waitForHTTPServers()
+}
+
 // GetPod returns a pod with the matching namespace and name
 func (k *Kubernetes) GetPod(ns string, name string) (*v1.Pod, error) {
 	pods, err := k.getPodsUncached(ns, "pod", name)
@@ -331,46 +358,18 @@ func (k *Kubernetes) CreateOrUpdateNetworkPolicy(ns string, netpol *networkingv1
 	return np, err
 }
 
-// Bootstrap checks the state of the cluster, creating or updating namespaces and deployments as needed
-func (k *Kubernetes) Bootstrap(namespaces []string, pods []string, allPods []PodString) error {
-	for _, ns := range namespaces {
-		_, err := k.CreateOrUpdateNamespace(ns, map[string]string{"ns": ns})
-		if err != nil {
-			return errors.WithMessagef(err, "unable to create/update ns %s", ns)
-		}
-
-		for _, pod := range pods {
-			log.Infof("creating/updating pod %s/%s", ns, pod)
-			_, err := k.CreateOrUpdateDeployment(ns, ns+pod, 1, map[string]string{"pod": pod})
-			if err != nil {
-				return errors.WithMessagef(err, "unable to create/update deployment %s/%s", ns, pod)
-			}
-		}
-	}
-
-	for _, pod := range allPods {
-		err := waitForPodInNamespace(k, pod.Namespace(), pod.PodName())
-		if err != nil {
-			return errors.WithMessagef(err, "unable to wait for pod %s/%s", pod.Namespace(), pod.PodName())
-		}
-	}
-	if err := waitForHTTPServers(k); err != nil {
-		return err
-	}
-	return nil
-}
-
-func waitForHTTPServers(k8s *Kubernetes) error {
+func (k *Kubernetes) waitForHTTPServers() error {
 	const maxTries = 10
 	const sleepInterval = 1 * time.Second
 	log.Infof("waiting for HTTP servers (ports 80 and 81) to become ready")
 	var wrong int
 	for i := 0; i < maxTries; i++ {
+		// TODO these shouldn't be sharing reachability; who knows what unexpected effects that could have?
 		reachability := NewReachability(GetAllPods(), true)
-		ProbePodToPodConnectivity(k8s, reachability, NewScenario(82, 80, v1.ProtocolTCP))
-		ProbePodToPodConnectivity(k8s, reachability, NewScenario(82, 81, v1.ProtocolTCP))
-		ProbePodToPodConnectivity(k8s, reachability, NewScenario(82, 80, v1.ProtocolUDP))
-		ProbePodToPodConnectivity(k8s, reachability, NewScenario(82, 81, v1.ProtocolUDP))
+		ProbePodToPodConnectivity(k, &NetpolTestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolTCP, Reachability: reachability})
+		ProbePodToPodConnectivity(k, &NetpolTestCase{FromPort: 82, ToPort: 81, Protocol: v1.ProtocolTCP, Reachability: reachability})
+		ProbePodToPodConnectivity(k, &NetpolTestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolUDP, Reachability: reachability})
+		ProbePodToPodConnectivity(k, &NetpolTestCase{FromPort: 82, ToPort: 81, Protocol: v1.ProtocolUDP, Reachability: reachability})
 		_, wrong, _ = reachability.Summary()
 		if wrong == 0 {
 			log.Infof("all HTTP servers are ready")
@@ -382,10 +381,10 @@ func waitForHTTPServers(k8s *Kubernetes) error {
 	return errors.Errorf("after %d tries, %d HTTP servers are not ready", maxTries, wrong)
 }
 
-func waitForPodInNamespace(k8s *Kubernetes, ns string, pod string) error {
+func (k *Kubernetes) waitForPodInNamespace(ns string, pod string) error {
 	log.Infof("waiting for pod %s/%s", ns, pod)
 	for {
-		k8sPod, err := k8s.GetPod(ns, pod)
+		k8sPod, err := k.GetPod(ns, pod)
 		if err != nil {
 			return errors.WithMessagef(err, "unable to get pod %s/%s", ns, pod)
 		}

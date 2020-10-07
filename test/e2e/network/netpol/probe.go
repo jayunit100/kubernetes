@@ -38,8 +38,8 @@ type ProbeJobResults struct {
 	Command     string
 }
 
-// ProbePodToPodConnectivity runs a series of probes in kube, and records the results in `reachability`
-func ProbePodToPodConnectivity(k8s *Kubernetes, reachability *Reachability, scenario *Scenario) {
+// ProbePodToPodConnectivity runs a series of probes in kube, and records the results in `testCase.Reachability`
+func ProbePodToPodConnectivity(k8s *Kubernetes, testCase *NetpolTestCase) {
 	k8s.ClearCache()
 	numberOfWorkers := 30
 	allPods := GetAllPods()
@@ -54,9 +54,9 @@ func ProbePodToPodConnectivity(k8s *Kubernetes, reachability *Reachability, scen
 			jobs <- &ProbeJob{
 				PodFrom:  podFrom,
 				PodTo:    podTo,
-				FromPort: scenario.FromPort,
-				ToPort:   scenario.ToPort,
-				Protocol: scenario.Protocol,
+				FromPort: testCase.FromPort,
+				ToPort:   testCase.ToPort,
+				Protocol: testCase.Protocol,
 			}
 		}
 	}
@@ -68,8 +68,8 @@ func ProbePodToPodConnectivity(k8s *Kubernetes, reachability *Reachability, scen
 		if result.Err != nil {
 			log.Infof("unable to perform probe %s -> %s: %v", job.PodFrom, job.PodTo, result.Err)
 		}
-		reachability.Observe(job.PodFrom, job.PodTo, result.IsConnected)
-		expected := reachability.Expected.Get(job.PodFrom.String(), job.PodTo.String())
+		testCase.Reachability.Observe(job.PodFrom, job.PodTo, result.IsConnected)
+		expected := testCase.Reachability.Expected.Get(job.PodFrom.String(), job.PodTo.String())
 		if result.IsConnected != expected {
 			log.Infof("Validation of %s -> %s FAILED !!!", job.PodFrom, job.PodTo)
 			log.Infof("error %v ", result.Err)

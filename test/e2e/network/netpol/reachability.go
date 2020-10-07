@@ -20,8 +20,17 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
 	"strings"
 )
+
+// NetpolTestCase describes the data for a netpol test
+type NetpolTestCase struct {
+	FromPort     int
+	ToPort       int
+	Protocol     v1.Protocol
+	Reachability *Reachability
+}
 
 // PodString represents a namespace 'x' + pod 'a' as "x/a".
 type PodString string
