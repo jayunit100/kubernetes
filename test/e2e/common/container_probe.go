@@ -135,7 +135,7 @@ var _ = framework.KubeDescribe("Probing container", func() {
 		Testname: Pod liveness probe, using local file, no restart
 		Description:  Pod is created with liveness probe that uses 'exec' command to cat /temp/health file. Liveness probe MUST not fail to check health and the restart count should remain 0.
 	*/
-	framework.ConformanceIt("should *not* be restarted with a exec \"cat /tmp/health\" liveness probe [NodeConformance]", func() {
+	framework.ConformanceIt("should *not* be restarted with a exec \"cat /tmp/health\" liveness probe [NodeConformance] [Slow]", func() {
 		cmd := []string{"/bin/sh", "-c", "echo ok >/tmp/health; sleep 600"}
 		livenessProbe := &v1.Probe{
 			Handler:             execHandler([]string{"cat", "/tmp/health"}),
