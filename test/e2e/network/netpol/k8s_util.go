@@ -239,9 +239,9 @@ func makeContainerSpec(port int32, protocol v1.Protocol) v1.Container {
 
 	switch protocol {
 	case v1.ProtocolTCP:
-		cmd = []string{"serve-hostname", "--tcp", "--http=false", "--port", fmt.Sprintf("%d", port)}
+		cmd = []string{"/agnhost", "serve-hostname", "--tcp", "--http=false", "--port", fmt.Sprintf("%d", port)}
 	case v1.ProtocolUDP:
-		cmd = []string{"serve-hostname", "--udp", "--http=false", "--port", fmt.Sprintf("%d", port)}
+		cmd = []string{"/agnhost", "serve-hostname", "--udp", "--http=false", "--port", fmt.Sprintf("%d", port)}
 	case v1.ProtocolSCTP:
 		cmd = []string{"ncat", "--sctp", "-l", "-k", "-p", fmt.Sprintf("%d", port)}
 	default:
