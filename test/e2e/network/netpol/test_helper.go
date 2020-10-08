@@ -71,7 +71,7 @@ func CleanPolicies(k8s *Kubernetes, namespaces []string) {
 }
 
 // ValidateOrFail validates connectivity
-func ValidateOrFail(k8s *Kubernetes, testCase *NetpolTestCase, isVerbose bool) {
+func ValidateOrFail(k8s *Kubernetes, testCase *TestCase, isVerbose bool) {
 	ginkgo.By("Validating reachability matrix...")
 
 	ProbePodToPodConnectivity(k8s, testCase)

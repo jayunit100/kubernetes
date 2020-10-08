@@ -24,8 +24,8 @@ import (
 	"strings"
 )
 
-// NetpolTestCase describes the data for a netpol test
-type NetpolTestCase struct {
+// TestCase describes the data for a netpol test
+type TestCase struct {
 	FromPort     int
 	ToPort       int
 	Protocol     v1.Protocol

@@ -39,7 +39,7 @@ type ProbeJobResults struct {
 }
 
 // ProbePodToPodConnectivity runs a series of probes in kube, and records the results in `testCase.Reachability`
-func ProbePodToPodConnectivity(k8s *Kubernetes, testCase *NetpolTestCase) {
+func ProbePodToPodConnectivity(k8s *Kubernetes, testCase *TestCase) {
 	k8s.ClearCache()
 	numberOfWorkers := 30
 	allPods := GetAllPods()

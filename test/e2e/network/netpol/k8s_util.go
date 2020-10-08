@@ -370,10 +370,10 @@ func (k *Kubernetes) waitForHTTPServers() error {
 	for i := 0; i < maxTries; i++ {
 		// TODO these shouldn't be sharing reachability; who knows what unexpected effects that could have?
 		reachability := NewReachability(GetAllPods(), true)
-		ProbePodToPodConnectivity(k, &NetpolTestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolTCP, Reachability: reachability})
-		ProbePodToPodConnectivity(k, &NetpolTestCase{FromPort: 82, ToPort: 81, Protocol: v1.ProtocolTCP, Reachability: reachability})
-		ProbePodToPodConnectivity(k, &NetpolTestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolUDP, Reachability: reachability})
-		ProbePodToPodConnectivity(k, &NetpolTestCase{FromPort: 82, ToPort: 81, Protocol: v1.ProtocolUDP, Reachability: reachability})
+		ProbePodToPodConnectivity(k, &TestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolTCP, Reachability: reachability})
+		ProbePodToPodConnectivity(k, &TestCase{FromPort: 82, ToPort: 81, Protocol: v1.ProtocolTCP, Reachability: reachability})
+		ProbePodToPodConnectivity(k, &TestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolUDP, Reachability: reachability})
+		ProbePodToPodConnectivity(k, &TestCase{FromPort: 82, ToPort: 81, Protocol: v1.ProtocolUDP, Reachability: reachability})
 		_, wrong, _ = reachability.Summary()
 		if wrong == 0 {
 			log.Infof("all HTTP servers are ready")
