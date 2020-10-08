@@ -54,7 +54,7 @@ func NewKubernetes(clientSet clientset.Interface) *Kubernetes {
 }
 
 // InitializeCluster checks the state of the cluster, creating or updating namespaces and deployments as needed
-func (k *Kubernetes) InitializeCluster(namespaces []string, pods []string, allPods []PodString) error {
+func (k *Kubernetes) InitializeCluster(namespaces []string, pods []string, allPods []PodString, addSCTPContainers bool) error {
 	for _, ns := range namespaces {
 		_, err := k.CreateOrUpdateNamespace(ns, map[string]string{"ns": ns})
 		if err != nil {
@@ -63,7 +63,7 @@ func (k *Kubernetes) InitializeCluster(namespaces []string, pods []string, allPo
 
 		for _, pod := range pods {
 			log.Infof("creating/updating pod %s/%s", ns, pod)
-			_, err := k.CreateOrUpdateDeployment(ns, ns+pod, 1, map[string]string{"pod": pod})
+			_, err := k.CreateOrUpdateDeployment(ns, ns+pod, 1, map[string]string{"pod": pod}, addSCTPContainers)
 			if err != nil {
 				return errors.WithMessagef(err, "unable to create/update deployment %s/%s", ns, pod)
 			}
@@ -152,7 +152,7 @@ func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, pro
 
 	switch protocol {
 	case v1.ProtocolSCTP:
-		cmd = append(cmd, fmt.Sprintf("/agnhost connect %s:%d--protocol=sctp", toIP, toPort))
+		cmd = append(cmd, fmt.Sprintf("/agnhost connect %s:%d --protocol=sctp", toIP, toPort))
 	case v1.ProtocolTCP:
 		cmd = append(cmd, fmt.Sprintf("/agnhost connect %s:%d --protocol=tcp", toIP, toPort))
 	case v1.ProtocolUDP:
@@ -263,9 +263,22 @@ func makeContainerSpec(port int32, protocol v1.Protocol) v1.Container {
 }
 
 // CreateOrUpdateDeployment is a convenience function for idempotent setup of deployments
-func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replicas int32, labels map[string]string) (*appsv1.Deployment, error) {
+func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replicas int32, labels map[string]string, addSCTPContainers bool) (*appsv1.Deployment, error) {
 	zero := int64(0)
 	log.Infof("creating/updating deployment %s in ns %s", deploymentName, ns)
+
+	containers := []v1.Container{
+		makeContainerSpec(80, v1.ProtocolTCP),
+		makeContainerSpec(81, v1.ProtocolTCP),
+		makeContainerSpec(80, v1.ProtocolUDP),
+		makeContainerSpec(81, v1.ProtocolUDP),
+	}
+
+	if addSCTPContainers {
+		containers = append(containers,
+			makeContainerSpec(80, v1.ProtocolSCTP),
+			makeContainerSpec(81, v1.ProtocolSCTP))
+	}
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -283,11 +296,7 @@ func (k *Kubernetes) CreateOrUpdateDeployment(ns, deploymentName string, replica
 				},
 				Spec: v1.PodSpec{
 					TerminationGracePeriodSeconds: &zero,
-					Containers: []v1.Container{
-						makeContainerSpec(80, v1.ProtocolTCP), makeContainerSpec(81, v1.ProtocolTCP),
-						makeContainerSpec(80, v1.ProtocolUDP), makeContainerSpec(81, v1.ProtocolUDP),
-						makeContainerSpec(80, v1.ProtocolSCTP), makeContainerSpec(81, v1.ProtocolSCTP),
-					},
+					Containers:                    containers,
 				},
 			},
 		},
@@ -329,10 +338,11 @@ func (k *Kubernetes) CleanNetworkPolicies(namespaces []string) error {
 
 // ClearCache clears the kube pod cache
 func (k *Kubernetes) ClearCache() {
-	log.Info("Clearing pod cache...")
+	log.Info("Clearing pod cache")
 	k.mutex.Lock()
 	k.podCache = map[string][]v1.Pod{}
 	k.mutex.Unlock()
+	log.Info("Pod cache successfully cleared")
 }
 
 // CreateOrUpdateNetworkPolicy is a convenience function for updating/creating netpols

@@ -39,15 +39,18 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 	ginkgo.BeforeEach(func() {
 		// The code in here only runs once bc it checks if things are nil
 		if k8s == nil {
-			var err error
 			framework.Logf("instantiating Kubernetes helper")
 			k8s = NewKubernetes(f.ClientSet)
 
-			framework.ExpectNoError(err, "Unable to instantiate Kubernetes helper")
 			framework.Logf("bootstrapping cluster: ensuring namespaces, deployments, and pods exist and are ready")
 
-			k8s.InitializeCluster(NetpolTestNamespaces, NetpolTestPods, GetAllPods())
-			framework.Logf("finished bootstrapping cluster")
+			addSCTPContainers := false
+			err := k8s.InitializeCluster(NetpolTestNamespaces, NetpolTestPods, GetAllPods(), addSCTPContainers)
+			if err != nil {
+				framework.Logf("unable to bootstrap cluster: %+v", err)
+			} else {
+				framework.Logf("finished bootstrapping cluster")
+			}
 
 			//TODO move to different location for unit test
 			if PodString("x/a") != NewPodString("x", "a") {

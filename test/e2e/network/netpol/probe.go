@@ -86,12 +86,15 @@ func probeWorker(k8s *Kubernetes, jobs <-chan *ProbeJob, results chan<- *ProbeJo
 	for job := range jobs {
 		podFrom := job.PodFrom
 		podTo := job.PodTo
+		log.Infof("starting probe job %+v", job)
 		connected, command, err := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), job.Protocol, job.FromPort, job.ToPort)
-		results <- &ProbeJobResults{
+		result := &ProbeJobResults{
 			Job:         job,
 			IsConnected: connected,
 			Err:         err,
 			Command:     command,
 		}
+		log.Infof("finished probe job %+v", result)
+		results <- result
 	}
 }
