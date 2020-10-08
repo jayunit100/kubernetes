@@ -152,9 +152,9 @@ func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, pro
 
 	switch protocol {
 	case v1.ProtocolSCTP:
-		cmd = append(cmd, fmt.Sprintf("/agnhost connect %s:%d --protocol=sctp", toIP, toPort))
+		cmd = append(cmd, fmt.Sprintf("/agnhost connect %s:%d --timeout=1s --protocol=sctp", toIP, toPort))
 	case v1.ProtocolTCP:
-		cmd = append(cmd, fmt.Sprintf("/agnhost connect %s:%d --protocol=tcp", toIP, toPort))
+		cmd = append(cmd, fmt.Sprintf("/agnhost connect %s:%d --timeout=1s --protocol=tcp", toIP, toPort))
 	case v1.ProtocolUDP:
 		cmd = append(cmd, fmt.Sprintf("nc -v -z -w 1 -u %s %d", toIP, toPort))
 	default:
