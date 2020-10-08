@@ -152,12 +152,11 @@ func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, pro
 
 	switch protocol {
 	case v1.ProtocolSCTP:
-		cmd = append(cmd, fmt.Sprintf("ncat --sctp -p %d -vz -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
+		cmd = append(cmd, fmt.Sprintf("/agnhost connect %s:%d--protocol=sctp", toIP, toPort))
 	case v1.ProtocolTCP:
-		// TODO add a retry if necessary
-		cmd = append(cmd, fmt.Sprintf("ncat -p %d -v -z -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
+		cmd = append(cmd, fmt.Sprintf("/agnhost connect %s:%d --protocol=tcp", toIP, toPort))
 	case v1.ProtocolUDP:
-		cmd = append(cmd, fmt.Sprintf("ncat -u -p %d -v -z -w 1 %s %d && exit 0 || exit 1", fromPort, toIP, toPort))
+		cmd = append(cmd, fmt.Sprintf("nc -v -z -w 1 -u %s %d", toIP, toPort))
 	default:
 		panic(errors.Errorf("protocol %s not supported", protocol))
 	}
@@ -243,7 +242,7 @@ func makeContainerSpec(port int32, protocol v1.Protocol) v1.Container {
 	case v1.ProtocolUDP:
 		cmd = []string{"/agnhost", "serve-hostname", "--udp", "--http=false", "--port", fmt.Sprintf("%d", port)}
 	case v1.ProtocolSCTP:
-		cmd = []string{"ncat", "--sctp", "-l", "-k", "-p", fmt.Sprintf("%d", port)}
+		cmd = []string{"/agnhost", "netexec", "--sctp-port", fmt.Sprintf("%d", port)}
 	default:
 		panic(errors.Errorf("invalid protocol %v", protocol))
 	}
