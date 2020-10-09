@@ -18,8 +18,11 @@ package netpol
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
+
+	v1networking "k8s.io/api/networking/v1"
 
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -92,8 +95,33 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 		ginkgo.It("should support a 'default-deny-all' policy [Feature:Netpol]", func() {
 			ns := "x"
 
-			policy := GetDenyAll("deny-all")
-			CreateOrUpdatePolicy(k8s, policy, ns, true)
+			np := &v1networking.NetworkPolicy{}
+			policy := `
+			{
+				"kind": "NetworkPolicy",
+				"apiVersion": "networking.k8s.io/v1",
+				"metadata": {
+				   "name": "deny-all"
+				},
+				"spec": {
+				   "podSelector": {
+					  "matchLabels": {}
+				   },
+				   "ingress": [],
+				   "egress": [],
+				   "policyTypes": [
+					"Ingress",
+					"Egress"
+				   ]
+				}
+			 }
+			 `
+			err := json.Unmarshal([]byte(policy), np)
+			if err != nil {
+				panic(err)
+			}
+
+			CreateOrUpdatePolicy(k8s, np, ns, true)
 
 			reachability := NewReachability(GetAllPods(), true)
 			reachability.ExpectPeer(&Peer{}, &Peer{Namespace: "x"}, false)
