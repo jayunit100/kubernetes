@@ -366,23 +366,37 @@ func (k *Kubernetes) waitForHTTPServers() error {
 	const maxTries = 10
 	const sleepInterval = 1 * time.Second
 	log.Infof("waiting for HTTP servers (ports 80 and 81) to become ready")
-	var wrong int
+	testCases := map[string]*TestCase{
+		"82->80,TCP": {FromPort: 82, ToPort: 80, Protocol: v1.ProtocolTCP},
+		"82->81,TCP": {FromPort: 82, ToPort: 81, Protocol: v1.ProtocolTCP},
+		"82->80,UDP": {FromPort: 82, ToPort: 80, Protocol: v1.ProtocolUDP},
+		"82->81,UDP": {FromPort: 82, ToPort: 81, Protocol: v1.ProtocolUDP},
+	}
+	notReady := map[string]bool{}
+	for caseName := range testCases {
+		notReady[caseName] = true
+	}
 	for i := 0; i < maxTries; i++ {
-		// TODO these shouldn't be sharing reachability; who knows what unexpected effects that could have?
-		reachability := NewReachability(GetAllPods(), true)
-		ProbePodToPodConnectivity(k, &TestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolTCP, Reachability: reachability})
-		ProbePodToPodConnectivity(k, &TestCase{FromPort: 82, ToPort: 81, Protocol: v1.ProtocolTCP, Reachability: reachability})
-		ProbePodToPodConnectivity(k, &TestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolUDP, Reachability: reachability})
-		ProbePodToPodConnectivity(k, &TestCase{FromPort: 82, ToPort: 81, Protocol: v1.ProtocolUDP, Reachability: reachability})
-		_, wrong, _ = reachability.Summary()
-		if wrong == 0 {
-			log.Infof("all HTTP servers are ready")
+		for caseName, testCase := range testCases {
+			if notReady[caseName] {
+				reachability := NewReachability(GetAllPods(), true)
+				testCase.Reachability = reachability
+				ProbePodToPodConnectivity(k, testCase)
+				_, wrong, _ := reachability.Summary()
+				if wrong == 0 {
+					log.Infof("server %s is ready", caseName)
+					delete(notReady, caseName)
+				} else {
+					log.Infof("server %s is not ready", caseName)
+				}
+			}
+		}
+		if len(notReady) == 0 {
 			return nil
 		}
-		log.Debugf("%d HTTP servers not ready", wrong)
 		time.Sleep(sleepInterval)
 	}
-	return errors.Errorf("after %d tries, %d HTTP servers are not ready", maxTries, wrong)
+	return errors.Errorf("after %d tries, %d HTTP servers are not ready", maxTries, len(notReady))
 }
 
 func (k *Kubernetes) waitForPodInNamespace(ns string, pod string) error {
