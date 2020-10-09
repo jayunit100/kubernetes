@@ -19,11 +19,12 @@ package netpol
 import (
 	"context"
 	"fmt"
+	"time"
+
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/kubernetes/test/e2e/network"
 	utilnet "k8s.io/utils/net"
-	"time"
 
 	"github.com/onsi/ginkgo"
 
@@ -767,6 +768,44 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 			reachability.ExpectAllIngress("x/a", false)
 			reachability.AllowLoopback()
 			ValidateOrFail(k8s, &TestCase{FromPort: 82, ToPort: 81, Protocol: v1.ProtocolTCP, Reachability: reachability}, true)
+		})
+
+		ginkgo.It("should deny UDP ingress access to updated pod [Feature:Netpol]", func() {
+			ResetDeploymentPodLabels(k8s, "x", "a")
+			defer ResetDeploymentPodLabels(k8s, "x", "a")
+
+			ns := "x"
+			policy := GetDenyIngressForTarget(metav1.LabelSelector{MatchLabels: map[string]string{"target": "isolated"}})
+			CreateOrUpdatePolicy(k8s, policy, ns, true)
+
+			ginkgo.By("Verify that everything can reach x/a")
+			reachability := NewReachability(GetAllPods(), true)
+			ValidateOrFail(k8s, &TestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolUDP, Reachability: reachability}, true)
+
+			AddDeploymentPodLabels(k8s, "x", "a", map[string]string{"target": "isolated"})
+			reachabilityIsolated := NewReachability(GetAllPods(), true)
+			reachabilityIsolated.ExpectAllIngress("x/a", false)
+			reachabilityIsolated.AllowLoopback()
+			ValidateOrFail(k8s, &TestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolUDP, Reachability: reachabilityIsolated}, true)
+		})
+
+		ginkgo.It("should deny SCTP ingress access to updated pod [Feature:Netpol]", func() {
+			ResetDeploymentPodLabels(k8s, "x", "a")
+			defer ResetDeploymentPodLabels(k8s, "x", "a")
+
+			ns := "x"
+			policy := GetDenyIngressForTarget(metav1.LabelSelector{MatchLabels: map[string]string{"target": "isolated"}})
+			CreateOrUpdatePolicy(k8s, policy, ns, true)
+
+			ginkgo.By("Verify that everything can reach x/a")
+			reachability := NewReachability(GetAllPods(), true)
+			ValidateOrFail(k8s, &TestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolSCTP, Reachability: reachability}, true)
+
+			AddDeploymentPodLabels(k8s, "x", "a", map[string]string{"target": "isolated"})
+			reachabilityIsolated := NewReachability(GetAllPods(), true)
+			reachabilityIsolated.ExpectAllIngress("x/a", false)
+			reachabilityIsolated.AllowLoopback()
+			ValidateOrFail(k8s, &TestCase{FromPort: 82, ToPort: 80, Protocol: v1.ProtocolSCTP, Reachability: reachabilityIsolated}, true)
 		})
 	})
 })
