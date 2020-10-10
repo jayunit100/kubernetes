@@ -145,29 +145,26 @@ func (k *Kubernetes) Probe(ns1 string, pod1 string, ns2 string, pod2 string, pro
 
 	toIP := toPod.Status.PodIP
 
-	cmd := []string{
-		"/bin/sh",
-		"-c",
-	}
+	var cmd []string
 
 	switch protocol {
 	case v1.ProtocolSCTP:
-		cmd = append(cmd, fmt.Sprintf("/agnhost connect %s:%d --timeout=1s --protocol=sctp", toIP, toPort))
+		cmd = []string{"/agnhost", "connect", fmt.Sprintf("%s:%d", toIP, toPort), "--timeout=1s", "--protocol=sctp"}
 	case v1.ProtocolTCP:
-		cmd = append(cmd, fmt.Sprintf("/agnhost connect %s:%d --timeout=1s --protocol=tcp", toIP, toPort))
+		cmd = []string{"/agnhost", "connect", fmt.Sprintf("%s:%d", toIP, toPort), "--timeout=1s", "--protocol=tcp"}
 	case v1.ProtocolUDP:
-		cmd = append(cmd, fmt.Sprintf("nc -v -z -w 1 -u %s %d", toIP, toPort))
+		cmd = []string{"nc", "-v", "-z", "-w", "1", "-u", toIP, fmt.Sprintf("%d", toPort)}
 	default:
 		panic(errors.Errorf("protocol %s not supported", protocol))
 	}
 	containerName := fmt.Sprintf("c%v-%v", toPort, strings.ToLower(string(protocol)))
-	theCommand := fmt.Sprintf("kubectl exec %s -c %s -n %s -- %s", fromPod.Name, containerName, fromPod.Namespace, strings.Join(cmd, " "))
+	commandDebugString := fmt.Sprintf("kubectl exec %s -c %s -n %s -- %s", fromPod.Name, containerName, fromPod.Namespace, strings.Join(cmd, " "))
 	stdout, stderr, err := k.ExecuteRemoteCommand(fromPod, containerName, cmd)
 	if err != nil {
 		log.Infof("%s/%s -> %s/%s: error when running command: err - %v /// stdout - %s /// stderr - %s", ns1, pod1, ns2, pod2, err, stdout, stderr)
-		return false, theCommand, nil
+		return false, commandDebugString, nil
 	}
-	return true, theCommand, nil
+	return true, commandDebugString, nil
 }
 
 // ExecuteRemoteCommand executes a remote shell command on the given pod. Will be replaced with something from framework...
