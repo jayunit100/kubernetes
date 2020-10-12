@@ -28,24 +28,6 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 )
 
-var (
-	// NetpolTestPods are the pod + deployment names used for connectivity probes
-	NetpolTestPods = []string{"a", "b", "c"}
-	// NetpolTestNamespaces are the namespaces used for connectivity probes
-	NetpolTestNamespaces = []string{"x", "y", "z"}
-)
-
-// GetAllPods returns a cartesian product of test namespaces and test pods
-func GetAllPods() []PodString {
-	var allPods []PodString
-	for _, podName := range NetpolTestPods {
-		for _, ns := range NetpolTestNamespaces {
-			allPods = append(allPods, NewPodString(ns, podName))
-		}
-	}
-	return allPods
-}
-
 // prettyPrint a networkPolicy
 func jsonPrettyPrint(policy *networkingv1.NetworkPolicy) string {
 	raw, _ := json.MarshalIndent(policy, "", "\t")
@@ -71,10 +53,10 @@ func CleanPolicies(k8s *Kubernetes, namespaces []string) {
 }
 
 // ValidateOrFail validates connectivity
-func ValidateOrFail(k8s *Kubernetes, testCase *TestCase, isVerbose bool) {
+func ValidateOrFail(k8s *Kubernetes, model *Model, testCase *TestCase, isVerbose bool) {
 	ginkgo.By("Validating reachability matrix...")
 
-	ProbePodToPodConnectivity(k8s, testCase)
+	ProbePodToPodConnectivity(k8s, model, testCase)
 	if _, wrong, _ := testCase.Reachability.Summary(); wrong != 0 {
 		testCase.Reachability.PrintSummary(true, true, true)
 		framework.Failf("Had %d wrong results in reachability matrix", wrong)
@@ -94,12 +76,12 @@ func ResetNamespaceLabels(k8s *Kubernetes, ns string) {
 }
 
 // ResetDeploymentPodLabels returns a deployment's spec labels to their original state
-func ResetDeploymentPodLabels(k8s *Kubernetes, ns string, pod string) {
-	deployment, err := k8s.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
-	framework.ExpectNoError(err, "Failing to get deployment %s/%s", ns, pod)
-	deployment.Spec.Template.ObjectMeta.Labels = map[string]string{"pod": pod}
-	_, err = k8s.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), deployment, metav1.UpdateOptions{})
-	framework.ExpectNoError(err, "Failing to update deployment %s/%s labels", ns, pod)
+func ResetDeploymentPodLabels(k8s *Kubernetes, pod *Pod) {
+	deployment, err := k8s.ClientSet.AppsV1().Deployments(pod.Namespace).Get(context.TODO(), pod.DeploymentName(), metav1.GetOptions{})
+	framework.ExpectNoError(err, "Failing to get deployment %s/%s", pod.Namespace, pod.Name)
+	deployment.Spec.Template.ObjectMeta.Labels = pod.LabelSelector()
+	_, err = k8s.ClientSet.AppsV1().Deployments(pod.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+	framework.ExpectNoError(err, "Failing to update deployment %s/%s labels", pod.Namespace, pod.Name)
 	time.Sleep(10 * time.Second)
 }
 
@@ -111,13 +93,13 @@ func UpdateNamespaceLabels(k8s *Kubernetes, ns string, newNsLabel map[string]str
 }
 
 // AddDeploymentPodLabels adds new labels to a deployment's template
-func AddDeploymentPodLabels(k8s *Kubernetes, ns string, pod string, newPodLabels map[string]string) {
-	deployment, err := k8s.ClientSet.AppsV1().Deployments(ns).Get(context.TODO(), ns+pod, metav1.GetOptions{})
-	framework.ExpectNoError(err, "Failing to get deployment %s/%s", ns, pod)
+func AddDeploymentPodLabels(k8s *Kubernetes, pod *Pod, newPodLabels map[string]string) {
+	deployment, err := k8s.ClientSet.AppsV1().Deployments(pod.Namespace).Get(context.TODO(), pod.DeploymentName(), metav1.GetOptions{})
+	framework.ExpectNoError(err, "Failing to get deployment %s/%s", pod.Namespace, pod.Name)
 	for key, val := range newPodLabels {
 		deployment.Spec.Template.ObjectMeta.Labels[key] = val
 	}
-	_, err = k8s.ClientSet.AppsV1().Deployments(ns).Update(context.TODO(), deployment, metav1.UpdateOptions{})
-	framework.ExpectNoError(err, "Failing to add deployment %s/%s labels", ns, pod)
+	_, err = k8s.ClientSet.AppsV1().Deployments(pod.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+	framework.ExpectNoError(err, "Failing to add deployment %s/%s labels", pod.Namespace, pod.Name)
 	time.Sleep(10 * time.Second)
 }

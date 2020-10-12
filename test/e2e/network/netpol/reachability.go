@@ -83,18 +83,18 @@ func (p *Peer) Matches(pod PodString) bool {
 type Reachability struct {
 	Expected *TruthTable
 	Observed *TruthTable
-	Pods     []PodString
+	Pods     []*Pod
 }
 
 // NewReachability instantiates a reachability
-func NewReachability(pods []PodString, defaultExpectation bool) *Reachability {
-	items := []string{}
+func NewReachability(pods []*Pod, defaultExpectation bool) *Reachability {
+	var podNames []string
 	for _, pod := range pods {
-		items = append(items, string(pod))
+		podNames = append(podNames, pod.PodString().String())
 	}
 	r := &Reachability{
-		Expected: NewTruthTable(items, &defaultExpectation),
-		Observed: NewTruthTable(items, nil),
+		Expected: NewTruthTableFromItems(podNames, &defaultExpectation),
+		Observed: NewTruthTableFromItems(podNames, nil),
 		Pods:     pods,
 	}
 	return r
@@ -103,8 +103,9 @@ func NewReachability(pods []PodString, defaultExpectation bool) *Reachability {
 // AllowLoopback expects all communication from a pod to itself to be allowed.
 // In general, call it after setting up any other rules since loopback logic follows no policy.
 func (r *Reachability) AllowLoopback() {
-	for _, item := range r.Expected.Items {
-		r.Expected.Set(item, item, true)
+	for _, pod := range r.Pods {
+		podName := pod.PodString().String()
+		r.Expected.Set(podName, podName, true)
 	}
 }
 
@@ -132,10 +133,10 @@ func (r *Reachability) ExpectAllEgress(pod PodString, connected bool) {
 // ExpectPeer sets expected values using Peer matchers
 func (r *Reachability) ExpectPeer(from *Peer, to *Peer, connected bool) {
 	for _, fromPod := range r.Pods {
-		if from.Matches(fromPod) {
+		if from.Matches(fromPod.PodString()) {
 			for _, toPod := range r.Pods {
-				if to.Matches(toPod) {
-					r.Expected.Set(string(fromPod), string(toPod), connected)
+				if to.Matches(toPod.PodString()) {
+					r.Expected.Set(string(fromPod.PodString()), string(toPod.PodString()), connected)
 				}
 			}
 		}
@@ -143,8 +144,8 @@ func (r *Reachability) ExpectPeer(from *Peer, to *Peer, connected bool) {
 }
 
 // Observe records a single connectivity observation
-func (r *Reachability) Observe(pod1 PodString, pod2 PodString, isConnected bool) {
-	r.Observed.Set(string(pod1), string(pod2), isConnected)
+func (r *Reachability) Observe(fromPod PodString, toPod PodString, isConnected bool) {
+	r.Observed.Set(string(fromPod), string(toPod), isConnected)
 }
 
 // Summary produces a useful summary of expected and observed data

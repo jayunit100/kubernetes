@@ -23,8 +23,8 @@ import (
 
 // ProbeJob packages the data for the input of a pod->pod connectivity probe
 type ProbeJob struct {
-	PodFrom  PodString
-	PodTo    PodString
+	PodFrom  *Pod
+	PodTo    *Pod
 	FromPort int
 	ToPort   int
 	Protocol v1.Protocol
@@ -39,10 +39,10 @@ type ProbeJobResults struct {
 }
 
 // ProbePodToPodConnectivity runs a series of probes in kube, and records the results in `testCase.Reachability`
-func ProbePodToPodConnectivity(k8s *Kubernetes, testCase *TestCase) {
+func ProbePodToPodConnectivity(k8s *Kubernetes, model *Model, testCase *TestCase) {
 	k8s.ClearCache()
 	numberOfWorkers := 30
-	allPods := GetAllPods()
+	allPods := model.AllPods()
 	size := len(allPods) * len(allPods)
 	jobs := make(chan *ProbeJob, size)
 	results := make(chan *ProbeJobResults, size)
@@ -66,12 +66,12 @@ func ProbePodToPodConnectivity(k8s *Kubernetes, testCase *TestCase) {
 		result := <-results
 		job := result.Job
 		if result.Err != nil {
-			log.Infof("unable to perform probe %s -> %s: %v", job.PodFrom, job.PodTo, result.Err)
+			log.Infof("unable to perform probe %s -> %s: %v", job.PodFrom.PodString(), job.PodTo.PodString(), result.Err)
 		}
-		testCase.Reachability.Observe(job.PodFrom, job.PodTo, result.IsConnected)
-		expected := testCase.Reachability.Expected.Get(job.PodFrom.String(), job.PodTo.String())
+		testCase.Reachability.Observe(job.PodFrom.PodString(), job.PodTo.PodString(), result.IsConnected)
+		expected := testCase.Reachability.Expected.Get(job.PodFrom.PodString().String(), job.PodTo.PodString().String())
 		if result.IsConnected != expected {
-			log.Infof("Validation of %s -> %s FAILED !!!", job.PodFrom, job.PodTo)
+			log.Infof("Validation of %s -> %s FAILED !!!", job.PodFrom.PodString(), job.PodTo.PodString())
 			log.Infof("error %v ", result.Err)
 			if expected {
 				log.Infof("Expected allowed pod connection was instead BLOCKED --- run '%v'", result.Command)
@@ -85,9 +85,12 @@ func ProbePodToPodConnectivity(k8s *Kubernetes, testCase *TestCase) {
 func probeWorker(k8s *Kubernetes, jobs <-chan *ProbeJob, results chan<- *ProbeJobResults) {
 	for job := range jobs {
 		podFrom := job.PodFrom
-		podTo := job.PodTo
 		log.Debugf("starting probe job %+v", job)
-		connected, command, err := k8s.Probe(podFrom.Namespace(), podFrom.PodName(), podTo.Namespace(), podTo.PodName(), job.Protocol, job.FromPort, job.ToPort)
+		containerFrom, err := podFrom.FindContainer(int32(job.FromPort), job.Protocol)
+		if err != nil {
+			panic(err)
+		}
+		connected, command, err := k8s.Probe(podFrom.Namespace, podFrom.Name, containerFrom.Name(), job.PodTo.QualifiedServiceAddress(), job.Protocol, job.ToPort)
 		result := &ProbeJobResults{
 			Job:         job,
 			IsConnected: connected,

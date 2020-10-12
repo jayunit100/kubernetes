@@ -25,6 +25,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var protocolUDP = v1.ProtocolUDP
+
 // GetDenyIngress returns a default deny policy named 'name'.
 func GetDenyIngress(name string) *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
@@ -114,6 +116,10 @@ func GetAllowEgressByPort(name string, port *intstr.IntOrString) *networkingv1.N
 				{
 					Ports: []networkingv1.NetworkPolicyPort{
 						{Port: port},
+						{
+							Protocol: &protocolUDP,
+							Port:     &intstr.IntOrString{Type: intstr.Int, IntVal: 53},
+						},
 					},
 				},
 			},
@@ -129,7 +135,14 @@ func GetAllowEgressByPort(name string, port *intstr.IntOrString) *networkingv1.N
 func GetDenyAll(name string) *networkingv1.NetworkPolicy {
 	policy := GetDenyIngress(name)
 	policy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeEgress, networkingv1.PolicyTypeIngress}
-	policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{}
+	policy.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{
+		{Ports: []networkingv1.NetworkPolicyPort{
+			{
+				Protocol: &protocolUDP,
+				Port:     &intstr.IntOrString{Type: intstr.Int, IntVal: 53},
+			},
+		}},
+	}
 	return policy
 }
 
@@ -276,6 +289,14 @@ func GetAllowEgressByNamespaceAndPod(name string, targetLabels map[string]string
 						},
 					},
 				},
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Protocol: &protocolUDP,
+							Port:     &intstr.IntOrString{Type: intstr.Int, IntVal: 53},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -323,11 +344,21 @@ func GetAllowEgressByPod(name string, targetLabels map[string]string, peerPodSel
 				MatchLabels: targetLabels,
 			},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
-			Egress: []networkingv1.NetworkPolicyEgressRule{{
-				To: []networkingv1.NetworkPolicyPeer{{
-					PodSelector: peerPodSelector,
-				}},
-			}},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{{
+						PodSelector: peerPodSelector,
+					}},
+				},
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Protocol: &protocolUDP,
+							Port:     &intstr.IntOrString{Type: intstr.Int, IntVal: 53},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -353,6 +384,14 @@ func GetAllowEgressByCIDR(podname string, podserverCIDR string) *networkingv1.Ne
 							IPBlock: &networkingv1.IPBlock{
 								CIDR: podserverCIDR,
 							},
+						},
+					},
+				},
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Protocol: &protocolUDP,
+							Port:     &intstr.IntOrString{Type: intstr.Int, IntVal: 53},
 						},
 					},
 				},
@@ -383,6 +422,14 @@ func GetAllowEgressByCIDRExcept(podname string, podserverCIDR string, except []s
 								CIDR:   podserverCIDR,
 								Except: except,
 							},
+						},
+					},
+				},
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Protocol: &protocolUDP,
+							Port:     &intstr.IntOrString{Type: intstr.Int, IntVal: 53},
 						},
 					},
 				},
