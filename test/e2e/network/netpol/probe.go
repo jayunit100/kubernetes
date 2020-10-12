@@ -78,6 +78,8 @@ func ProbePodToPodConnectivity(k8s *Kubernetes, model *Model, testCase *TestCase
 			} else {
 				log.Infof("Expected blocked pod connection was instead ALLOWED --- run '%v'", result.Command)
 			}
+		} else {
+			log.Infof("Command returned expected result --- run '%s'", result.Command)
 		}
 	}
 }
