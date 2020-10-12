@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	v1networking "k8s.io/api/networking/v1"
-
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/kubernetes/test/e2e/network"
@@ -100,7 +98,7 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 		ginkgo.It("should support a 'default-deny-all' policy [Feature:Netpol]", func() {
 			ns := "x"
 
-			np := &v1networking.NetworkPolicy{}
+			np := &networkingv1.NetworkPolicy{}
 			policy := `
 			{
 				"kind": "NetworkPolicy",

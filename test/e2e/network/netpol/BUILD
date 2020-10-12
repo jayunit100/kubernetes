@@ -6,6 +6,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "k8s_util.go",
+        "model.go",
         "network_policy.go",
         "policies.go",
         "probe.go",
