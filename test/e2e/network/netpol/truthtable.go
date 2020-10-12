@@ -21,6 +21,7 @@ import (
 	"strings"
 )
 
+// TruthTable takes in n items and maintains an n x n table of booleans for each ordered pair
 type TruthTable struct {
 	Froms  []string
 	Tos    []string
@@ -28,10 +29,12 @@ type TruthTable struct {
 	Values map[string]map[string]bool
 }
 
+// NewTruthTableFromItems creates a new truth table with items
 func NewTruthTableFromItems(items []string, defaultValue *bool) *TruthTable {
 	return NewTruthTable(items, items, defaultValue)
 }
 
+// NewTruthTable creates a new truth table with froms and tos
 func NewTruthTable(froms []string, tos []string, defaultValue *bool) *TruthTable {
 	values := map[string]map[string]bool{}
 	for _, from := range froms {
@@ -66,6 +69,7 @@ func (tt *TruthTable) IsComplete() bool {
 	return true
 }
 
+// Set sets the value for from->to
 func (tt *TruthTable) Set(from string, to string, value bool) {
 	dict, ok := tt.Values[from]
 	if !ok {
@@ -77,6 +81,7 @@ func (tt *TruthTable) Set(from string, to string, value bool) {
 	dict[to] = value
 }
 
+// SetAllFrom sets all values where from = 'from'
 func (tt *TruthTable) SetAllFrom(from string, value bool) {
 	dict, ok := tt.Values[from]
 	if !ok {
@@ -87,6 +92,7 @@ func (tt *TruthTable) SetAllFrom(from string, value bool) {
 	}
 }
 
+// SetAllTo sets all values where to = 'to'
 func (tt *TruthTable) SetAllTo(to string, value bool) {
 	if _, ok := tt.toSet[to]; !ok {
 		panic(errors.Errorf("to-key %s not found", to))
@@ -96,6 +102,7 @@ func (tt *TruthTable) SetAllTo(to string, value bool) {
 	}
 }
 
+// Get gets the specified value
 func (tt *TruthTable) Get(from string, to string) bool {
 	dict, ok := tt.Values[from]
 	if !ok {
@@ -108,6 +115,9 @@ func (tt *TruthTable) Get(from string, to string) bool {
 	return val
 }
 
+// Compare is used to check two truth tables for equality, returning its
+// result in the form of a third truth table.  Both tables are expected to
+// have identical items.
 func (tt *TruthTable) Compare(other *TruthTable) *TruthTable {
 	if len(tt.Froms) != len(other.Froms) || len(tt.Tos) != len(other.Tos) {
 		panic("cannot compare tables of different dimensions")

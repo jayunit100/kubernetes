@@ -26,6 +26,8 @@ import (
 	"strings"
 )
 
+// Model defines the namespaces, deployments, services, pods, containers and associated
+// data for network policy test cases and provides the source of truth
 type Model struct {
 	Namespaces    []*Namespace
 	allPodStrings *[]PodString
@@ -37,6 +39,7 @@ type Model struct {
 	Protocols      []v1.Protocol
 }
 
+// NewModel instantiates a model
 func NewModel(namespaces []string, podNames []string, ports []int32, protocols []v1.Protocol) *Model {
 	model := &Model{
 		NamespaceNames: namespaces,
@@ -67,10 +70,12 @@ func NewModel(namespaces []string, podNames []string, ports []int32, protocols [
 	return model
 }
 
+// NewReachability instantiates a default-true reachability from the model's pods
 func (m *Model) NewReachability() *Reachability {
 	return NewReachability(m.AllPods(), true)
 }
 
+// AllPodStrings returns a slice of all pod strings
 func (m *Model) AllPodStrings() []PodString {
 	if m.allPodStrings == nil {
 		var pods []PodString
@@ -84,6 +89,7 @@ func (m *Model) AllPodStrings() []PodString {
 	return *m.allPodStrings
 }
 
+// AllPods returns a slice of all pods
 func (m *Model) AllPods() []*Pod {
 	if m.allPods == nil {
 		var pods []*Pod
@@ -97,6 +103,7 @@ func (m *Model) AllPods() []*Pod {
 	return *m.allPods
 }
 
+// FindPod returns the pod of matching namespace and name, or an error
 func (m *Model) FindPod(ns string, name string) (*Pod, error) {
 	for _, namespace := range m.Namespaces {
 		for _, pod := range namespace.Pods {
@@ -108,11 +115,14 @@ func (m *Model) FindPod(ns string, name string) (*Pod, error) {
 	return nil, errors.Errorf("unable to find pod %s/%s", ns, name)
 }
 
+// Namespace is the abstract representation of what matters to network policy
+// tests for a namespace; i.e. it ignores kube implementation details
 type Namespace struct {
 	Name string
 	Pods []*Pod
 }
 
+// Spec builds a kubernetes namespace spec
 func (ns *Namespace) Spec() *v1.Namespace {
 	return &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -122,16 +132,21 @@ func (ns *Namespace) Spec() *v1.Namespace {
 	}
 }
 
+// LabelSelector returns the default labels that should be placed on a namespace
+// in order for it to be uniquely selectable by label selectors
 func (ns *Namespace) LabelSelector() map[string]string {
 	return map[string]string{"ns": ns.Name}
 }
 
+// Pod is the abstract representation of what matters to network policy tests for
+// a pod; i.e. it ignores kube implementation details
 type Pod struct {
 	Namespace  string
 	Name       string
 	Containers []*Container
 }
 
+// FindContainer returns the container matching port and protocol; otherwise, an error
 func (p *Pod) FindContainer(port int32, protocol v1.Protocol) (*Container, error) {
 	for _, cont := range p.Containers {
 		if cont.Port == port && cont.Protocol == protocol {
@@ -141,10 +156,12 @@ func (p *Pod) FindContainer(port int32, protocol v1.Protocol) (*Container, error
 	return nil, errors.Errorf("unable to find container in pod %s/%s, port %d, protocol %s", p.Namespace, p.Name, port, protocol)
 }
 
+// PodString returns a corresponding pod string
 func (p *Pod) PodString() PodString {
 	return NewPodString(p.Namespace, p.Name)
 }
 
+// ContainerSpecs builds kubernetes container specs for the pod
 func (p *Pod) ContainerSpecs() []v1.Container {
 	var containers []v1.Container
 	for _, cont := range p.Containers {
@@ -153,14 +170,18 @@ func (p *Pod) ContainerSpecs() []v1.Container {
 	return containers
 }
 
+// LabelSelector returns the default labels that should be placed on a pod/deployment
+// in order for it to be uniquely selectable by label selectors
 func (p *Pod) LabelSelector() map[string]string {
 	return map[string]string{"pod": p.Name}
 }
 
+// DeploymentName returns the deployment name
 func (p *Pod) DeploymentName() string {
 	return fmt.Sprintf("%s-%s", p.Namespace, p.Name)
 }
 
+// Deployment returns the kube deployment spec
 func (p *Pod) Deployment() *appsv1.Deployment {
 	zero := int64(0)
 	one := int32(1)
@@ -188,14 +209,18 @@ func (p *Pod) Deployment() *appsv1.Deployment {
 	}
 }
 
+// QualifiedServiceAddress returns the address that can be used to hit a service from
+// any namespace in the cluster
 func (p *Pod) QualifiedServiceAddress() string {
 	return fmt.Sprintf("%s.%s.svc.cluster.local", p.ServiceName(), p.Namespace)
 }
 
+// ServiceName returns the unqualified service name
 func (p *Pod) ServiceName() string {
 	return fmt.Sprintf("s-%s-%s", p.Namespace, p.Name)
 }
 
+// Service returns a kube service spec
 func (p *Pod) Service() *v1.Service {
 	service := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -216,19 +241,24 @@ func (p *Pod) Service() *v1.Service {
 	return service
 }
 
+// Container is the abstract representation of what matters to network policy tests for
+// a container; i.e. it ignores kube implementation details
 type Container struct {
 	Port     int32
 	Protocol v1.Protocol
 }
 
+// Name returns the container name
 func (c *Container) Name() string {
 	return fmt.Sprintf("cont-%d-%s", c.Port, strings.ToLower(string(c.Protocol)))
 }
 
+// PortName returns the container port name
 func (c *Container) PortName() string {
 	return fmt.Sprintf("serve-%d-%s", c.Port, strings.ToLower(string(c.Protocol)))
 }
 
+// Spec returns the kube container spec
 func (c *Container) Spec() v1.Container {
 	var (
 		// agnHostImage is the image URI of AgnHost
