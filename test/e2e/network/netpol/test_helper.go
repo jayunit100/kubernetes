@@ -20,6 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	k8syaml "sigs.k8s.io/yaml"
+
+	"gopkg.in/yaml.v2"
 	"time"
 
 	"github.com/onsi/ginkgo"
@@ -34,10 +37,24 @@ func jsonPrettyPrint(policy *networkingv1.NetworkPolicy) string {
 	return string(raw)
 }
 
+// prettyPrint a networkPolicy
+func yamlPrettyPrint(policy *networkingv1.NetworkPolicy) string {
+	raw, _ := yaml.Marshal(policy)
+	return string(raw)
+}
+
+// prettyPrint a networkPolicy
+func k8sYamlPrettyPrint(policy *networkingv1.NetworkPolicy) string {
+	raw, _ := k8syaml.Marshal(policy)
+	return string(raw)
+}
+
 // CreateOrUpdatePolicy fails if it can not create or update the policy in the given namespace
 func CreateOrUpdatePolicy(k8s *Kubernetes, policy *networkingv1.NetworkPolicy, namespace string, isVerbose bool) {
 	if isVerbose {
 		fmt.Println("****************************************************************")
+		framework.Logf("Network Policy creating %s/%s %v", namespace, policy.Name, yamlPrettyPrint(policy))
+		framework.Logf("Network Policy creating %s/%s \n%v", namespace, policy.Name, k8sYamlPrettyPrint(policy))
 		framework.Logf("Network Policy creating %s/%s %v", namespace, policy.Name, jsonPrettyPrint(policy))
 		fmt.Println("****************************************************************")
 	}

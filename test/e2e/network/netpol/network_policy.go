@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sigs.k8s.io/yaml"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -98,8 +99,7 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 		ginkgo.It("should support a 'default-deny-all' policy [Feature:Netpol]", func() {
 			ns := "x"
 
-			np := &networkingv1.NetworkPolicy{}
-			policy := `
+			policy := unmarshalNetworkPolicyFromJSON(`
 			{
 				"kind": "NetworkPolicy",
 				"apiVersion": "networking.k8s.io/v1",
@@ -125,13 +125,9 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 				   ]
 				}
 			 }
-			 `
-			err := json.Unmarshal([]byte(policy), np)
-			if err != nil {
-				panic(err)
-			}
+			 `)
 
-			CreateOrUpdatePolicy(k8s, np, ns, true)
+			CreateOrUpdatePolicy(k8s, policy, ns, true)
 
 			reachability := NewReachability(model.AllPods(), true)
 			reachability.ExpectPeer(&Peer{}, &Peer{Namespace: "x"}, false)
@@ -161,12 +157,18 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 		ginkgo.It("should enforce policy to allow traffic only from a different namespace, based on NamespaceSelector [Feature:Netpol]", func() {
 			ns := "x"
 
-			allowedLabels := &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"ns": "y",
-				},
-			}
-			policy := GetAllowIngressByNamespace("allow-client-a-via-ns-selector", map[string]string{"pod": "a"}, allowedLabels)
+			policy := unmarshalNetworkPolicyFromK8SYaml(`
+metadata:
+  name: allow-client-a-via-ns-selector
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          ns: "y"
+  podSelector:
+    matchLabels:
+      pod: a`)
 			CreateOrUpdatePolicy(k8s, policy, ns, true)
 
 			reachability := NewReachability(model.AllPods(), true)
@@ -828,3 +830,21 @@ var _ = network.SIGDescribe("Netpol [LinuxOnly]", func() {
 		//})
 	})
 })
+
+func unmarshalNetworkPolicyFromJSON(policy string) *networkingv1.NetworkPolicy {
+	np := &networkingv1.NetworkPolicy{}
+	err := json.Unmarshal([]byte(policy), np)
+	if err != nil {
+		panic(err)
+	}
+	return np
+}
+
+func unmarshalNetworkPolicyFromK8SYaml(policy string) *networkingv1.NetworkPolicy {
+	np := &networkingv1.NetworkPolicy{}
+	err := yaml.Unmarshal([]byte(policy), np)
+	if err != nil {
+		panic(err)
+	}
+	return np
+}
