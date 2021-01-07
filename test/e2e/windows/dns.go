@@ -50,6 +50,9 @@ var _ = SIGDescribe("DNS", func() {
 			Nameservers: []string{testInjectedIP},
 			Searches:    []string{testSearchPath},
 		}
+		testUtilsPod.Spec.NodeSelector = map[string]string{
+			"kubernetes.io/os": "windows",
+		}
 		testUtilsPod, err := f.ClientSet.CoreV1().Pods(f.Namespace.Name).Create(context.TODO(), testUtilsPod, metav1.CreateOptions{})
 		framework.ExpectNoError(err)
 		framework.Logf("Created pod %v", testUtilsPod)
