@@ -74,12 +74,32 @@ func ValidateOrFail(k8s *kubeManager, model *Model, testCase *TestCase) {
 	// 2nd try, in case first one failed
 	if _, wrong, _, _ := testCase.Reachability.Summary(ignoreLoopback); wrong != 0 {
 		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
+		framework.Logf("failed first probe %d wrong results ... retrying (SECOND TRY)", wrong)
 		ProbePodToPodConnectivity(k8s, model, testCase)
 	}
 
 	// at this point we know if we passed or failed, print final matrix and pass/fail the test.
 	if _, wrong, _, _ := testCase.Reachability.Summary(ignoreLoopback); wrong != 0 {
 		testCase.Reachability.PrintSummary(true, true, true)
+
+		framework.Logf("omg peri AAAAAArrrgghghhhoing to sleeeeeeeeeeeeeep 30 min homie")
+		time.Sleep(30*time.Minute)
+
 		framework.Failf("Had %d wrong results in reachability matrix", wrong)
 	}
 	if isVerbose {

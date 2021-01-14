@@ -67,7 +67,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
-
+	"fmt"
 	restclient "k8s.io/client-go/rest"
 )
 
@@ -87,17 +87,22 @@ type Info struct {
 // If the file does not exist, then os.IsNotExist(err) == true
 func LoadFromFile(path string) (*Info, error) {
 	var info Info
+
+	fmt.Println("1 stat")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, err
 	}
+	fmt.Println("2 read")
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("3 data")
 	err = json.Unmarshal(data, &info)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("done")
 	return &info, err
 }
 

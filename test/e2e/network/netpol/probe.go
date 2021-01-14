@@ -52,6 +52,7 @@ func ProbePodToPodConnectivity(k8s *kubeManager, model *Model, testCase *TestCas
 	}
 	for _, podFrom := range allPods {
 		for _, podTo := range allPods {
+			framework.Logf("now waiting for %v", podTo)
 			jobs <- &ProbeJob{
 				PodFrom:        podFrom,
 				PodTo:          podTo,
@@ -65,6 +66,7 @@ func ProbePodToPodConnectivity(k8s *kubeManager, model *Model, testCase *TestCas
 	close(jobs)
 
 	for i := 0; i < size; i++ {
+		framework.Logf("probes %v out of %v",i, size)
 		result := <-results
 		job := result.Job
 		if result.Err != nil {

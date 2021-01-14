@@ -976,5 +976,5 @@ func initializeResources(f *framework.Framework) error {
 
 	framework.Logf("finished initializing cluster state")
 
-	return k8s.waitForHTTPServers(model)
+	return k8s.waitForHTTPServers(model, []v1.Protocol{v1.ProtocolTCP})
 }

@@ -61,12 +61,20 @@ func (k *kubeManager) initializeCluster(model *Model) error {
 		for _, pod := range ns.Pods {
 			framework.Logf("creating/updating pod %s/%s", ns.Name, pod.Name)
 
-			kubePod, err := k.createPod(pod.KubePod())
+			thePod := pod.KubePod()
+			if framework.NodeOSDistroIs("windows") {
+				thePod.Spec.NodeSelector = map[string]string{
+					"kubernetes.io/os": "windows",
+				}
+			} else {
+				framework.Logf("node distro is NOT WINDOWS !!!!!!!!!!!")
+			}
+			kubePod, err := k.createPod(thePod)
 			if err != nil {
 				return err
 			}
-			createdPods = append(createdPods, kubePod)
 
+			createdPods = append(createdPods, kubePod)
 			_, err = k.createService(pod.Service())
 			if err != nil {
 				return err
@@ -76,6 +84,7 @@ func (k *kubeManager) initializeCluster(model *Model) error {
 
 	for _, podString := range model.AllPodStrings() {
 		k8sPod, err := k.getPod(podString.Namespace(), podString.PodName())
+
 		if err != nil {
 			return err
 		}
@@ -117,6 +126,11 @@ func (k *kubeManager) probeConnectivity(nsFrom string, podFrom string, container
 		cmd = []string{"/agnhost", "connect", fmt.Sprintf("%s:%d", addrTo, toPort), "--timeout=1s", "--protocol=tcp"}
 	case v1.ProtocolUDP:
 		cmd = []string{"nc", "-v", "-z", "-w", "1", "-u", addrTo, fmt.Sprintf("%d", toPort)}
+		// just a hack
+		if framework.NodeOSDistroIs("windows") {
+			framework.Failf("not supported udp tests for windows")
+			return false, "no udp for windows", fmt.Errorf("udp on windows unsupported")
+		}
 	default:
 		framework.Failf("protocol %s not supported", protocol)
 	}
@@ -249,14 +263,14 @@ func (k *kubeManager) deleteNamespaces(namespaces []string) error {
 	return nil
 }
 
-// waitForHTTPServers waits for all webservers to be up, on all protocols, and then validates them using the same probe logic as the rest of the suite.
-func (k *kubeManager) waitForHTTPServers(model *Model) error {
+// waitForHTTPServers waits for all webservers to be up, on all protocols sent in the input,  and then validates them using the same probe logic as the rest of the suite.
+func (k *kubeManager) waitForHTTPServers(model *Model, protocols []v1.Protocol) error {
 	const maxTries = 10
 	framework.Logf("waiting for HTTP servers (ports 80 and 81) to become ready")
 
 	testCases := map[string]*TestCase{}
 	for _, port := range model.Ports {
-		for _, protocol := range model.Protocols {
+		for _, protocol := range protocols {
 			fromPort := 81
 			desc := fmt.Sprintf("%d->%d,%s", fromPort, port, protocol)
 			testCases[desc] = &TestCase{FromPort: fromPort, ToPort: int(port), Protocol: protocol}
