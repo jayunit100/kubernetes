@@ -281,7 +281,7 @@ func (k *kubeManager) waitForHTTPServers(model *Model, protocols []v1.Protocol) 
 		notReady[caseName] = true
 	}
 
-	for i := 0; i < maxTries; i++ {
+	for i := 0; i < maxTries ; i++ {
 		for caseName, testCase := range testCases {
 			if notReady[caseName] {
 				reachability := NewReachability(model.AllPods(), true)
@@ -296,6 +296,7 @@ func (k *kubeManager) waitForHTTPServers(model *Model, protocols []v1.Protocol) 
 				}
 			}
 		}
+		framework.Logf("STILL WAILTING FOR all 9 PODS TO BE baseline connected ...  %v, failures: %v", i, notReady)
 		if len(notReady) == 0 {
 			return nil
 		}
