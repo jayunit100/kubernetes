@@ -97,8 +97,8 @@ func ValidateOrFail(k8s *kubeManager, model *Model, testCase *TestCase) {
 	if _, wrong, _, _ := testCase.Reachability.Summary(ignoreLoopback); wrong != 0 {
 		testCase.Reachability.PrintSummary(true, true, true)
 
-		framework.Logf("omg peri AAAAAArrrgghghhhoing to sleeeeeeeeeeeeeep 30 min homie")
-		time.Sleep(30*time.Minute)
+		framework.Logf("omg peri AAAAAArrrgghghhhoing to sleeeeeeeeeeeeeep 30 SECONDS homie")
+		time.Sleep(30 * time.Second)
 
 		framework.Failf("Had %d wrong results in reachability matrix", wrong)
 	}
